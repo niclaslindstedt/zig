@@ -31,18 +31,10 @@ pub enum Command {
         prompt: Option<String>,
     },
 
-    /// Create a new workflow interactively with an AI agent
-    Create {
-        /// Workflow name
-        name: Option<String>,
-
-        /// Output file path (defaults to <name>.zug or workflow.zug)
-        #[arg(long, short)]
-        output: Option<String>,
-
-        /// Orchestration pattern to use
-        #[arg(long, short)]
-        pattern: Option<Pattern>,
+    /// Manage workflows (create, delete)
+    Workflow {
+        #[command(subcommand)]
+        command: WorkflowCommand,
     },
 
     /// Describe a workflow to an agent and generate a .zug file
@@ -71,6 +63,29 @@ pub enum Command {
     Man {
         /// Topic to display (e.g., run, zug, patterns). Omit to list all topics.
         topic: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum WorkflowCommand {
+    /// Create a new workflow interactively with an AI agent
+    Create {
+        /// Workflow name
+        name: Option<String>,
+
+        /// Output file path (defaults to <name>.zug or workflow.zug)
+        #[arg(long, short)]
+        output: Option<String>,
+
+        /// Orchestration pattern to use
+        #[arg(long, short)]
+        pattern: Option<Pattern>,
+    },
+
+    /// Delete a workflow file
+    Delete {
+        /// Name or path of the workflow to delete
+        workflow: String,
     },
 }
 
@@ -135,19 +150,57 @@ mod tests {
     }
 
     #[test]
-    fn parse_create_with_pattern() {
-        let cli = Cli::try_parse_from(["zig", "create", "my-wf", "--pattern", "fan-out"]).unwrap();
+    fn parse_workflow_create_with_pattern() {
+        let cli =
+            Cli::try_parse_from(["zig", "workflow", "create", "my-wf", "--pattern", "fan-out"])
+                .unwrap();
         match cli.command {
-            Command::Create {
-                name,
-                pattern,
-                output,
+            Command::Workflow {
+                command:
+                    WorkflowCommand::Create {
+                        name,
+                        pattern,
+                        output,
+                    },
             } => {
                 assert_eq!(name.as_deref(), Some("my-wf"));
                 assert!(matches!(pattern, Some(Pattern::FanOut)));
                 assert!(output.is_none());
             }
-            _ => panic!("expected Create command"),
+            _ => panic!("expected Workflow Create command"),
+        }
+    }
+
+    #[test]
+    fn parse_workflow_create_no_args() {
+        let cli = Cli::try_parse_from(["zig", "workflow", "create"]).unwrap();
+        match cli.command {
+            Command::Workflow {
+                command:
+                    WorkflowCommand::Create {
+                        name,
+                        output,
+                        pattern,
+                    },
+            } => {
+                assert!(name.is_none());
+                assert!(output.is_none());
+                assert!(pattern.is_none());
+            }
+            _ => panic!("expected Workflow Create command"),
+        }
+    }
+
+    #[test]
+    fn parse_workflow_delete() {
+        let cli = Cli::try_parse_from(["zig", "workflow", "delete", "my-wf"]).unwrap();
+        match cli.command {
+            Command::Workflow {
+                command: WorkflowCommand::Delete { workflow },
+            } => {
+                assert_eq!(workflow, "my-wf");
+            }
+            _ => panic!("expected Workflow Delete command"),
         }
     }
 

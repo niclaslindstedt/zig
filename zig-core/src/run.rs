@@ -50,7 +50,7 @@ pub(crate) fn check_zag() -> Result<(), ZigError> {
 /// 2. With `.zug` extension appended
 /// 3. Under `./workflows/` directory
 /// 4. Under `./workflows/` with `.zug` appended
-fn resolve_workflow_path(workflow: &str) -> Result<PathBuf, ZigError> {
+pub(crate) fn resolve_workflow_path(workflow: &str) -> Result<PathBuf, ZigError> {
     let candidates = [
         PathBuf::from(workflow),
         PathBuf::from(format!("{workflow}.zug")),
