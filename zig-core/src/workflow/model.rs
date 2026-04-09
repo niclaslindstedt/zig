@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// A workflow describes a DAG of agent steps with shared variables,
 /// conditional routing, and data flow between steps. It maps directly
 /// to zag orchestration commands at execution time.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Workflow {
     /// Workflow metadata.
     pub workflow: WorkflowMeta,
@@ -23,7 +23,7 @@ pub struct Workflow {
 }
 
 /// Workflow-level metadata.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct WorkflowMeta {
     /// Human-readable workflow name (used as filename if not overridden).
     pub name: String,
@@ -72,7 +72,7 @@ pub enum VarType {
 /// Each step maps to a `zag spawn` (or `zag exec` for terminal steps).
 /// Steps form a DAG via `depends_on` and can conditionally execute based
 /// on workflow variable values.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Step {
     /// Unique step identifier (used in `depends_on` references).
     pub name: String,

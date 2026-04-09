@@ -29,7 +29,7 @@ pub fn run_workflow(workflow_path: &str, user_prompt: Option<&str>) -> Result<()
 }
 
 /// Verify that `zag` is installed and available on PATH.
-fn check_zag() -> Result<(), ZigError> {
+pub(crate) fn check_zag() -> Result<(), ZigError> {
     let zag_available = Command::new("zag")
         .arg("--version")
         .output()

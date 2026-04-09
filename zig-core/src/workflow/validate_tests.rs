@@ -421,3 +421,56 @@ inject_context = true
 
     assert!(validate(&wf).is_ok());
 }
+
+#[test]
+fn error_three_node_cycle() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "three-cycle"
+
+[[step]]
+name = "a"
+prompt = "Step A"
+depends_on = ["c"]
+
+[[step]]
+name = "b"
+prompt = "Step B"
+depends_on = ["a"]
+
+[[step]]
+name = "c"
+prompt = "Step C"
+depends_on = ["b"]
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| e.to_string().contains("cycle")));
+}
+
+#[test]
+fn multiple_errors_reported_at_once() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "multi-error"
+
+[[step]]
+name = "a"
+prompt = "Uses ${missing_var}"
+depends_on = ["nonexistent"]
+next = "nowhere"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors.len() >= 3,
+        "expected at least 3 errors, got {}",
+        errors.len()
+    );
+}
