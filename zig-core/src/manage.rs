@@ -4,9 +4,18 @@ use crate::error::ZigError;
 use crate::run::resolve_workflow_path;
 use crate::workflow::parser;
 
-/// List all `.zug` workflow files found in the current directory and `./workflows/`.
+/// List all `.zug` workflow files found in the current directory, `./workflows/`,
+/// and the global `~/.zig/workflows/` directory.
 pub fn list_workflows() -> Result<(), ZigError> {
-    let entries = discover_zug_files(Path::new("."));
+    let mut entries = discover_zug_files(Path::new("."));
+
+    if let Some(global_dir) = crate::paths::global_workflows_dir() {
+        for f in discover_zug_files(&global_dir) {
+            if !entries.iter().any(|e| e.file_name() == f.file_name()) {
+                entries.push(f);
+            }
+        }
+    }
 
     if entries.is_empty() {
         println!("No workflows found.");

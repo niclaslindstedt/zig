@@ -107,10 +107,15 @@ pub fn run_create(
     let zag_orch = get_zag_orch_reference();
     let system_prompt = build_system_prompt(&zag_help, &zag_orch);
 
-    let output_path = output
-        .map(|s| s.to_string())
-        .or_else(|| name.map(|n| format!("{n}.zug")))
-        .unwrap_or_else(|| "workflow.zug".to_string());
+    let output_path = if let Some(o) = output {
+        o.to_string()
+    } else {
+        let global_dir = crate::paths::ensure_global_workflows_dir()?;
+        let filename = name
+            .map(|n| format!("{n}.zug"))
+            .unwrap_or_else(|| "workflow.zug".to_string());
+        global_dir.join(&filename).to_string_lossy().to_string()
+    };
 
     let mut initial_prompt = if let Some(n) = name {
         format!(

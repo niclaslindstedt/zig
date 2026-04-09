@@ -7,6 +7,7 @@ pub mod create;
 pub mod error;
 pub mod man;
 pub mod manage;
+pub mod paths;
 pub mod prompt;
 pub mod run;
 pub mod workflow;
