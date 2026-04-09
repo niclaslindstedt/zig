@@ -61,6 +61,20 @@ fn main() -> Result<()> {
         Command::Init => {
             println!("zig init: initializing project (not yet implemented)");
         }
+        Command::Man { topic } => {
+            if let Some(topic) = topic {
+                match zig_core::man::get(&topic) {
+                    Some(content) => print!("{content}"),
+                    None => {
+                        eprintln!("unknown manpage topic: '{topic}'\n");
+                        eprintln!("{}", zig_core::man::list_topics());
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                println!("{}", zig_core::man::list_topics());
+            }
+        }
     }
 
     Ok(())

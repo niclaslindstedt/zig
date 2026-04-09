@@ -5,6 +5,7 @@
 
 pub mod create;
 pub mod error;
+pub mod man;
 pub mod prompt;
 pub mod run;
 pub mod workflow;
