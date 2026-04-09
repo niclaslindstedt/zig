@@ -28,6 +28,17 @@ pub enum Command {
         workflow: String,
     },
 
+    /// Create a new workflow interactively with an AI agent
+    Create {
+        /// Workflow name
+        #[arg(long, short)]
+        name: Option<String>,
+
+        /// Output file path (defaults to <name>.zug or workflow.zug)
+        #[arg(long, short)]
+        output: Option<String>,
+    },
+
     /// Describe a workflow to an agent and generate a .zug file
     Describe {
         /// Natural language description of the workflow
@@ -36,6 +47,12 @@ pub enum Command {
         /// Output file path (defaults to <name>.zug)
         #[arg(long, short)]
         output: Option<String>,
+    },
+
+    /// Validate a .zug workflow file
+    Validate {
+        /// Path to the .zug file to validate
+        workflow: String,
     },
 
     /// List available workflows
