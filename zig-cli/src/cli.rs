@@ -66,6 +66,12 @@ pub enum Command {
 
     /// Initialize a new zig project in the current directory
     Init,
+
+    /// Show manual pages for zig topics
+    Man {
+        /// Topic to display (e.g., run, zug, patterns). Omit to list all topics.
+        topic: Option<String>,
+    },
 }
 
 /// Orchestration pattern for workflow creation.
