@@ -989,3 +989,292 @@ fn runtime_empty_nonrequired_skips_constraints() {
     // Empty non-required variable should pass — constraints only apply to provided values
     assert!(validate_var_values(&vars, &decls).is_ok());
 }
+
+// ── mcp_config validation ────────────────────────────────────────────────────
+
+#[test]
+fn error_mcp_config_with_non_claude_provider() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-mcp"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+provider = "gemini"
+mcp_config = "config.json"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("mcp_config")
+            && e.to_string()
+                .contains("only supported with the claude provider")
+    }));
+}
+
+#[test]
+fn valid_mcp_config_with_claude_provider() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "good-mcp"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+provider = "claude"
+mcp_config = "config.json"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn valid_mcp_config_without_provider() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "mcp-no-provider"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+mcp_config = "config.json"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+// ── output format validation ─────────────────────────────────────────────────
+
+#[test]
+fn error_invalid_output_format() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-output"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+output = "csv"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("invalid output format 'csv'") })
+    );
+}
+
+#[test]
+fn valid_output_formats() {
+    for fmt in &["text", "json", "json-pretty", "stream-json", "native-json"] {
+        let toml = format!(
+            r#"
+[workflow]
+name = "output-test"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+output = "{fmt}"
+"#
+        );
+        let wf = parse(&toml).unwrap();
+        assert!(validate(&wf).is_ok(), "format '{fmt}' should be valid");
+    }
+}
+
+// ── command step type validation ─────────────────────────────────────────────
+
+#[test]
+fn error_review_fields_without_review_command() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-review"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+uncommitted = true
+base = "main"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("'uncommitted'") && e.to_string().contains("not 'review'")
+    }));
+    assert!(
+        errors.iter().any(|e| {
+            e.to_string().contains("'base'") && e.to_string().contains("not 'review'")
+        })
+    );
+}
+
+#[test]
+fn error_plan_fields_without_plan_command() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-plan"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+plan_output = "out.md"
+instructions = "focus"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("'plan_output'") && e.to_string().contains("not 'plan'")
+    }));
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("'instructions'") && e.to_string().contains("not 'plan'")
+    }));
+}
+
+#[test]
+fn error_pipe_without_depends_on() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-pipe"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+command = "pipe"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("command 'pipe'") && e.to_string().contains("no depends_on")
+    }));
+}
+
+#[test]
+fn error_collect_without_depends_on() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-collect"
+
+[[step]]
+name = "a"
+prompt = ""
+command = "collect"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("command 'collect'") && e.to_string().contains("no depends_on")
+    }));
+}
+
+#[test]
+fn error_summary_without_depends_on() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-summary"
+
+[[step]]
+name = "a"
+prompt = ""
+command = "summary"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("command 'summary'") && e.to_string().contains("no depends_on")
+    }));
+}
+
+#[test]
+fn valid_review_command() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "good-review"
+
+[[step]]
+name = "review"
+prompt = "Review the code"
+command = "review"
+uncommitted = true
+base = "main"
+commit = "abc123"
+title = "Code Review"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn valid_plan_command() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "good-plan"
+
+[[step]]
+name = "design"
+prompt = "Design the auth system"
+command = "plan"
+plan_output = "auth-plan.md"
+instructions = "Focus on security"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn valid_pipe_with_depends_on() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "good-pipe"
+
+[[step]]
+name = "analyze"
+prompt = "Analyze code"
+
+[[step]]
+name = "synthesize"
+prompt = "Combine results"
+command = "pipe"
+depends_on = ["analyze"]
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}

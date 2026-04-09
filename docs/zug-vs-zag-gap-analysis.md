@@ -85,43 +85,27 @@ first" (early-exit race pattern).
 **Impact**: Cannot escalate to a larger model on failure (self-healing with
 escalation pattern).
 
-### 6. Context Injection (Low-Medium Impact)
+### ~~6. Context Injection (Low-Medium Impact)~~ — **Implemented**
 
-| Zag Feature | .zug Gap |
-|---|---|
-| `--context <SESSION_ID>` | `inject_context` only from direct `depends_on` |
-| `--plan <PATH>` | No plan file injection |
+`context` (list of session IDs) and `plan` (file path) fields on steps,
+wired to `--context` and `--plan` flags on zag.
 
-**Impact**: Cannot inject context from arbitrary prior sessions or plan files.
+### ~~7. Per-Step Configuration (Low-Medium Impact)~~ — **Implemented**
 
-### 7. Per-Step Configuration (Low-Medium Impact)
+All fields implemented: `auto_approve`, `add_dirs`, `env`, `files`,
+`mcp_config`, `root`. Only `--size` (Ollama) remains unimplemented.
 
-| Zag Feature | .zug Gap |
-|---|---|
-| `--auto-approve` | No per-step auto-approve |
-| `--add-dir <PATH>` | No additional directories |
-| `--env KEY=VALUE` | No per-step environment variables |
-| `--file <PATH>` | No file attachments |
-| `--mcp-config` | No per-step MCP config |
-| `--root <ROOT>` | No per-step working directory |
-| `--size <SIZE>` | No Ollama model size parameter |
+### ~~8. Output Format Control (Low Impact)~~ — **Implemented**
 
-### 8. Output Format Control (Low Impact)
+`output` field accepts `"text"`, `"json"`, `"json-pretty"`, `"stream-json"`,
+`"native-json"`. When set, overrides the `json` bool and maps to `-o <FORMAT>`.
 
-| Zag Feature | .zug Gap |
-|---|---|
-| `-o text/json/json-pretty/stream-json/native-json` | Only `json = true/false` |
-| `--json-stream` (NDJSON) | No streaming output |
+### ~~9. First-Class Command Step Types (Low Impact)~~ — **Implemented**
 
-### 9. First-Class Command Step Types (Low Impact)
-
-| Zag Command | .zug Gap |
-|---|---|
-| `review` (code review) | Must use generic prompt |
-| `plan` (generate plan) | Must use generic prompt |
-| `pipe` (explicit chaining) | No explicit pipe between arbitrary steps |
-| `collect` (result aggregation) | No explicit collection step |
-| `summary` (stats) | No summary aggregation step |
+`command` field with enum values: `"review"`, `"plan"`, `"pipe"`, `"collect"`,
+`"summary"`. Each dispatches to the corresponding zag subcommand with
+command-specific options (`uncommitted`, `base`, `commit`, `title`,
+`plan_output`, `instructions`).
 
 ### 10. Session Metadata (Low Impact)
 
@@ -146,26 +130,30 @@ escalation pattern).
 
 ## Recommendations (Priority Order)
 
-1. ~~**`interactive` step flag + `input` support**~~ — **Implemented**
+1. ~~**`interactive` step flag + `input` support**~~ — **Implemented** (field only)
 2. ~~**`worktree` / `sandbox` per step**~~ — **Implemented**
 3. ~~**`race` mode / `cancel` support**~~ — **Implemented** (`race_group` field)
 4. ~~**`auto_approve` per step**~~ — **Implemented**
 5. ~~**`env` / `root` / `add_dir` per step**~~ — **Implemented**
 6. ~~**`description` field on steps**~~ — **Implemented**
 7. ~~**Retry with model override**~~ — **Implemented** (`retry_model` field)
-8. **Event hooks / `watch` equivalent** — Not yet implemented (requires
-   runtime execution engine support beyond step field additions).
+8. ~~**Context injection (`context`, `plan`)**~~ — **Implemented**
+9. ~~**MCP config per step**~~ — **Implemented** (`mcp_config` field)
+10. ~~**Output format control**~~ — **Implemented** (`output` field)
+11. ~~**Command step types (review, plan, pipe, collect, summary)**~~ — **Implemented** (`command` field)
+12. **Event hooks / `watch` equivalent** — Not yet implemented (requires
+    runtime execution engine support beyond step field additions).
 
 ## Remaining Gaps
 
-After implementing recommendations 1-7 at the model layer and wiring them
+After implementing recommendations 1-11 at the model layer and wiring them
 through to zag CLI flags in the execution engine, the remaining gaps are:
 
 - **`interactive` execution** — the field is parsed and validated, but executing
-  interactive steps requires `zag spawn` (not `zag run`) which is a fundamentally
-  different execution model (async session lifecycle). Deferred pending deeper
-  investigation of `zag spawn` blocking behavior.
+  interactive steps requires `zag spawn --interactive` (not `zag run`) which is
+  a fundamentally different execution model (async session lifecycle). Deferred
+  pending deeper investigation of `zag spawn` blocking behavior.
 - **Event-driven automation** (`watch`, `subscribe`) — requires runtime support
 - **`input` / `broadcast` at runtime** — the `interactive` field enables the
   session mode, but sending messages requires execution engine integration
-- **`mcp_config` per step** — not yet added (low priority)
+- **`--size` per step** — Ollama model size parameter (very low priority)

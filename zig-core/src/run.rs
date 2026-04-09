@@ -4,7 +4,7 @@ use std::process::Command;
 use std::time::Duration;
 
 use crate::error::ZigError;
-use crate::workflow::model::{FailurePolicy, Step, Workflow};
+use crate::workflow::model::{FailurePolicy, Step, StepCommand, Workflow};
 use crate::workflow::{parser, validate};
 
 /// Maximum number of loop iterations to prevent infinite loops from `next` fields.
@@ -304,43 +304,154 @@ fn render_step_prompt(
     prompt
 }
 
-/// Build the argument list for a `zag run` invocation.
+/// Build the argument list for a zag invocation.
 ///
 /// Separated from `execute_step` to allow unit testing of flag logic
 /// without a real `zag` binary. The optional `model_override` is used
 /// during retries when `retry_model` escalates to a different model.
+///
+/// The subcommand is determined by `step.command`:
+/// - `None` → `zag run <prompt>` (default)
+/// - `Review` → `zag review [prompt] [--uncommitted] [--base] [--commit] [--title]`
+/// - `Plan` → `zag plan <prompt> [-o path] [--instructions]`
+/// - `Pipe` → `zag pipe <session-ids...> -- <prompt>`
+/// - `Collect` → `zag collect <session-ids...>`
+/// - `Summary` → `zag summary <session-ids...>`
 fn build_zag_args(
     step: &Step,
     prompt: &str,
     workflow_name: &str,
     model_override: Option<&str>,
 ) -> Vec<String> {
-    let mut args = vec!["run".to_string(), prompt.to_string()];
+    let session_name = |dep: &str| format!("zig-{workflow_name}-{dep}");
 
-    if let Some(provider) = &step.provider {
-        args.extend(["--provider".into(), provider.clone()]);
+    // Build command-specific prefix and determine if agent args apply
+    let (mut args, accepts_agent_args) = match &step.command {
+        None => (vec!["run".to_string(), prompt.to_string()], true),
+        Some(StepCommand::Review) => {
+            let mut a = vec!["review".to_string()];
+            if !prompt.is_empty() {
+                a.push(prompt.to_string());
+            }
+            if step.uncommitted {
+                a.push("--uncommitted".into());
+            }
+            if let Some(base) = &step.base {
+                a.extend(["--base".into(), base.clone()]);
+            }
+            if let Some(commit) = &step.commit {
+                a.extend(["--commit".into(), commit.clone()]);
+            }
+            if let Some(title) = &step.title {
+                a.extend(["--title".into(), title.clone()]);
+            }
+            (a, true)
+        }
+        Some(StepCommand::Plan) => {
+            let mut a = vec!["plan".to_string(), prompt.to_string()];
+            if let Some(output) = &step.plan_output {
+                a.extend(["-o".into(), output.clone()]);
+            }
+            if let Some(instructions) = &step.instructions {
+                a.extend(["--instructions".into(), instructions.clone()]);
+            }
+            (a, true)
+        }
+        Some(StepCommand::Pipe) => {
+            let mut a = vec!["pipe".to_string()];
+            for dep in &step.depends_on {
+                a.push(session_name(dep));
+            }
+            a.push("--".into());
+            a.push(prompt.to_string());
+            (a, true)
+        }
+        Some(StepCommand::Collect) => {
+            let mut a = vec!["collect".to_string()];
+            for dep in &step.depends_on {
+                a.push(session_name(dep));
+            }
+            (a, false)
+        }
+        Some(StepCommand::Summary) => {
+            let mut a = vec!["summary".to_string()];
+            for dep in &step.depends_on {
+                a.push(session_name(dep));
+            }
+            (a, false)
+        }
+    };
+
+    // Agent args (provider, model, prompts, output, etc.) only apply to
+    // commands that launch an agent: run, review, plan, pipe.
+    if accepts_agent_args {
+        if let Some(provider) = &step.provider {
+            args.extend(["--provider".into(), provider.clone()]);
+        }
+
+        let effective_model = model_override.or(step.model.as_deref());
+        if let Some(model) = effective_model {
+            args.extend(["--model".into(), model.to_string()]);
+        }
+
+        if let Some(system_prompt) = &step.system_prompt {
+            args.extend(["--system-prompt".into(), system_prompt.clone()]);
+        }
+        if let Some(max_turns) = step.max_turns {
+            args.extend(["--max-turns".into(), max_turns.to_string()]);
+        }
+
+        // Output format: explicit format overrides the json bool
+        if let Some(output) = &step.output {
+            args.extend(["-o".into(), output.clone()]);
+        } else if step.json {
+            args.push("--json".into());
+        }
+        if let Some(schema) = &step.json_schema {
+            args.extend(["--json-schema".into(), schema.clone()]);
+        }
+
+        if let Some(mcp_config) = &step.mcp_config {
+            args.extend(["--mcp-config".into(), mcp_config.clone()]);
+        }
+
+        // Execution environment
+        if step.auto_approve {
+            args.push("--auto-approve".into());
+        }
+        if let Some(root) = &step.root {
+            args.extend(["--root".into(), root.clone()]);
+        }
+        for dir in &step.add_dirs {
+            args.extend(["--add-dir".into(), dir.clone()]);
+        }
+        for (key, value) in &step.env {
+            args.extend(["--env".into(), format!("{key}={value}")]);
+        }
+        for file in &step.files {
+            args.extend(["--file".into(), file.clone()]);
+        }
+
+        // Context injection
+        for ctx in &step.context {
+            args.extend(["--context".into(), ctx.clone()]);
+        }
+        if let Some(plan) = &step.plan {
+            args.extend(["--plan".into(), plan.clone()]);
+        }
+
+        // Isolation
+        if step.worktree {
+            args.push("--worktree".into());
+        }
+        if let Some(sandbox) = &step.sandbox {
+            args.extend(["--sandbox".into(), sandbox.clone()]);
+        }
     }
 
-    let effective_model = model_override.or(step.model.as_deref());
-    if let Some(model) = effective_model {
-        args.extend(["--model".into(), model.to_string()]);
-    }
-
-    if let Some(system_prompt) = &step.system_prompt {
-        args.extend(["--system-prompt".into(), system_prompt.clone()]);
-    }
-    if let Some(max_turns) = step.max_turns {
-        args.extend(["--max-turns".into(), max_turns.to_string()]);
-    }
-    if step.json {
-        args.push("--json".into());
-    }
-    if let Some(schema) = &step.json_schema {
-        args.extend(["--json-schema".into(), schema.clone()]);
-    }
-
-    let session_name = format!("zig-{workflow_name}-{}", step.name);
-    args.extend(["--name".into(), session_name]);
+    // Session metadata applies to all commands
+    let name = session_name(&step.name);
+    args.extend(["--name".into(), name]);
 
     if !step.description.is_empty() {
         args.extend(["--description".into(), step.description.clone()]);
@@ -353,31 +464,6 @@ fn build_zag_args(
 
     if let Some(timeout) = &step.timeout {
         args.extend(["--timeout".into(), timeout.clone()]);
-    }
-
-    // Execution environment
-    if step.auto_approve {
-        args.push("--auto-approve".into());
-    }
-    if let Some(root) = &step.root {
-        args.extend(["--root".into(), root.clone()]);
-    }
-    for dir in &step.add_dirs {
-        args.extend(["--add-dir".into(), dir.clone()]);
-    }
-    for (key, value) in &step.env {
-        args.extend(["--env".into(), format!("{key}={value}")]);
-    }
-    for file in &step.files {
-        args.extend(["--file".into(), file.clone()]);
-    }
-
-    // Isolation
-    if step.worktree {
-        args.push("--worktree".into());
-    }
-    if let Some(sandbox) = &step.sandbox {
-        args.extend(["--sandbox".into(), sandbox.clone()]);
     }
 
     args
