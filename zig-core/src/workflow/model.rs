@@ -146,6 +146,57 @@ pub struct Step {
     /// Maximum number of agentic turns for this step.
     #[serde(default)]
     pub max_turns: Option<u32>,
+
+    // --- Observability ---
+    /// Human-readable description of this step's purpose.
+    #[serde(default)]
+    pub description: String,
+
+    // --- Execution environment ---
+    /// If true, spawn a long-lived interactive session (FIFO-based).
+    /// Enables Human-in-the-Loop and Inter-Agent Communication patterns.
+    #[serde(default)]
+    pub interactive: bool,
+
+    /// If true, auto-approve all agent actions (skip permission prompts).
+    #[serde(default)]
+    pub auto_approve: bool,
+
+    /// Working directory override for this step's agent.
+    #[serde(default)]
+    pub root: Option<String>,
+
+    /// Additional directories to include in the agent's scope.
+    #[serde(default)]
+    pub add_dirs: Vec<String>,
+
+    /// Per-step environment variables.
+    #[serde(default)]
+    pub env: HashMap<String, String>,
+
+    /// Files to attach to the agent prompt.
+    #[serde(default)]
+    pub files: Vec<String>,
+
+    // --- Isolation ---
+    /// If true, run this step in an isolated git worktree.
+    #[serde(default)]
+    pub worktree: bool,
+
+    /// Docker sandbox name. If set, the step runs inside a sandbox.
+    #[serde(default)]
+    pub sandbox: Option<String>,
+
+    // --- Advanced orchestration ---
+    /// Race group name. Steps sharing a race_group run in parallel;
+    /// when the first completes, the rest are cancelled.
+    #[serde(default)]
+    pub race_group: Option<String>,
+
+    /// Model to use when retrying this step (only applies when
+    /// on_failure = "retry"). Enables escalation to a larger model.
+    #[serde(default)]
+    pub retry_model: Option<String>,
 }
 
 /// What to do when a step fails.

@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::error::ZigError;
-use crate::workflow::model::Workflow;
+use crate::workflow::model::{FailurePolicy, Workflow};
 
 /// Validate a parsed workflow for structural correctness.
 ///
@@ -93,6 +93,41 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
                         "step '{}' condition references unknown variable '{var_ref}'",
                         step.name
                     )));
+                }
+            }
+        }
+
+        // Check retry_model requires on_failure = "retry"
+        if step.retry_model.is_some() && step.on_failure.as_ref() != Some(&FailurePolicy::Retry) {
+            errors.push(ZigError::Validation(format!(
+                "step '{}' sets retry_model but on_failure is not 'retry'",
+                step.name
+            )));
+        }
+    }
+
+    // Check race_group: steps in the same group must not depend on each other
+    let mut race_groups: HashMap<&str, Vec<&str>> = HashMap::new();
+    for step in &workflow.steps {
+        if let Some(ref group) = step.race_group {
+            race_groups
+                .entry(group.as_str())
+                .or_default()
+                .push(step.name.as_str());
+        }
+    }
+    for (group, members) in &race_groups {
+        let member_set: HashSet<&str> = members.iter().copied().collect();
+        for step in &workflow.steps {
+            if step.race_group.as_deref() == Some(*group) {
+                for dep in &step.depends_on {
+                    if member_set.contains(dep.as_str()) {
+                        errors.push(ZigError::Validation(format!(
+                            "step '{}' depends on '{}' but both are in race_group '{}' \
+                             (race members must not depend on each other)",
+                            step.name, dep, group
+                        )));
+                    }
                 }
             }
         }
