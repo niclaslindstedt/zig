@@ -29,7 +29,7 @@ Describe workflows. Share them. Run them.
 zig describe "review all PRs, run tests, and generate a summary report"
 
 # See what workflows are available
-zig list
+zig workflow list
 
 # Run a workflow
 zig run code-review
@@ -68,12 +68,13 @@ cargo install --path zig-cli
 
 ```
 zig run <workflow>              Execute a .zug workflow file
+zig workflow list               List available workflows
+zig workflow show <workflow>    Show details of a workflow
 zig workflow create [name]      Create a new workflow interactively with an AI agent
 zig workflow delete <workflow>  Delete a workflow file
 zig validate <file>             Validate a .zug workflow file
 zig man [topic]                 Show manual pages for zig topics
 zig describe <prompt>           Generate a .zug file from a prompt (not yet implemented)
-zig list                        List available workflows (not yet implemented)
 zig init                        Initialize a new zig project (not yet implemented)
 ```
 

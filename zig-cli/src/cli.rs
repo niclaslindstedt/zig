@@ -31,7 +31,7 @@ pub enum Command {
         prompt: Option<String>,
     },
 
-    /// Manage workflows (create, delete, list, show)
+    /// Manage workflows (list, show, create, delete)
     Workflow {
         #[command(subcommand)]
         command: WorkflowCommand,
@@ -53,9 +53,6 @@ pub enum Command {
         workflow: String,
     },
 
-    /// List available workflows
-    List,
-
     /// Initialize a new zig project in the current directory
     Init,
 
@@ -66,8 +63,24 @@ pub enum Command {
     },
 }
 
+/// Subcommands for `zig workflow`.
 #[derive(Subcommand)]
 pub enum WorkflowCommand {
+    /// List available workflows
+    List,
+
+    /// Show details of a workflow
+    Show {
+        /// Name or path of the workflow to show
+        workflow: String,
+    },
+
+    /// Delete a workflow file
+    Delete {
+        /// Name or path of the workflow to delete
+        workflow: String,
+    },
+
     /// Create a new workflow interactively with an AI agent
     Create {
         /// Workflow name
@@ -80,21 +93,6 @@ pub enum WorkflowCommand {
         /// Orchestration pattern to use
         #[arg(long, short)]
         pattern: Option<Pattern>,
-    },
-
-    /// Delete a workflow file
-    Delete {
-        /// Name or path of the workflow to delete
-        workflow: String,
-    },
-
-    /// List available workflows
-    List,
-
-    /// Show details of a workflow
-    Show {
-        /// Name or path of the workflow to show
-        workflow: String,
     },
 }
 
@@ -201,14 +199,34 @@ mod tests {
     }
 
     #[test]
+    fn parse_workflow_list() {
+        let cli = Cli::try_parse_from(["zig", "workflow", "list"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Workflow {
+                command: WorkflowCommand::List
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_workflow_show() {
+        let cli = Cli::try_parse_from(["zig", "workflow", "show", "my-wf"]).unwrap();
+        match cli.command {
+            Command::Workflow {
+                command: WorkflowCommand::Show { workflow },
+            } => assert_eq!(workflow, "my-wf"),
+            _ => panic!("expected Workflow Show command"),
+        }
+    }
+
+    #[test]
     fn parse_workflow_delete() {
         let cli = Cli::try_parse_from(["zig", "workflow", "delete", "my-wf"]).unwrap();
         match cli.command {
             Command::Workflow {
                 command: WorkflowCommand::Delete { workflow },
-            } => {
-                assert_eq!(workflow, "my-wf");
-            }
+            } => assert_eq!(workflow, "my-wf"),
             _ => panic!("expected Workflow Delete command"),
         }
     }
@@ -241,32 +259,8 @@ mod tests {
     }
 
     #[test]
-    fn parse_workflow_list() {
-        let cli = Cli::try_parse_from(["zig", "workflow", "list"]).unwrap();
-        match cli.command {
-            Command::Workflow {
-                command: WorkflowCommand::List,
-            } => {}
-            _ => panic!("expected Workflow List command"),
-        }
-    }
-
-    #[test]
-    fn parse_workflow_show() {
-        let cli = Cli::try_parse_from(["zig", "workflow", "show", "my-wf"]).unwrap();
-        match cli.command {
-            Command::Workflow {
-                command: WorkflowCommand::Show { workflow },
-            } => {
-                assert_eq!(workflow, "my-wf");
-            }
-            _ => panic!("expected Workflow Show command"),
-        }
-    }
-
-    #[test]
     fn parse_global_flags() {
-        let cli = Cli::try_parse_from(["zig", "--debug", "--quiet", "list"]).unwrap();
+        let cli = Cli::try_parse_from(["zig", "--debug", "--quiet", "workflow", "list"]).unwrap();
         assert!(cli.debug);
         assert!(cli.quiet);
     }

@@ -14,6 +14,15 @@ fn main() -> Result<()> {
             zig_core::run::run_workflow(&workflow, prompt.as_deref())?;
         }
         Command::Workflow { command } => match command {
+            WorkflowCommand::List => {
+                zig_core::manage::list_workflows()?;
+            }
+            WorkflowCommand::Show { workflow } => {
+                zig_core::manage::show_workflow(&workflow)?;
+            }
+            WorkflowCommand::Delete { workflow } => {
+                zig_core::manage::delete_workflow(&workflow)?;
+            }
             WorkflowCommand::Create {
                 name,
                 output,
@@ -24,15 +33,6 @@ fn main() -> Result<()> {
                     output.as_deref(),
                     pattern.as_ref().map(|p| p.as_core_name()),
                 )?;
-            }
-            WorkflowCommand::Delete { workflow } => {
-                zig_core::delete::run_delete(&workflow)?;
-            }
-            WorkflowCommand::List => {
-                zig_core::list::run_list()?;
-            }
-            WorkflowCommand::Show { workflow } => {
-                zig_core::list::run_show(&workflow)?;
             }
         },
         Command::Describe { prompt, output } => {
@@ -65,9 +65,6 @@ fn main() -> Result<()> {
                     std::process::exit(1);
                 }
             }
-        }
-        Command::List => {
-            zig_core::list::run_list()?;
         }
         Command::Init => {
             println!("zig init: initializing project (not yet implemented)");
