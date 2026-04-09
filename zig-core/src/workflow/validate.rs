@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use regex::Regex;
 
 use crate::error::ZigError;
-use crate::workflow::model::{FailurePolicy, VarType, Variable, Workflow};
+use crate::workflow::model::{FailurePolicy, StepCommand, VarType, Variable, Workflow};
 
 /// Validate a parsed workflow for structural correctness.
 ///
@@ -105,6 +105,94 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
                 "step '{}' sets retry_model but on_failure is not 'retry'",
                 step.name
             )));
+        }
+
+        // Check mcp_config requires claude provider (or no provider specified)
+        if step.mcp_config.is_some() {
+            if let Some(ref provider) = step.provider {
+                if provider != "claude" {
+                    errors.push(ZigError::Validation(format!(
+                        "step '{}' sets mcp_config but provider is '{}' \
+                         (mcp_config is only supported with the claude provider)",
+                        step.name, provider
+                    )));
+                }
+            }
+        }
+
+        // Check output format is a valid value
+        if let Some(ref output) = step.output {
+            let valid_formats = ["text", "json", "json-pretty", "stream-json", "native-json"];
+            if !valid_formats.contains(&output.as_str()) {
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' has invalid output format '{}' \
+                     (must be one of: text, json, json-pretty, stream-json, native-json)",
+                    step.name, output
+                )));
+            }
+        }
+
+        // Check review-only fields require command = "review"
+        let is_review = step.command.as_ref() == Some(&StepCommand::Review);
+        if !is_review {
+            for (field, set) in [("uncommitted", step.uncommitted)] {
+                if set {
+                    errors.push(ZigError::Validation(format!(
+                        "step '{}' sets '{}' but command is not 'review'",
+                        step.name, field
+                    )));
+                }
+            }
+            for (field, set) in [
+                ("base", step.base.is_some()),
+                ("commit", step.commit.is_some()),
+                ("title", step.title.is_some()),
+            ] {
+                if set {
+                    errors.push(ZigError::Validation(format!(
+                        "step '{}' sets '{}' but command is not 'review'",
+                        step.name, field
+                    )));
+                }
+            }
+        }
+
+        // Check plan-only fields require command = "plan"
+        let is_plan = step.command.as_ref() == Some(&StepCommand::Plan);
+        if !is_plan {
+            for (field, set) in [
+                ("plan_output", step.plan_output.is_some()),
+                ("instructions", step.instructions.is_some()),
+            ] {
+                if set {
+                    errors.push(ZigError::Validation(format!(
+                        "step '{}' sets '{}' but command is not 'plan'",
+                        step.name, field
+                    )));
+                }
+            }
+        }
+
+        // Check pipe/collect/summary require depends_on
+        if let Some(ref cmd) = step.command {
+            match cmd {
+                StepCommand::Pipe | StepCommand::Collect | StepCommand::Summary => {
+                    if step.depends_on.is_empty() {
+                        errors.push(ZigError::Validation(format!(
+                            "step '{}' uses command '{}' but has no depends_on \
+                             (pipe/collect/summary operate on prior session outputs)",
+                            step.name,
+                            match cmd {
+                                StepCommand::Pipe => "pipe",
+                                StepCommand::Collect => "collect",
+                                StepCommand::Summary => "summary",
+                                _ => unreachable!(),
+                            }
+                        )));
+                    }
+                }
+                _ => {}
+            }
         }
     }
 

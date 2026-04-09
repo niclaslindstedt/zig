@@ -1,6 +1,6 @@
 use super::*;
 
-use crate::workflow::model::{FailurePolicy, VarType};
+use crate::workflow::model::{FailurePolicy, StepCommand, VarType};
 
 const MINIMAL_WORKFLOW: &str = r#"
 [workflow]
@@ -340,4 +340,166 @@ prompt = "Do ${input}"
     assert_eq!(input.from.as_deref(), Some("prompt"));
     assert!(input.required);
     assert_eq!(input.min_length, Some(5));
+}
+
+#[test]
+fn parse_context_injection_fields() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "ctx-test"
+
+[[step]]
+name = "worker"
+prompt = "Do work"
+context = ["session-abc", "session-def"]
+plan = "plan.md"
+mcp_config = "mcp.json"
+"#,
+    )
+    .unwrap();
+
+    let step = &wf.steps[0];
+    assert_eq!(step.context, vec!["session-abc", "session-def"]);
+    assert_eq!(step.plan.as_deref(), Some("plan.md"));
+    assert_eq!(step.mcp_config.as_deref(), Some("mcp.json"));
+}
+
+#[test]
+fn parse_output_format() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "output-test"
+
+[[step]]
+name = "worker"
+prompt = "Do work"
+output = "stream-json"
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(wf.steps[0].output.as_deref(), Some("stream-json"));
+}
+
+#[test]
+fn parse_command_review() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "review-test"
+
+[[step]]
+name = "review-code"
+prompt = "Focus on security"
+command = "review"
+uncommitted = true
+base = "main"
+title = "Security Review"
+"#,
+    )
+    .unwrap();
+
+    let step = &wf.steps[0];
+    assert_eq!(step.command, Some(StepCommand::Review));
+    assert!(step.uncommitted);
+    assert_eq!(step.base.as_deref(), Some("main"));
+    assert_eq!(step.title.as_deref(), Some("Security Review"));
+}
+
+#[test]
+fn parse_command_plan() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "plan-test"
+
+[[step]]
+name = "make-plan"
+prompt = "Design the auth system"
+command = "plan"
+plan_output = "auth-plan.md"
+instructions = "Focus on security"
+"#,
+    )
+    .unwrap();
+
+    let step = &wf.steps[0];
+    assert_eq!(step.command, Some(StepCommand::Plan));
+    assert_eq!(step.plan_output.as_deref(), Some("auth-plan.md"));
+    assert_eq!(step.instructions.as_deref(), Some("Focus on security"));
+}
+
+#[test]
+fn parse_command_pipe() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "pipe-test"
+
+[[step]]
+name = "analyze"
+prompt = "Analyze the code"
+
+[[step]]
+name = "synthesize"
+prompt = "Combine the results"
+command = "pipe"
+depends_on = ["analyze"]
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(wf.steps[1].command, Some(StepCommand::Pipe));
+}
+
+#[test]
+fn parse_command_collect() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "collect-test"
+
+[[step]]
+name = "worker-a"
+prompt = "Do A"
+
+[[step]]
+name = "worker-b"
+prompt = "Do B"
+
+[[step]]
+name = "gather"
+prompt = ""
+command = "collect"
+depends_on = ["worker-a", "worker-b"]
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(wf.steps[2].command, Some(StepCommand::Collect));
+}
+
+#[test]
+fn parse_command_summary() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "summary-test"
+
+[[step]]
+name = "worker"
+prompt = "Do work"
+
+[[step]]
+name = "stats"
+prompt = ""
+command = "summary"
+depends_on = ["worker"]
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(wf.steps[1].command, Some(StepCommand::Summary));
 }

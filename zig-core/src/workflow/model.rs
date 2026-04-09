@@ -148,6 +148,11 @@ pub struct Step {
     #[serde(default)]
     pub json_schema: Option<String>,
 
+    /// Output format override: "text", "json", "json-pretty", "stream-json", "native-json".
+    /// When set, maps to `-o <FORMAT>` on zag and overrides the `json` bool field.
+    #[serde(default)]
+    pub output: Option<String>,
+
     /// Map of variable names to save from this step's output.
     /// Values are JSONPath-like selectors (e.g., `"$.score"`).
     /// If the output is plain text, use `"$"` to capture the full output.
@@ -214,6 +219,22 @@ pub struct Step {
     #[serde(default)]
     pub files: Vec<String>,
 
+    // --- Context injection ---
+    /// Session IDs to inject as context (beyond depends_on).
+    /// Maps to `--context <SESSION_ID>` flags on zag.
+    #[serde(default)]
+    pub context: Vec<String>,
+
+    /// Path to a plan file to prepend as context.
+    /// Maps to `--plan <PATH>` on zag.
+    #[serde(default)]
+    pub plan: Option<String>,
+
+    /// Per-step MCP configuration (JSON string or file path, Claude only).
+    /// Maps to `--mcp-config <CONFIG>` on zag.
+    #[serde(default)]
+    pub mcp_config: Option<String>,
+
     // --- Isolation ---
     /// If true, run this step in an isolated git worktree.
     #[serde(default)]
@@ -233,6 +254,36 @@ pub struct Step {
     /// on_failure = "retry"). Enables escalation to a larger model.
     #[serde(default)]
     pub retry_model: Option<String>,
+
+    // --- Command step types ---
+    /// Zag command to invoke for this step. Default (None) uses `zag run`.
+    /// Other options: "review", "plan", "pipe", "collect", "summary".
+    #[serde(default)]
+    pub command: Option<StepCommand>,
+
+    /// Review uncommitted changes (only valid when `command = "review"`).
+    #[serde(default)]
+    pub uncommitted: bool,
+
+    /// Base branch for review diff (only valid when `command = "review"`).
+    #[serde(default)]
+    pub base: Option<String>,
+
+    /// Specific commit to review (only valid when `command = "review"`).
+    #[serde(default)]
+    pub commit: Option<String>,
+
+    /// Title for the review (only valid when `command = "review"`).
+    #[serde(default)]
+    pub title: Option<String>,
+
+    /// Output path for generated plan (only valid when `command = "plan"`).
+    #[serde(default)]
+    pub plan_output: Option<String>,
+
+    /// Additional instructions for plan generation (only valid when `command = "plan"`).
+    #[serde(default)]
+    pub instructions: Option<String>,
 }
 
 /// What to do when a step fails.
@@ -246,6 +297,23 @@ pub enum FailurePolicy {
     Continue,
     /// Retry the step up to `max_retries` times.
     Retry,
+}
+
+/// Zag command type for a step. When set, changes which zag subcommand
+/// is invoked instead of the default `zag run`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StepCommand {
+    /// Code review: `zag review`.
+    Review,
+    /// Implementation plan generation: `zag plan`.
+    Plan,
+    /// Chain session results into new agent: `zag pipe`.
+    Pipe,
+    /// Gather results from multiple sessions: `zag collect`.
+    Collect,
+    /// Log-based summary/stats: `zag summary`.
+    Summary,
 }
 
 impl std::fmt::Display for VarType {
