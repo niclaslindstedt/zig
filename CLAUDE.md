@@ -63,7 +63,7 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 5. **Workflow validation** → `zig-core/src/workflow/validate.rs`
 6. **Workflow execution** → `zig-core/src/run.rs`
 7. **Workflow creation** → `zig-core/src/create.rs`
-8. **Workflow deletion** → `zig-core/src/delete.rs`
+8. **Workflow management** → `zig-core/src/manage.rs` (list, show, delete)
 9. **Prompt templates** → `zig-core/src/prompt.rs` + `prompts/`
 10. **Manpages** → `manpages/*.md` + `zig-core/src/man.rs`
 
@@ -73,7 +73,7 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 |-------------|----------------|
 | New CLI command | `zig-cli/src/cli.rs` (Command or WorkflowCommand enum), `zig-cli/src/main.rs`, `manpages/<cmd>.md`, `zig-core/src/man.rs`, `README.md` |
 | New CLI flag | `zig-cli/src/cli.rs`, relevant `manpages/*.md`, `README.md` |
-| New pattern | `zig-cli/src/cli.rs` (Pattern enum), `manpages/patterns.md`, `manpages/create.md` |
+| New pattern | `zig-cli/src/cli.rs` (Pattern enum), `manpages/patterns.md`, `manpages/workflow.md` |
 | Workflow format change | `zig-core/src/workflow/`, `manpages/zug.md`, `docs/zug-vs-zag-gap-analysis.md` |
 | README staleness | Run `update-readme` skill — tracks last update via `.claude/skills/update-readme/.last-updated` |
 | Manpage staleness | Run `update-manpages` skill — tracks last update via `.claude/skills/update-manpages/.last-updated` |

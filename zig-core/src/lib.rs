@@ -4,10 +4,9 @@
 //! `.zug` workflow files. It powers the `zig` CLI.
 
 pub mod create;
-pub mod delete;
 pub mod error;
-pub mod list;
 pub mod man;
+pub mod manage;
 pub mod prompt;
 pub mod run;
 pub mod workflow;
