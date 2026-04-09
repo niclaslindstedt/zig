@@ -261,3 +261,83 @@ MODE = "strict"
     assert_eq!(step.retry_model.as_deref(), Some("large"));
     assert_eq!(step.env["MODE"], "strict");
 }
+
+#[test]
+fn parse_variable_constraints() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "constraints-test"
+
+[vars.content]
+type = "string"
+from = "prompt"
+required = true
+min_length = 10
+max_length = 5000
+pattern = "^[A-Z]"
+description = "Main content"
+
+[vars.priority]
+type = "string"
+default = "medium"
+allowed_values = ["low", "medium", "high"]
+
+[vars.score]
+type = "number"
+min = 0.0
+max = 100.0
+
+[[step]]
+name = "process"
+prompt = "Process ${content} with priority ${priority}"
+"#,
+    )
+    .unwrap();
+
+    let content = &wf.vars["content"];
+    assert_eq!(content.from.as_deref(), Some("prompt"));
+    assert!(content.required);
+    assert_eq!(content.min_length, Some(10));
+    assert_eq!(content.max_length, Some(5000));
+    assert_eq!(content.pattern.as_deref(), Some("^[A-Z]"));
+
+    let priority = &wf.vars["priority"];
+    assert!(priority.allowed_values.is_some());
+    let allowed = priority.allowed_values.as_ref().unwrap();
+    assert_eq!(allowed.len(), 3);
+    assert_eq!(allowed[0], toml::Value::String("low".into()));
+
+    let score = &wf.vars["score"];
+    assert_eq!(score.min, Some(0.0));
+    assert_eq!(score.max, Some(100.0));
+}
+
+#[test]
+fn roundtrip_variable_constraints() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "roundtrip-constraints"
+
+[vars.input]
+type = "string"
+from = "prompt"
+required = true
+min_length = 5
+
+[[step]]
+name = "go"
+prompt = "Do ${input}"
+"#,
+    )
+    .unwrap();
+
+    let toml_str = to_toml(&wf).unwrap();
+    let wf2 = parse(&toml_str).unwrap();
+
+    let input = &wf2.vars["input"];
+    assert_eq!(input.from.as_deref(), Some("prompt"));
+    assert!(input.required);
+    assert_eq!(input.min_length, Some(5));
+}

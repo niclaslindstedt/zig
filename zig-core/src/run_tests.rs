@@ -299,7 +299,7 @@ fn init_vars_with_defaults() {
                 Variable {
                     var_type: VarType::String,
                     default: Some(toml::Value::String(".".into())),
-                    description: String::new(),
+                    ..Default::default()
                 },
             ),
             (
@@ -307,7 +307,7 @@ fn init_vars_with_defaults() {
                 Variable {
                     var_type: VarType::Number,
                     default: Some(toml::Value::Integer(0)),
-                    description: String::new(),
+                    ..Default::default()
                 },
             ),
             (
@@ -315,7 +315,7 @@ fn init_vars_with_defaults() {
                 Variable {
                     var_type: VarType::Bool,
                     default: None,
-                    description: String::new(),
+                    ..Default::default()
                 },
             ),
         ]),
@@ -449,4 +449,81 @@ fn resolve_local_over_global_precedence() {
     let result = resolve_workflow_path(local_path.to_str().unwrap());
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), local_path);
+}
+
+// ── prompt binding ──────────────────────────────────────────────────────────
+
+#[test]
+fn prompt_var_binding_populates_variable() {
+    let workflow = Workflow {
+        workflow: WorkflowMeta {
+            name: "test".into(),
+            ..Default::default()
+        },
+        vars: HashMap::from([(
+            "content".into(),
+            Variable {
+                var_type: VarType::String,
+                from: Some("prompt".into()),
+                ..Default::default()
+            },
+        )]),
+        steps: vec![],
+    };
+
+    let mut vars = init_vars(&workflow);
+
+    // Simulate the prompt binding from execute()
+    let prompt_var = workflow
+        .vars
+        .iter()
+        .find(|(_, v)| v.from.as_deref() == Some("prompt"))
+        .map(|(name, _)| name.clone());
+
+    if let Some(ref var_name) = prompt_var {
+        vars.insert(var_name.clone(), "user input here".to_string());
+    }
+
+    assert_eq!(vars["content"], "user input here");
+}
+
+#[test]
+fn prompt_var_suppresses_user_context_prefix() {
+    let step = Step {
+        name: "test".into(),
+        prompt: "Process: ${content}".into(),
+        ..Default::default()
+    };
+
+    let vars = HashMap::from([("content".into(), "the user input".into())]);
+    let dep_outputs = HashMap::new();
+
+    // When prompt var exists, effective_user_prompt is None
+    let result = render_step_prompt(&step, &vars, None, &dep_outputs);
+    assert!(!result.contains("User context:"));
+    assert!(result.contains("Process: the user input"));
+}
+
+#[test]
+fn prompt_var_with_default_uses_default_when_no_prompt() {
+    let workflow = Workflow {
+        workflow: WorkflowMeta {
+            name: "test".into(),
+            ..Default::default()
+        },
+        vars: HashMap::from([(
+            "content".into(),
+            Variable {
+                var_type: VarType::String,
+                from: Some("prompt".into()),
+                default: Some(toml::Value::String("fallback".into())),
+                ..Default::default()
+            },
+        )]),
+        steps: vec![],
+    };
+
+    let vars = init_vars(&workflow);
+    // No user prompt provided, so default stays
+    assert_eq!(vars["content"], "fallback");
 }

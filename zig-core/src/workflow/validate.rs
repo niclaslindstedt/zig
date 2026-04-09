@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
+use regex::Regex;
+
 use crate::error::ZigError;
-use crate::workflow::model::{FailurePolicy, Workflow};
+use crate::workflow::model::{FailurePolicy, VarType, Variable, Workflow};
 
 /// Validate a parsed workflow for structural correctness.
 ///
@@ -133,12 +135,241 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
         }
     }
 
+    // Check variable constraints
+    validate_var_constraints(&workflow.vars, &mut errors);
+
     // Check for dependency cycles
     if let Some(cycle) = detect_cycle(&workflow.steps) {
         errors.push(ZigError::Validation(format!(
             "dependency cycle detected: {}",
             cycle.join(" -> ")
         )));
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
+}
+
+/// Validate variable constraint declarations for structural correctness.
+fn validate_var_constraints(vars: &HashMap<String, Variable>, errors: &mut Vec<ZigError>) {
+    let mut prompt_bound_count = 0;
+
+    for (name, var) in vars {
+        // Validate `from` field
+        if let Some(ref from) = var.from {
+            if from != "prompt" {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has unsupported from value '{from}' (only 'prompt' is supported)"
+                )));
+            } else {
+                prompt_bound_count += 1;
+            }
+        }
+
+        // String-only constraints on non-string types
+        if var.var_type != VarType::String {
+            if var.min_length.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has min_length but type is '{}' (only valid for 'string')",
+                    var.var_type
+                )));
+            }
+            if var.max_length.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has max_length but type is '{}' (only valid for 'string')",
+                    var.var_type
+                )));
+            }
+            if var.pattern.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has pattern but type is '{}' (only valid for 'string')",
+                    var.var_type
+                )));
+            }
+        }
+
+        // Number-only constraints on non-number types
+        if var.var_type != VarType::Number {
+            if var.min.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has min but type is '{}' (only valid for 'number')",
+                    var.var_type
+                )));
+            }
+            if var.max.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has max but type is '{}' (only valid for 'number')",
+                    var.var_type
+                )));
+            }
+        }
+
+        // Range consistency
+        if let (Some(min_len), Some(max_len)) = (var.min_length, var.max_length) {
+            if min_len > max_len {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has min_length ({min_len}) greater than max_length ({max_len})"
+                )));
+            }
+        }
+        if let (Some(min), Some(max)) = (var.min, var.max) {
+            if min > max {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has min ({min}) greater than max ({max})"
+                )));
+            }
+        }
+
+        // Validate pattern compiles
+        if let Some(ref pattern) = var.pattern {
+            if Regex::new(pattern).is_err() {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has invalid regex pattern: '{pattern}'"
+                )));
+            }
+        }
+
+        // Validate allowed_values type compatibility
+        if let Some(ref allowed) = var.allowed_values {
+            for val in allowed {
+                let ok = match var.var_type {
+                    VarType::String => val.is_str(),
+                    VarType::Number => val.is_integer() || val.is_float(),
+                    VarType::Bool => matches!(val, toml::Value::Boolean(_)),
+                    VarType::Json => true,
+                };
+                if !ok {
+                    errors.push(ZigError::Validation(format!(
+                        "variable '{name}' has allowed_values entry {val} incompatible with type '{}'",
+                        var.var_type
+                    )));
+                }
+            }
+        }
+
+        // Validate default satisfies constraints
+        if let Some(ref default) = var.default {
+            let default_str = toml_value_to_string(default);
+            let constraint_errors = check_value_constraints(name, &default_str, var);
+            for msg in constraint_errors {
+                errors.push(ZigError::Validation(format!(
+                    "variable '{name}' default value violates constraint: {msg}"
+                )));
+            }
+        }
+    }
+
+    if prompt_bound_count > 1 {
+        errors.push(ZigError::Validation(
+            "multiple variables have from = \"prompt\" (only one is allowed)".into(),
+        ));
+    }
+}
+
+/// Convert a TOML value to its string representation for constraint checking.
+fn toml_value_to_string(val: &toml::Value) -> String {
+    match val {
+        toml::Value::String(s) => s.clone(),
+        toml::Value::Integer(n) => n.to_string(),
+        toml::Value::Float(f) => f.to_string(),
+        toml::Value::Boolean(b) => b.to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Check a single value against a variable's constraints.
+/// Returns a list of human-readable violation messages (empty if valid).
+fn check_value_constraints(name: &str, value: &str, var: &Variable) -> Vec<String> {
+    let mut violations = Vec::new();
+
+    if var.required && value.is_empty() {
+        violations.push(format!(
+            "variable '{name}' is required but was not provided"
+        ));
+    }
+
+    // Skip further checks for empty non-required values
+    if value.is_empty() && !var.required {
+        return violations;
+    }
+
+    if let Some(min_len) = var.min_length {
+        let len = value.len() as u32;
+        if len < min_len {
+            violations.push(format!(
+                "variable '{name}' must be at least {min_len} characters (got {len})"
+            ));
+        }
+    }
+
+    if let Some(max_len) = var.max_length {
+        let len = value.len() as u32;
+        if len > max_len {
+            violations.push(format!(
+                "variable '{name}' must be at most {max_len} characters (got {len})"
+            ));
+        }
+    }
+
+    if let Some(min) = var.min {
+        if let Ok(num) = value.parse::<f64>() {
+            if num < min {
+                violations.push(format!(
+                    "variable '{name}' must be at least {min} (got {num})"
+                ));
+            }
+        }
+    }
+
+    if let Some(max) = var.max {
+        if let Ok(num) = value.parse::<f64>() {
+            if num > max {
+                violations.push(format!(
+                    "variable '{name}' must be at most {max} (got {num})"
+                ));
+            }
+        }
+    }
+
+    if let Some(ref pattern) = var.pattern {
+        if let Ok(re) = Regex::new(pattern) {
+            if !re.is_match(value) {
+                violations.push(format!("variable '{name}' must match pattern '{pattern}'"));
+            }
+        }
+    }
+
+    if let Some(ref allowed) = var.allowed_values {
+        let allowed_strs: Vec<String> = allowed.iter().map(toml_value_to_string).collect();
+        if !allowed_strs.iter().any(|a| a == value) {
+            violations.push(format!(
+                "variable '{name}' must be one of: {}",
+                allowed_strs.join(", ")
+            ));
+        }
+    }
+
+    violations
+}
+
+/// Validate variable values against their declared constraints at runtime.
+///
+/// Called after `init_vars` and prompt binding, before step execution begins.
+pub fn validate_var_values(
+    vars: &HashMap<String, String>,
+    declarations: &HashMap<String, Variable>,
+) -> Result<(), Vec<ZigError>> {
+    let mut errors = Vec::new();
+
+    for (name, decl) in declarations {
+        let value = vars.get(name).map(|s| s.as_str()).unwrap_or("");
+        let violations = check_value_constraints(name, value, decl);
+        for msg in violations {
+            errors.push(ZigError::Validation(msg));
+        }
     }
 
     if errors.is_empty() {
