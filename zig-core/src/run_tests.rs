@@ -10,21 +10,7 @@ fn step(name: &str) -> Step {
     Step {
         name: name.to_string(),
         prompt: format!("Do {name}"),
-        provider: None,
-        model: None,
-        depends_on: vec![],
-        inject_context: false,
-        condition: None,
-        json: false,
-        json_schema: None,
-        saves: HashMap::new(),
-        timeout: None,
-        tags: vec![],
-        on_failure: None,
-        max_retries: None,
-        next: None,
-        system_prompt: None,
-        max_turns: None,
+        ..Default::default()
     }
 }
 
@@ -357,6 +343,73 @@ fn falsy_values() {
     assert!(!is_truthy(""));
     assert!(!is_truthy("false"));
     assert!(!is_truthy("0"));
+}
+
+// ── json_path_lookup ────────────────────────────────────────────────────────
+
+#[test]
+fn json_path_lookup_missing_key() {
+    let json: serde_json::Value = serde_json::from_str(r#"{"a": 1}"#).unwrap();
+    let result = json_path_lookup(&json, "missing");
+    assert!(result.contains("?.missing"));
+}
+
+#[test]
+fn json_path_lookup_missing_nested_key() {
+    let json: serde_json::Value = serde_json::from_str(r#"{"a": {"b": 1}}"#).unwrap();
+    let result = json_path_lookup(&json, "a.missing");
+    assert!(result.contains("?.a.missing"));
+}
+
+// ── substitute_vars edge cases ──────────────────────────────────────────────
+
+#[test]
+fn substitute_unclosed_var_ref() {
+    let vars: HashMap<String, String> = HashMap::new();
+    assert_eq!(
+        substitute_vars("Hello ${unclosed", &vars),
+        "Hello ${unclosed"
+    );
+}
+
+#[test]
+fn substitute_adjacent_var_refs() {
+    let vars = HashMap::from([("a".into(), "X".into()), ("b".into(), "Y".into())]);
+    assert_eq!(substitute_vars("${a}${b}", &vars), "XY");
+}
+
+// ── compare edge cases ──────────────────────────────────────────────────────
+
+#[test]
+fn compare_equal_floats() {
+    assert!(compare("3.14", "3.14", "=="));
+    assert!(!compare("3.14", "3.15", "=="));
+}
+
+#[test]
+fn compare_string_ordering() {
+    assert!(compare("alpha", "beta", "<"));
+    assert!(!compare("beta", "alpha", "<"));
+}
+
+#[test]
+fn compare_mixed_type_falls_back_to_string() {
+    // "abc" can't parse as f64, so lexicographic comparison
+    assert!(compare("abc", "def", "<"));
+}
+
+// ── evaluate_condition edge cases ───────────────────────────────────────────
+
+#[test]
+fn condition_unknown_variable_is_falsy() {
+    let vars: HashMap<String, String> = HashMap::new();
+    assert!(!evaluate_condition("nonexistent", &vars).unwrap());
+}
+
+#[test]
+fn condition_with_whitespace() {
+    let vars = HashMap::from([("x".into(), "5".into())]);
+    assert!(evaluate_condition("  x < 10  ", &vars).unwrap());
 }
 
 // ── resolve_workflow_path ────────────────────────────────────────────────────

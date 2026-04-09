@@ -107,3 +107,99 @@ impl Pattern {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn parse_run_command() {
+        let cli = Cli::try_parse_from(["zig", "run", "my-workflow"]).unwrap();
+        match cli.command {
+            Command::Run { workflow, prompt } => {
+                assert_eq!(workflow, "my-workflow");
+                assert!(prompt.is_none());
+            }
+            _ => panic!("expected Run command"),
+        }
+    }
+
+    #[test]
+    fn parse_run_with_prompt() {
+        let cli = Cli::try_parse_from(["zig", "run", "wf", "extra context"]).unwrap();
+        match cli.command {
+            Command::Run { prompt, .. } => assert_eq!(prompt.as_deref(), Some("extra context")),
+            _ => panic!("expected Run command"),
+        }
+    }
+
+    #[test]
+    fn parse_create_with_pattern() {
+        let cli = Cli::try_parse_from(["zig", "create", "my-wf", "--pattern", "fan-out"]).unwrap();
+        match cli.command {
+            Command::Create {
+                name,
+                pattern,
+                output,
+            } => {
+                assert_eq!(name.as_deref(), Some("my-wf"));
+                assert!(matches!(pattern, Some(Pattern::FanOut)));
+                assert!(output.is_none());
+            }
+            _ => panic!("expected Create command"),
+        }
+    }
+
+    #[test]
+    fn parse_validate_command() {
+        let cli = Cli::try_parse_from(["zig", "validate", "test.zug"]).unwrap();
+        match cli.command {
+            Command::Validate { workflow } => assert_eq!(workflow, "test.zug"),
+            _ => panic!("expected Validate command"),
+        }
+    }
+
+    #[test]
+    fn parse_man_with_topic() {
+        let cli = Cli::try_parse_from(["zig", "man", "zug"]).unwrap();
+        match cli.command {
+            Command::Man { topic } => assert_eq!(topic.as_deref(), Some("zug")),
+            _ => panic!("expected Man command"),
+        }
+    }
+
+    #[test]
+    fn parse_man_without_topic() {
+        let cli = Cli::try_parse_from(["zig", "man"]).unwrap();
+        match cli.command {
+            Command::Man { topic } => assert!(topic.is_none()),
+            _ => panic!("expected Man command"),
+        }
+    }
+
+    #[test]
+    fn parse_global_flags() {
+        let cli = Cli::try_parse_from(["zig", "--debug", "--quiet", "list"]).unwrap();
+        assert!(cli.debug);
+        assert!(cli.quiet);
+    }
+
+    #[test]
+    fn all_patterns_have_core_names() {
+        let patterns = [
+            Pattern::Sequential,
+            Pattern::FanOut,
+            Pattern::GeneratorCritic,
+            Pattern::CoordinatorDispatcher,
+            Pattern::HierarchicalDecomposition,
+            Pattern::HumanInTheLoop,
+            Pattern::InterAgentCommunication,
+        ];
+        for p in &patterns {
+            let name = p.as_core_name();
+            assert!(!name.is_empty());
+            assert!(name.chars().all(|c| c.is_ascii_lowercase() || c == '-'));
+        }
+    }
+}

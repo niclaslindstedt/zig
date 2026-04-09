@@ -4,6 +4,7 @@ use std::process::Command;
 
 use crate::error::ZigError;
 use crate::prompt;
+use crate::run;
 
 /// Build the system prompt for the create agent by rendering the template
 /// with injected variables.
@@ -100,17 +101,7 @@ pub fn run_create(
     output: Option<&str>,
     pattern: Option<&str>,
 ) -> Result<(), ZigError> {
-    // Check that zag is available
-    let zag_available = Command::new("zag")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success());
-
-    if !zag_available {
-        return Err(ZigError::Zag(
-            "zag is not installed or not in PATH. Install it from https://github.com/niclaslindstedt/zag".into(),
-        ));
-    }
+    run::check_zag()?;
 
     let zag_help = get_zag_help();
     let zag_orch = get_zag_orch_reference();
@@ -174,3 +165,7 @@ pub fn run_create(
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "create_tests.rs"]
+mod tests;
