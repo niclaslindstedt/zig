@@ -37,11 +37,52 @@ prompt = "Analyze ${target}"
 Variables are shared state between steps. They can be referenced in prompts
 via `${var_name}` and updated by steps via the `saves` field.
 
-| Field         | Required | Description                             |
-|---------------|----------|-----------------------------------------|
-| `type`        | Yes      | `string`, `number`, `bool`, or `json`   |
-| `default`     | No       | Default value (TOML literal)            |
-| `description` | No       | Human-readable purpose                  |
+| Field            | Required | Description                                         |
+|------------------|----------|-----------------------------------------------------|
+| `type`           | Yes      | `string`, `number`, `bool`, or `json`               |
+| `default`        | No       | Default value (TOML literal)                        |
+| `description`    | No       | Human-readable purpose                              |
+| `from`           | No       | Input source binding (`"prompt"`)                   |
+| `required`       | No       | Must be non-empty before execution                  |
+| `min_length`     | No       | Minimum string length (string vars only)            |
+| `max_length`     | No       | Maximum string length (string vars only)            |
+| `min`            | No       | Minimum numeric value (number vars only)            |
+| `max`            | No       | Maximum numeric value (number vars only)            |
+| `pattern`        | No       | Regex pattern to match (string vars only)           |
+| `allowed_values` | No       | Restrict to specific values (TOML array)            |
+
+#### Input Binding
+
+Use `from = "prompt"` to bind the CLI user prompt to a variable. Only one
+variable may use this. When set, the value from `zig run <workflow> "content"`
+is assigned to the variable instead of being prepended as "User context:".
+
+#### Constraints
+
+Constraints are validated before step execution. If a constraint fails, zig
+prints a clear error and aborts. Default values are also validated at parse
+time (`zig validate`).
+
+```toml
+[vars.content]
+type = "string"
+from = "prompt"
+required = true
+min_length = 10
+max_length = 5000
+pattern = "^[A-Z]"
+description = "Content to process (must start with uppercase)"
+
+[vars.priority]
+type = "string"
+default = "medium"
+allowed_values = ["low", "medium", "high"]
+
+[vars.score]
+type = "number"
+min = 0.0
+max = 100.0
+```
 
 ### `[[step]]` — Steps
 

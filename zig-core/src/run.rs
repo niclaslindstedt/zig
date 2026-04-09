@@ -413,6 +413,33 @@ fn init_vars(workflow: &Workflow) -> HashMap<String, String> {
 /// Main execution loop for a validated workflow.
 fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigError> {
     let mut vars = init_vars(workflow);
+
+    // Bind user prompt to the variable with `from = "prompt"`, if any.
+    let prompt_var = workflow
+        .vars
+        .iter()
+        .find(|(_, v)| v.from.as_deref() == Some("prompt"))
+        .map(|(name, _)| name.clone());
+
+    if let Some(ref var_name) = prompt_var {
+        if let Some(prompt) = user_prompt {
+            vars.insert(var_name.clone(), prompt.to_string());
+        }
+    }
+
+    // Validate variable values against constraints before executing.
+    if let Err(errors) = validate::validate_var_values(&vars, &workflow.vars) {
+        let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
+        return Err(ZigError::Validation(msgs.join("; ")));
+    }
+
+    // When prompt is bound to a variable, don't also prepend "User context:".
+    let effective_user_prompt = if prompt_var.is_some() {
+        None
+    } else {
+        user_prompt
+    };
+
     let mut step_outputs: HashMap<String, String> = HashMap::new();
 
     let tiers = topological_sort(&workflow.steps)?;
@@ -463,7 +490,7 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
 
                 eprintln!("  running step '{}'...", step.name);
 
-                let prompt = render_step_prompt(step, &vars, user_prompt, &step_outputs);
+                let prompt = render_step_prompt(step, &vars, effective_user_prompt, &step_outputs);
 
                 let mut attempts = 0;
                 let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {

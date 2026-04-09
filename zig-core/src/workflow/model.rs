@@ -41,7 +41,7 @@ pub struct WorkflowMeta {
 ///
 /// Variables can be referenced in step prompts via `${var_name}` and updated
 /// by agents through the zig MCP server during execution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Variable {
     /// Variable type: "string", "number", "bool", or "json".
     #[serde(rename = "type")]
@@ -55,12 +55,48 @@ pub struct Variable {
     /// Human-readable description of this variable's purpose.
     #[serde(default)]
     pub description: String,
+
+    // --- Input binding ---
+    /// Bind this variable to an input source. Currently only `"prompt"` is
+    /// supported, which assigns the CLI user prompt to this variable.
+    #[serde(default)]
+    pub from: Option<String>,
+
+    // --- Constraints ---
+    /// If true, the variable must have a non-empty value before execution.
+    #[serde(default)]
+    pub required: bool,
+
+    /// Minimum string length (only valid for `type = "string"`).
+    #[serde(default)]
+    pub min_length: Option<u32>,
+
+    /// Maximum string length (only valid for `type = "string"`).
+    #[serde(default)]
+    pub max_length: Option<u32>,
+
+    /// Minimum numeric value (only valid for `type = "number"`).
+    #[serde(default)]
+    pub min: Option<f64>,
+
+    /// Maximum numeric value (only valid for `type = "number"`).
+    #[serde(default)]
+    pub max: Option<f64>,
+
+    /// Regex pattern the value must match (only valid for `type = "string"`).
+    #[serde(default)]
+    pub pattern: Option<String>,
+
+    /// Restrict value to one of these specific values.
+    #[serde(default)]
+    pub allowed_values: Option<Vec<toml::Value>>,
 }
 
 /// Supported variable types.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum VarType {
+    #[default]
     String,
     Number,
     Bool,

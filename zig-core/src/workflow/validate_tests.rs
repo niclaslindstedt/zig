@@ -474,3 +474,518 @@ next = "nowhere"
         errors.len()
     );
 }
+
+// ── Variable constraint validation ──────────────────────────────────────────
+
+#[test]
+fn valid_variable_constraints() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "good-constraints"
+
+[vars.content]
+type = "string"
+from = "prompt"
+required = true
+min_length = 5
+max_length = 100
+pattern = "^[A-Z]"
+
+[vars.priority]
+type = "string"
+default = "medium"
+allowed_values = ["low", "medium", "high"]
+
+[vars.score]
+type = "number"
+default = 50
+min = 0.0
+max = 100.0
+
+[[step]]
+name = "go"
+prompt = "Process ${content} at ${priority}, score ${score}"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn error_unsupported_from_value() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-from"
+
+[vars.data]
+type = "string"
+from = "stdin"
+
+[[step]]
+name = "go"
+prompt = "Use ${data}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        let msg = e.to_string();
+        msg.contains("unsupported from value 'stdin'")
+    }));
+}
+
+#[test]
+fn error_multiple_from_prompt() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "multi-prompt"
+
+[vars.a]
+type = "string"
+from = "prompt"
+
+[vars.b]
+type = "string"
+from = "prompt"
+
+[[step]]
+name = "go"
+prompt = "Use ${a} and ${b}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("multiple variables have from") })
+    );
+}
+
+#[test]
+fn error_min_length_on_number() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-constraint-type"
+
+[vars.count]
+type = "number"
+min_length = 5
+
+[[step]]
+name = "go"
+prompt = "Count: ${count}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("min_length") && e.to_string().contains("only valid for 'string'")
+    }));
+}
+
+#[test]
+fn error_min_on_string() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-min-type"
+
+[vars.name]
+type = "string"
+min = 5.0
+
+[[step]]
+name = "go"
+prompt = "Name: ${name}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("min") && e.to_string().contains("only valid for 'number'")
+    }));
+}
+
+#[test]
+fn error_min_length_greater_than_max_length() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-range"
+
+[vars.text]
+type = "string"
+min_length = 100
+max_length = 10
+
+[[step]]
+name = "go"
+prompt = "Text: ${text}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string()
+            .contains("min_length (100) greater than max_length (10)")
+    }));
+}
+
+#[test]
+fn error_min_greater_than_max() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-num-range"
+
+[vars.val]
+type = "number"
+min = 100.0
+max = 10.0
+
+[[step]]
+name = "go"
+prompt = "Val: ${val}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("min (100) greater than max (10)") })
+    );
+}
+
+#[test]
+fn error_invalid_regex_pattern() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-regex"
+
+[vars.text]
+type = "string"
+pattern = "[invalid("
+
+[[step]]
+name = "go"
+prompt = "Text: ${text}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("invalid regex pattern") })
+    );
+}
+
+#[test]
+fn error_allowed_values_type_mismatch() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-allowed"
+
+[vars.count]
+type = "number"
+allowed_values = ["one", "two"]
+
+[[step]]
+name = "go"
+prompt = "Count: ${count}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("incompatible with type") })
+    );
+}
+
+#[test]
+fn error_default_violates_min_length() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-default"
+
+[vars.content]
+type = "string"
+default = "hi"
+min_length = 10
+
+[[step]]
+name = "go"
+prompt = "Content: ${content}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("default value violates constraint") })
+    );
+}
+
+#[test]
+fn error_default_violates_allowed_values() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-default-allowed"
+
+[vars.priority]
+type = "string"
+default = "urgent"
+allowed_values = ["low", "medium", "high"]
+
+[[step]]
+name = "go"
+prompt = "Priority: ${priority}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("default value violates constraint") })
+    );
+}
+
+// ── Runtime value validation ────────────────────────────────────────────────
+
+#[test]
+fn runtime_required_empty_fails() {
+    let decls = std::collections::HashMap::from([(
+        "content".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            required: true,
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("content".to_string(), String::new())]);
+
+    let result = validate_var_values(&vars, &decls);
+    assert!(result.is_err());
+    let errors = result.unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("required but was not provided") })
+    );
+}
+
+#[test]
+fn runtime_required_nonempty_passes() {
+    let decls = std::collections::HashMap::from([(
+        "content".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            required: true,
+            ..Default::default()
+        },
+    )]);
+    let vars =
+        std::collections::HashMap::from([("content".to_string(), "hello world".to_string())]);
+
+    assert!(validate_var_values(&vars, &decls).is_ok());
+}
+
+#[test]
+fn runtime_min_length_fails() {
+    let decls = std::collections::HashMap::from([(
+        "text".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            min_length: Some(10),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("text".to_string(), "short".to_string())]);
+
+    let errors = validate_var_values(&vars, &decls).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("at least 10 characters") })
+    );
+}
+
+#[test]
+fn runtime_max_length_fails() {
+    let decls = std::collections::HashMap::from([(
+        "text".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            max_length: Some(5),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("text".to_string(), "way too long".to_string())]);
+
+    let errors = validate_var_values(&vars, &decls).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("at most 5 characters") })
+    );
+}
+
+#[test]
+fn runtime_min_number_fails() {
+    let decls = std::collections::HashMap::from([(
+        "score".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::Number,
+            min: Some(0.0),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("score".to_string(), "-5".to_string())]);
+
+    let errors = validate_var_values(&vars, &decls).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("at least 0") })
+    );
+}
+
+#[test]
+fn runtime_max_number_fails() {
+    let decls = std::collections::HashMap::from([(
+        "score".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::Number,
+            max: Some(100.0),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("score".to_string(), "150".to_string())]);
+
+    let errors = validate_var_values(&vars, &decls).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("at most 100") })
+    );
+}
+
+#[test]
+fn runtime_pattern_fails() {
+    let decls = std::collections::HashMap::from([(
+        "code".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            pattern: Some("^[A-Z]{3}-\\d+$".to_string()),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("code".to_string(), "invalid".to_string())]);
+
+    let errors = validate_var_values(&vars, &decls).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("must match pattern") })
+    );
+}
+
+#[test]
+fn runtime_pattern_passes() {
+    let decls = std::collections::HashMap::from([(
+        "code".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            pattern: Some("^[A-Z]{3}-\\d+$".to_string()),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("code".to_string(), "ABC-123".to_string())]);
+
+    assert!(validate_var_values(&vars, &decls).is_ok());
+}
+
+#[test]
+fn runtime_allowed_values_fails() {
+    let decls = std::collections::HashMap::from([(
+        "priority".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            allowed_values: Some(vec![
+                toml::Value::String("low".into()),
+                toml::Value::String("medium".into()),
+                toml::Value::String("high".into()),
+            ]),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("priority".to_string(), "urgent".to_string())]);
+
+    let errors = validate_var_values(&vars, &decls).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("must be one of") })
+    );
+}
+
+#[test]
+fn runtime_allowed_values_passes() {
+    let decls = std::collections::HashMap::from([(
+        "priority".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            allowed_values: Some(vec![
+                toml::Value::String("low".into()),
+                toml::Value::String("medium".into()),
+                toml::Value::String("high".into()),
+            ]),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("priority".to_string(), "high".to_string())]);
+
+    assert!(validate_var_values(&vars, &decls).is_ok());
+}
+
+#[test]
+fn runtime_empty_nonrequired_skips_constraints() {
+    let decls = std::collections::HashMap::from([(
+        "text".to_string(),
+        crate::workflow::model::Variable {
+            var_type: crate::workflow::model::VarType::String,
+            min_length: Some(10),
+            pattern: Some("^[A-Z]".to_string()),
+            ..Default::default()
+        },
+    )]);
+    let vars = std::collections::HashMap::from([("text".to_string(), String::new())]);
+
+    // Empty non-required variable should pass — constraints only apply to provided values
+    assert!(validate_var_values(&vars, &decls).is_ok());
+}
