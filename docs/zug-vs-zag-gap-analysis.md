@@ -146,52 +146,21 @@ escalation pattern).
 
 ## Recommendations (Priority Order)
 
-1. **`interactive` step flag + `input` support** — Enables Human-in-the-Loop
-   and A2A patterns. Highest-value gap.
-2. **`worktree` / `sandbox` per step** — Critical for safe parallel execution
-   of code-modifying steps.
-3. **`race` mode / `cancel` support** — Enables early-exit fan-out patterns.
-4. **`auto_approve` per step** — Important for non-interactive automated
-   workflows.
-5. **`env` / `root` / `add_dir` per step** — Fine-grained environment control.
-6. **`description` field on steps** — Low effort, useful for observability.
-7. **Retry with model override** — Enables self-healing escalation pattern.
-8. **Event hooks / `watch` equivalent** — Enables reactive pipeline
-   compositions.
+1. ~~**`interactive` step flag + `input` support**~~ — **Implemented**
+2. ~~**`worktree` / `sandbox` per step**~~ — **Implemented**
+3. ~~**`race` mode / `cancel` support**~~ — **Implemented** (`race_group` field)
+4. ~~**`auto_approve` per step**~~ — **Implemented**
+5. ~~**`env` / `root` / `add_dir` per step**~~ — **Implemented**
+6. ~~**`description` field on steps**~~ — **Implemented**
+7. ~~**Retry with model override**~~ — **Implemented** (`retry_model` field)
+8. **Event hooks / `watch` equivalent** — Not yet implemented (requires
+   runtime execution engine support beyond step field additions).
 
-## Proposed .zug Step Extensions
+## Remaining Gaps
 
-```toml
-[[step]]
-name = "review-auth"
-prompt = "Review the auth module"
+After implementing recommendations 1-7, the remaining gaps are:
 
-# --- Existing fields (unchanged) ---
-provider = "claude"
-model = "large"
-depends_on = ["analyze"]
-inject_context = true
-condition = "needs_review"
-json = true
-saves = { issues = "$.issues" }
-timeout = "5m"
-tags = ["review"]
-on_failure = "retry"
-max_retries = 3
-system_prompt = "You are a security expert"
-max_turns = 10
-
-# --- Proposed new fields ---
-description = "Deep security review of auth module"  # Step description
-interactive = false                                    # Interactive session mode
-auto_approve = true                                    # Skip permission prompts
-root = "./auth"                                        # Working directory override
-worktree = true                                        # Git worktree isolation
-sandbox = "review-sandbox"                             # Docker sandbox isolation
-env = { REVIEW_MODE = "strict" }                       # Environment variables
-files = ["docs/security-policy.md"]                    # File attachments
-add_dirs = ["../shared-lib"]                           # Additional directories
-mcp_config = "mcp-servers.json"                        # MCP server config
-retry_model = "large"                                  # Model to use on retry
-race_group = "approach"                                # Race group (first-wins)
-```
+- **Event-driven automation** (`watch`, `subscribe`) — requires runtime support
+- **`input` / `broadcast` at runtime** — the `interactive` field enables the
+  session mode, but sending messages requires execution engine integration
+- **`mcp_config` per step** — not yet added (low priority)

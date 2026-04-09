@@ -345,3 +345,79 @@ prompt = "The score was ${result.score}"
 
     assert!(validate(&wf).is_ok());
 }
+
+#[test]
+fn error_retry_model_without_retry_policy() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-retry-model"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+retry_model = "large"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string()
+            .contains("retry_model but on_failure is not 'retry'")
+    }));
+}
+
+#[test]
+fn error_race_group_internal_dependency() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-race"
+
+[[step]]
+name = "approach-a"
+prompt = "Try approach A"
+race_group = "solver"
+
+[[step]]
+name = "approach-b"
+prompt = "Try approach B"
+race_group = "solver"
+depends_on = ["approach-a"]
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| e.to_string().contains("race_group")));
+}
+
+#[test]
+fn valid_race_group() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "good-race"
+
+[[step]]
+name = "approach-a"
+prompt = "Try approach A"
+race_group = "solver"
+
+[[step]]
+name = "approach-b"
+prompt = "Try approach B"
+race_group = "solver"
+
+[[step]]
+name = "use-result"
+prompt = "Use the winning solution"
+depends_on = ["approach-a", "approach-b"]
+inject_context = true
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}

@@ -38,6 +38,7 @@ name = "analyze"
 prompt = "Analyze the code structure of ${target}"
 provider = "claude"
 model = "sonnet"
+description = "Initial code structure analysis"
 
 [[step]]
 name = "security-review"
@@ -46,6 +47,7 @@ depends_on = ["analyze"]
 inject_context = true
 provider = "claude"
 tags = ["review"]
+auto_approve = true
 
 [[step]]
 name = "perf-review"
@@ -54,12 +56,14 @@ depends_on = ["analyze"]
 inject_context = true
 provider = "gemini"
 tags = ["review"]
+root = "./src"
 
 [[step]]
 name = "synthesize"
 prompt = "Create a unified code review report"
 depends_on = ["security-review", "perf-review"]
 inject_context = true
+worktree = true
 
 [[step]]
 name = "quality-gate"
@@ -69,6 +73,7 @@ inject_context = true
 json = true
 saves = { score = "$.score", feedback = "$.suggestions" }
 timeout = "5m"
+files = ["docs/policy.md"]
 
 [[step]]
 name = "refine"
@@ -78,6 +83,7 @@ condition = "score < threshold"
 next = "quality-gate"
 on_failure = "retry"
 max_retries = 2
+retry_model = "large"
 "#;
 
 #[test]
@@ -124,20 +130,24 @@ fn parse_full_workflow() {
     assert_eq!(analyze.provider.as_deref(), Some("claude"));
     assert_eq!(analyze.model.as_deref(), Some("sonnet"));
     assert!(analyze.depends_on.is_empty());
+    assert_eq!(analyze.description, "Initial code structure analysis");
 
     let security = &wf.steps[1];
     assert_eq!(security.depends_on, vec!["analyze"]);
     assert!(security.inject_context);
     assert_eq!(security.tags, vec!["review"]);
+    assert!(security.auto_approve);
 
     let perf = &wf.steps[2];
     assert_eq!(perf.provider.as_deref(), Some("gemini"));
+    assert_eq!(perf.root.as_deref(), Some("./src"));
 
     let synthesize = &wf.steps[3];
     assert_eq!(
         synthesize.depends_on,
         vec!["security-review", "perf-review"]
     );
+    assert!(synthesize.worktree);
 
     let quality = &wf.steps[4];
     assert!(quality.json);
@@ -145,12 +155,14 @@ fn parse_full_workflow() {
     assert_eq!(quality.saves["score"], "$.score");
     assert_eq!(quality.saves["feedback"], "$.suggestions");
     assert_eq!(quality.timeout.as_deref(), Some("5m"));
+    assert_eq!(quality.files, vec!["docs/policy.md"]);
 
     let refine = &wf.steps[5];
     assert_eq!(refine.condition.as_deref(), Some("score < threshold"));
     assert_eq!(refine.next.as_deref(), Some("quality-gate"));
     assert_eq!(refine.on_failure, Some(FailurePolicy::Retry));
     assert_eq!(refine.max_retries, Some(2));
+    assert_eq!(refine.retry_model.as_deref(), Some("large"));
 }
 
 #[test]
@@ -206,4 +218,46 @@ prompt = "Test"
     assert_eq!(wf.vars["flag"].var_type, VarType::Bool);
     assert_eq!(wf.vars["flag"].default, Some(toml::Value::Boolean(true)));
     assert_eq!(wf.vars["data"].var_type, VarType::Json);
+}
+
+#[test]
+fn parse_new_step_fields() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "new-fields"
+
+[[step]]
+name = "worker"
+prompt = "Do work"
+description = "A worker step"
+interactive = true
+auto_approve = true
+root = "/tmp/work"
+add_dirs = ["/tmp/shared"]
+files = ["input.txt"]
+worktree = true
+sandbox = "worker-box"
+race_group = "approach"
+retry_model = "large"
+on_failure = "retry"
+
+[step.env]
+MODE = "strict"
+"#,
+    )
+    .unwrap();
+
+    let step = &wf.steps[0];
+    assert_eq!(step.description, "A worker step");
+    assert!(step.interactive);
+    assert!(step.auto_approve);
+    assert_eq!(step.root.as_deref(), Some("/tmp/work"));
+    assert_eq!(step.add_dirs, vec!["/tmp/shared"]);
+    assert_eq!(step.files, vec!["input.txt"]);
+    assert!(step.worktree);
+    assert_eq!(step.sandbox.as_deref(), Some("worker-box"));
+    assert_eq!(step.race_group.as_deref(), Some("approach"));
+    assert_eq!(step.retry_model.as_deref(), Some("large"));
+    assert_eq!(step.env["MODE"], "strict");
 }
