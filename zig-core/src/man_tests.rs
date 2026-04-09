@@ -4,7 +4,9 @@ use super::*;
 fn get_existing_topic() {
     assert!(get("zig").is_some());
     assert!(get("run").is_some());
+    assert!(get("workflow").is_some());
     assert!(get("create").is_some());
+    assert!(get("delete").is_some());
     assert!(get("describe").is_some());
     assert!(get("validate").is_some());
     assert!(get("zug").is_some());

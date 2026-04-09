@@ -16,15 +16,16 @@ zag behind the scenes for agent orchestration.
 
 ## Commands
 
-| Command              | Description                                          |
-|----------------------|------------------------------------------------------|
-| `run <workflow>`     | Execute a `.zug` workflow file                       |
-| `create [name]`     | Create a new workflow interactively with an AI agent |
-| `describe <prompt>`  | Generate a `.zug` file from a natural language prompt|
-| `validate <file>`    | Validate a `.zug` workflow file                      |
-| `list`               | List available workflows                             |
-| `init`               | Initialize a new zig project                         |
-| `man [topic]`        | Show manual pages for zig topics                     |
+| Command                      | Description                                          |
+|------------------------------|------------------------------------------------------|
+| `run <workflow>`             | Execute a `.zug` workflow file                       |
+| `workflow create [name]`     | Create a new workflow interactively with an AI agent |
+| `workflow delete <workflow>` | Delete a workflow file                               |
+| `describe <prompt>`          | Generate a `.zug` file from a natural language prompt|
+| `validate <file>`            | Validate a `.zug` workflow file                      |
+| `list`                       | List available workflows                             |
+| `init`                       | Initialize a new zig project                         |
+| `man [topic]`                | Show manual pages for zig topics                     |
 
 ## Global Flags
 
@@ -39,7 +40,7 @@ zag behind the scenes for agent orchestration.
 
 ```bash
 # Create a workflow interactively
-zig create my-workflow
+zig workflow create my-workflow
 
 # Or describe one in natural language
 zig describe "review code, run tests, and generate a report"
@@ -57,7 +58,9 @@ Use `zig man` to learn more about specific topics:
 
 ```bash
 zig man run          # The run command
+zig man workflow     # The workflow command group
 zig man create       # The create command
+zig man delete       # The delete command
 zig man zug          # The .zug file format
 zig man patterns     # Orchestration patterns
 zig man variables    # Variable system and data flow

@@ -1,11 +1,11 @@
-# zig create
+# zig workflow create
 
 Create a new workflow interactively with an AI agent.
 
 ## Synopsis
 
 ```
-zig create [name] [--output <path>] [--pattern <pattern>]
+zig workflow create [name] [--output <path>] [--pattern <pattern>]
 ```
 
 ## Description
@@ -48,16 +48,16 @@ The `--pattern` flag provides pattern-specific guidance to the agent:
 
 ```bash
 # Create a workflow interactively
-zig create
+zig workflow create
 
 # Create a named workflow
-zig create code-review
+zig workflow create code-review
 
 # Create with a specific pattern
-zig create deploy --pattern sequential
+zig workflow create deploy --pattern sequential
 
 # Create with a custom output path
-zig create my-workflow --output workflows/my-workflow.zug
+zig workflow create my-workflow --output workflows/my-workflow.zug
 ```
 
 ## Prerequisites
@@ -66,5 +66,7 @@ zig create my-workflow --output workflows/my-workflow.zug
 
 ## See Also
 
+- `zig man workflow` — workflow management commands
+- `zig man delete` — delete a workflow file
 - `zig man patterns` — detailed orchestration pattern descriptions
 - `zig man zug` — the `.zug` file format
