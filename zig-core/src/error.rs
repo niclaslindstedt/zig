@@ -16,4 +16,7 @@ pub enum ZigError {
 
     #[error("zag error: {0}")]
     Zag(String),
+
+    #[error("execution error: {0}")]
+    Execution(String),
 }
