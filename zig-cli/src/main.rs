@@ -28,6 +28,12 @@ fn main() -> Result<()> {
             WorkflowCommand::Delete { workflow } => {
                 zig_core::delete::run_delete(&workflow)?;
             }
+            WorkflowCommand::List => {
+                zig_core::list::run_list()?;
+            }
+            WorkflowCommand::Show { workflow } => {
+                zig_core::list::run_show(&workflow)?;
+            }
         },
         Command::Describe { prompt, output } => {
             let dest = output.unwrap_or_else(|| "workflow.zug".to_string());
@@ -61,7 +67,7 @@ fn main() -> Result<()> {
             }
         }
         Command::List => {
-            println!("zig list: listing available workflows (not yet implemented)");
+            zig_core::list::run_list()?;
         }
         Command::Init => {
             println!("zig init: initializing project (not yet implemented)");

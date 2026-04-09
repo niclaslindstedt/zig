@@ -6,6 +6,8 @@ mod pages {
     pub const CREATE: &str = include_str!("../../manpages/create.md");
     pub const DELETE: &str = include_str!("../../manpages/delete.md");
     pub const DESCRIBE: &str = include_str!("../../manpages/describe.md");
+    pub const LIST: &str = include_str!("../../manpages/list.md");
+    pub const SHOW: &str = include_str!("../../manpages/show.md");
     pub const VALIDATE: &str = include_str!("../../manpages/validate.md");
     pub const ZUG: &str = include_str!("../../manpages/zug.md");
     pub const PATTERNS: &str = include_str!("../../manpages/patterns.md");
@@ -17,9 +19,11 @@ mod pages {
 pub const TOPICS: &[(&str, &str)] = &[
     ("zig", "Overview of the zig CLI"),
     ("run", "Execute a .zug workflow file"),
-    ("workflow", "Manage workflows (create, delete)"),
+    ("workflow", "Manage workflows (create, delete, list, show)"),
     ("create", "Create a new workflow interactively"),
     ("delete", "Delete a workflow file"),
+    ("list", "List available workflows"),
+    ("show", "Show details of a workflow"),
     ("describe", "Generate a .zug file from a prompt"),
     ("validate", "Validate a .zug workflow file"),
     ("zug", "The .zug workflow format"),
@@ -39,6 +43,8 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "create" => Some(pages::CREATE),
         "delete" => Some(pages::DELETE),
         "describe" => Some(pages::DESCRIBE),
+        "list" => Some(pages::LIST),
+        "show" => Some(pages::SHOW),
         "validate" => Some(pages::VALIDATE),
         "zug" => Some(pages::ZUG),
         "patterns" => Some(pages::PATTERNS),
