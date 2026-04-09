@@ -1,0 +1,17 @@
+[package]
+name = "zig-core"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/niclaslindstedt/zig"
+homepage = "https://github.com/niclaslindstedt/zig"
+description = "Core library for zig — workflow orchestration engine for AI coding agents"
+keywords = ["ai", "agent", "orchestration", "workflow", "automation"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["full"] }

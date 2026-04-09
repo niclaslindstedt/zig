@@ -1,0 +1,12 @@
+/target
+
+# Agent CLI state directory
+.agent/
+
+.DS_Store
+
+# Coverage output
+.coverage/
+
+.claude/*
+!.claude/skills/
