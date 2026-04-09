@@ -26,6 +26,9 @@ pub enum Command {
     Run {
         /// Name or path of the workflow to run
         workflow: String,
+
+        /// Additional context prompt injected into workflow steps
+        prompt: Option<String>,
     },
 
     /// Create a new workflow interactively with an AI agent

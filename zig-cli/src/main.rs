@@ -10,8 +10,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Run { workflow } => {
-            println!("zig run: executing workflow '{workflow}' (not yet implemented)");
+        Command::Run { workflow, prompt } => {
+            zig_core::run::run_workflow(&workflow, prompt.as_deref())?;
         }
         Command::Create { name, output } => {
             zig_core::create::run_create(name.as_deref(), output.as_deref())?;
