@@ -13,8 +13,16 @@ fn main() -> Result<()> {
         Command::Run { workflow, prompt } => {
             zig_core::run::run_workflow(&workflow, prompt.as_deref())?;
         }
-        Command::Create { name, output } => {
-            zig_core::create::run_create(name.as_deref(), output.as_deref())?;
+        Command::Create {
+            name,
+            output,
+            pattern,
+        } => {
+            zig_core::create::run_create(
+                name.as_deref(),
+                output.as_deref(),
+                pattern.as_ref().map(|p| p.as_core_name()),
+            )?;
         }
         Command::Describe { prompt, output } => {
             let dest = output.unwrap_or_else(|| "workflow.zug".to_string());

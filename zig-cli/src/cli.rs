@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(
@@ -34,12 +34,15 @@ pub enum Command {
     /// Create a new workflow interactively with an AI agent
     Create {
         /// Workflow name
-        #[arg(long, short)]
         name: Option<String>,
 
         /// Output file path (defaults to <name>.zug or workflow.zug)
         #[arg(long, short)]
         output: Option<String>,
+
+        /// Orchestration pattern to use
+        #[arg(long, short)]
+        pattern: Option<Pattern>,
     },
 
     /// Describe a workflow to an agent and generate a .zug file
@@ -63,4 +66,38 @@ pub enum Command {
 
     /// Initialize a new zig project in the current directory
     Init,
+}
+
+/// Orchestration pattern for workflow creation.
+#[derive(Clone, Debug, ValueEnum)]
+pub enum Pattern {
+    /// Steps run in order, each feeding the next
+    Sequential,
+    /// Parallel independent steps, then synthesize
+    FanOut,
+    /// Generate, evaluate, iterate until quality threshold
+    GeneratorCritic,
+    /// Classify input, route to specialized handlers
+    CoordinatorDispatcher,
+    /// Break down into sub-tasks, delegate, synthesize
+    HierarchicalDecomposition,
+    /// Automated steps with human approval gates
+    HumanInTheLoop,
+    /// Agents collaborate via shared variables
+    InterAgentCommunication,
+}
+
+impl Pattern {
+    /// Return the kebab-case identifier used by zig-core.
+    pub fn as_core_name(&self) -> &'static str {
+        match self {
+            Pattern::Sequential => "sequential",
+            Pattern::FanOut => "fan-out",
+            Pattern::GeneratorCritic => "generator-critic",
+            Pattern::CoordinatorDispatcher => "coordinator-dispatcher",
+            Pattern::HierarchicalDecomposition => "hierarchical-decomposition",
+            Pattern::HumanInTheLoop => "human-in-the-loop",
+            Pattern::InterAgentCommunication => "inter-agent-communication",
+        }
+    }
 }
