@@ -25,6 +25,17 @@ fn step(name: &str) -> Step {
         next: None,
         system_prompt: None,
         max_turns: None,
+        description: String::new(),
+        interactive: false,
+        auto_approve: false,
+        root: None,
+        add_dirs: vec![],
+        env: HashMap::new(),
+        files: vec![],
+        worktree: false,
+        sandbox: None,
+        race_group: None,
+        retry_model: None,
     }
 }
 
