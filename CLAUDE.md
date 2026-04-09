@@ -46,9 +46,34 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 ## Development workflow
 
 1. Write code
-2. Add tests
+2. Add tests (in separate `*_tests.rs` files, not inline `#[cfg(test)]` blocks)
 3. `make build` — compile cleanly
-4. `make clippy` — zero warnings
-5. `make fmt` — format
-6. Update docs if needed (README.md, this file)
-7. Commit using conventional commit style
+4. `make test` — all tests pass
+5. `make clippy` — zero warnings
+6. `make fmt` — format
+7. Update docs if needed (README.md, manpages, this file)
+8. Commit using conventional commit style — use `/commit` to handle the full workflow
+
+## Where new code goes
+
+1. **CLI flags/commands** → `zig-cli/src/cli.rs`
+2. **Command dispatch** → `zig-cli/src/main.rs`
+3. **Workflow model** → `zig-core/src/workflow/model.rs`
+4. **Workflow parsing** → `zig-core/src/workflow/parser.rs`
+5. **Workflow validation** → `zig-core/src/workflow/validate.rs`
+6. **Workflow execution** → `zig-core/src/run.rs`
+7. **Workflow creation** → `zig-core/src/create.rs`
+8. **Prompt templates** → `zig-core/src/prompt.rs` + `prompts/`
+9. **Manpages** → `manpages/*.md` + `zig-core/src/man.rs`
+
+## Documentation sync points
+
+| Change type | Files to update |
+|-------------|----------------|
+| New CLI command | `zig-cli/src/cli.rs`, `zig-cli/src/main.rs`, `manpages/<cmd>.md`, `zig-core/src/man.rs`, `README.md` |
+| New CLI flag | `zig-cli/src/cli.rs`, relevant `manpages/*.md`, `README.md` |
+| New pattern | `zig-cli/src/cli.rs` (Pattern enum), `manpages/patterns.md`, `manpages/create.md` |
+| Workflow format change | `zig-core/src/workflow/`, `manpages/zug.md`, `docs/zug-vs-zag-gap-analysis.md` |
+| README staleness | Run `update-readme` skill — tracks last update via `.claude/skills/update-readme/.last-updated` |
+| Manpage staleness | Run `update-manpages` skill — tracks last update via `.claude/skills/update-manpages/.last-updated` |
+| Docs staleness | Run `update-docs` skill — tracks last update via `.claude/skills/update-docs/.last-updated` |
