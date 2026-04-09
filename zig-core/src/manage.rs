@@ -19,7 +19,7 @@ pub fn list_workflows() -> Result<(), ZigError> {
 
     if entries.is_empty() {
         println!("No workflows found.");
-        println!("Hint: create one with `zig workflow create`");
+        println!("Hint: create one with `zig workflow create <name>`");
         return Ok(());
     }
 
