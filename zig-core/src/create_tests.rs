@@ -42,3 +42,10 @@ fn build_system_prompt_includes_format_spec() {
     let rendered = build_system_prompt("", "");
     assert!(rendered.contains(".zug Workflow Format Specification"));
 }
+
+#[test]
+fn build_system_prompt_includes_run_instructions() {
+    let rendered = build_system_prompt("", "");
+    assert!(rendered.contains("zig run"));
+    assert!(rendered.contains("NOT `zig workflow run`"));
+}
