@@ -140,3 +140,16 @@ fn show_workflow_not_found() {
     let result = show_workflow("/nonexistent/path/missing.zug");
     assert!(result.is_err());
 }
+
+#[test]
+fn discover_zug_files_in_global_style_dir() {
+    let dir = tempfile::tempdir().unwrap();
+    let global_wf_dir = crate::paths::global_workflows_dir_from(dir.path());
+    fs::create_dir_all(&global_wf_dir).unwrap();
+
+    fs::write(global_wf_dir.join("global.zug"), WORKFLOW_A).unwrap();
+
+    let files = discover_zug_files(&global_wf_dir);
+    assert_eq!(files.len(), 1);
+    assert!(files[0].to_string_lossy().contains("global.zug"));
+}
