@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
+use std::time::Duration;
 
 use crate::error::ZigError;
 use crate::workflow::model::{FailurePolicy, Step, Workflow};
@@ -303,40 +304,98 @@ fn render_step_prompt(
     prompt
 }
 
-/// Execute a single step by invoking `zag run`.
+/// Build the argument list for a `zag run` invocation.
 ///
-/// Returns the captured stdout from zag.
-fn execute_step(step: &Step, prompt: &str, workflow_name: &str) -> Result<String, ZigError> {
-    let mut cmd = Command::new("zag");
-    cmd.args(["run", prompt]);
+/// Separated from `execute_step` to allow unit testing of flag logic
+/// without a real `zag` binary. The optional `model_override` is used
+/// during retries when `retry_model` escalates to a different model.
+fn build_zag_args(
+    step: &Step,
+    prompt: &str,
+    workflow_name: &str,
+    model_override: Option<&str>,
+) -> Vec<String> {
+    let mut args = vec!["run".to_string(), prompt.to_string()];
 
     if let Some(provider) = &step.provider {
-        cmd.args(["--provider", provider]);
+        args.extend(["--provider".into(), provider.clone()]);
     }
-    if let Some(model) = &step.model {
-        cmd.args(["--model", model]);
+
+    let effective_model = model_override.or(step.model.as_deref());
+    if let Some(model) = effective_model {
+        args.extend(["--model".into(), model.to_string()]);
     }
+
     if let Some(system_prompt) = &step.system_prompt {
-        cmd.args(["--system-prompt", system_prompt]);
+        args.extend(["--system-prompt".into(), system_prompt.clone()]);
     }
     if let Some(max_turns) = step.max_turns {
-        cmd.args(["--max-turns", &max_turns.to_string()]);
+        args.extend(["--max-turns".into(), max_turns.to_string()]);
     }
     if step.json {
-        cmd.arg("--json");
+        args.push("--json".into());
+    }
+    if let Some(schema) = &step.json_schema {
+        args.extend(["--json-schema".into(), schema.clone()]);
     }
 
-    let session_name = format!("zig-{}-{}", workflow_name, step.name);
-    cmd.args(["--name", &session_name]);
+    let session_name = format!("zig-{workflow_name}-{}", step.name);
+    args.extend(["--name".into(), session_name]);
 
-    cmd.args(["--tag", "zig-workflow"]);
+    if !step.description.is_empty() {
+        args.extend(["--description".into(), step.description.clone()]);
+    }
+
+    args.extend(["--tag".into(), "zig-workflow".into()]);
     for tag in &step.tags {
-        cmd.args(["--tag", tag]);
+        args.extend(["--tag".into(), tag.clone()]);
     }
 
     if let Some(timeout) = &step.timeout {
-        cmd.args(["--timeout", timeout]);
+        args.extend(["--timeout".into(), timeout.clone()]);
     }
+
+    // Execution environment
+    if step.auto_approve {
+        args.push("--auto-approve".into());
+    }
+    if let Some(root) = &step.root {
+        args.extend(["--root".into(), root.clone()]);
+    }
+    for dir in &step.add_dirs {
+        args.extend(["--add-dir".into(), dir.clone()]);
+    }
+    for (key, value) in &step.env {
+        args.extend(["--env".into(), format!("{key}={value}")]);
+    }
+    for file in &step.files {
+        args.extend(["--file".into(), file.clone()]);
+    }
+
+    // Isolation
+    if step.worktree {
+        args.push("--worktree".into());
+    }
+    if let Some(sandbox) = &step.sandbox {
+        args.extend(["--sandbox".into(), sandbox.clone()]);
+    }
+
+    args
+}
+
+/// Execute a single step by invoking `zag run`.
+///
+/// Returns the captured stdout from zag. The optional `model_override`
+/// is used during retries to escalate to a different model.
+fn execute_step(
+    step: &Step,
+    prompt: &str,
+    workflow_name: &str,
+    model_override: Option<&str>,
+) -> Result<String, ZigError> {
+    let args = build_zag_args(step, prompt, workflow_name, model_override);
+    let mut cmd = Command::new("zag");
+    cmd.args(&args);
 
     let output = cmd.output().map_err(|e| {
         ZigError::Zag(format!(
@@ -390,6 +449,199 @@ fn extract_saves(
     }
 
     Ok(extracted)
+}
+
+/// Partition a tier of steps into sequential steps and race groups.
+///
+/// Steps without a `race_group` are returned as sequential. Steps sharing
+/// the same `race_group` value are grouped together for parallel execution.
+fn partition_tier<'a>(tier: &[&'a Step]) -> (Vec<&'a Step>, HashMap<String, Vec<&'a Step>>) {
+    let mut sequential = Vec::new();
+    let mut race_groups: HashMap<String, Vec<&'a Step>> = HashMap::new();
+
+    for step in tier {
+        if let Some(group) = &step.race_group {
+            race_groups.entry(group.clone()).or_default().push(step);
+        } else {
+            sequential.push(*step);
+        }
+    }
+
+    (sequential, race_groups)
+}
+
+/// Spawn a step as a child process without waiting for it to finish.
+fn spawn_step(
+    step: &Step,
+    prompt: &str,
+    workflow_name: &str,
+) -> Result<std::process::Child, ZigError> {
+    let args = build_zag_args(step, prompt, workflow_name, None);
+    let mut cmd = Command::new("zag");
+    cmd.args(&args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    cmd.spawn()
+        .map_err(|e| ZigError::Zag(format!("failed to spawn zag for step '{}': {e}", step.name)))
+}
+
+/// Execute a race group: run all steps in parallel, return the first winner.
+///
+/// When one step finishes successfully, all remaining steps are killed.
+/// Returns the winning step's name and its stdout output.
+fn execute_race_group(
+    steps: &[&Step],
+    prompts: &HashMap<String, String>,
+    workflow_name: &str,
+) -> Result<(String, String), ZigError> {
+    let mut children: Vec<(String, std::process::Child)> = Vec::new();
+
+    for step in steps {
+        let prompt = prompts.get(&step.name).ok_or_else(|| {
+            ZigError::Execution(format!("missing prompt for step '{}'", step.name))
+        })?;
+        eprintln!("  racing step '{}'...", step.name);
+        let child = spawn_step(step, prompt, workflow_name)?;
+        children.push((step.name.clone(), child));
+    }
+
+    // Poll until one finishes
+    loop {
+        for i in 0..children.len() {
+            let status = children[i]
+                .1
+                .try_wait()
+                .map_err(|e| ZigError::Execution(format!("failed to poll child: {e}")))?;
+
+            if let Some(exit_status) = status {
+                let (winner_name, winner_child) = children.remove(i);
+
+                // Kill remaining children
+                for (name, mut child) in children {
+                    eprintln!("  cancelling step '{name}' (race lost)");
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+
+                if !exit_status.success() {
+                    let stderr = winner_child
+                        .stderr
+                        .map(|mut s| {
+                            let mut buf = String::new();
+                            std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                            buf
+                        })
+                        .unwrap_or_default();
+                    return Err(ZigError::Execution(format!(
+                        "race winner '{}' failed (exit {}): {}",
+                        winner_name,
+                        exit_status,
+                        stderr.trim()
+                    )));
+                }
+
+                let stdout = winner_child
+                    .stdout
+                    .map(|mut s| {
+                        let mut buf = String::new();
+                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
+                        buf
+                    })
+                    .unwrap_or_default();
+
+                eprintln!("  race won by '{winner_name}'");
+                return Ok((winner_name, stdout));
+            }
+        }
+
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// Execute a single sequential step with retry logic, saves, and next-jump handling.
+fn execute_sequential_step(
+    step: &Step,
+    vars: &mut HashMap<String, String>,
+    user_prompt: Option<&str>,
+    step_outputs: &mut HashMap<String, String>,
+    workflow_name: &str,
+    pending_next: &mut Option<String>,
+) -> Result<(), ZigError> {
+    if let Some(condition) = &step.condition {
+        if !evaluate_condition(condition, vars)? {
+            eprintln!(
+                "  skipping '{}' (condition not met: {condition})",
+                step.name
+            );
+            return Ok(());
+        }
+    }
+
+    eprintln!("  running step '{}'...", step.name);
+
+    let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
+
+    let mut attempts = 0;
+    let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
+        step.max_retries.unwrap_or(1) + 1
+    } else {
+        1
+    };
+
+    let result = loop {
+        attempts += 1;
+        let model_override = if attempts > 1 {
+            step.retry_model.as_deref()
+        } else {
+            None
+        };
+        match execute_step(step, &prompt, workflow_name, model_override) {
+            Ok(output) => break Ok(output),
+            Err(e) => {
+                if attempts < max_attempts {
+                    eprintln!(
+                        "    retry {}/{} for step '{}'",
+                        attempts,
+                        max_attempts - 1,
+                        step.name
+                    );
+                    continue;
+                }
+                break Err(e);
+            }
+        }
+    };
+
+    match result {
+        Ok(output) => {
+            if !step.saves.is_empty() {
+                let saved = extract_saves(&output, &step.saves)?;
+                for (k, v) in &saved {
+                    eprintln!("    saved {k} = {v}");
+                }
+                vars.extend(saved);
+            }
+
+            step_outputs.insert(step.name.clone(), output);
+            eprintln!("  completed '{}'", step.name);
+
+            if step.next.is_some() {
+                *pending_next = step.next.clone();
+            }
+        }
+        Err(e) => match step.on_failure.as_ref().unwrap_or(&FailurePolicy::Fail) {
+            FailurePolicy::Fail => return Err(e),
+            FailurePolicy::Continue => {
+                eprintln!("  step '{}' failed (continuing): {e}", step.name);
+            }
+            FailurePolicy::Retry => {
+                return Err(e);
+            }
+        },
+    }
+
+    Ok(())
 }
 
 /// Initialize the variable map from workflow variable definitions.
@@ -476,77 +728,68 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
         };
 
         for tier in &tiers_to_run {
-            for step in tier {
-                // Evaluate condition
-                if let Some(condition) = &step.condition {
-                    if !evaluate_condition(condition, &vars)? {
-                        eprintln!(
-                            "  skipping '{}' (condition not met: {condition})",
-                            step.name
-                        );
-                        continue;
+            let (sequential, race_groups) = partition_tier(tier);
+
+            // Run sequential steps normally
+            for step in &sequential {
+                execute_sequential_step(
+                    step,
+                    &mut vars,
+                    effective_user_prompt,
+                    &mut step_outputs,
+                    &workflow.workflow.name,
+                    &mut pending_next,
+                )?;
+            }
+
+            // Run race groups in parallel
+            for (group_name, race_steps) in &race_groups {
+                eprintln!("  starting race group '{group_name}'...");
+
+                // Build prompts for all racers (conditions evaluated here)
+                let mut prompts = HashMap::new();
+                let mut active_steps: Vec<&Step> = Vec::new();
+                for step in race_steps {
+                    if let Some(condition) = &step.condition {
+                        if !evaluate_condition(condition, &vars)? {
+                            eprintln!(
+                                "  skipping '{}' (condition not met: {condition})",
+                                step.name
+                            );
+                            continue;
+                        }
                     }
+                    let prompt =
+                        render_step_prompt(step, &vars, effective_user_prompt, &step_outputs);
+                    prompts.insert(step.name.clone(), prompt);
+                    active_steps.push(step);
                 }
 
-                eprintln!("  running step '{}'...", step.name);
+                if active_steps.is_empty() {
+                    continue;
+                }
 
-                let prompt = render_step_prompt(step, &vars, effective_user_prompt, &step_outputs);
-
-                let mut attempts = 0;
-                let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
-                    step.max_retries.unwrap_or(1) + 1
-                } else {
-                    1
-                };
-
-                let result = loop {
-                    attempts += 1;
-                    match execute_step(step, &prompt, &workflow.workflow.name) {
-                        Ok(output) => break Ok(output),
-                        Err(e) => {
-                            if attempts < max_attempts {
-                                eprintln!(
-                                    "    retry {}/{} for step '{}'",
-                                    attempts,
-                                    max_attempts - 1,
-                                    step.name
-                                );
-                                continue;
+                match execute_race_group(&active_steps, &prompts, &workflow.workflow.name) {
+                    Ok((winner_name, output)) => {
+                        // Find the winning step to process saves/next
+                        if let Some(winner) = active_steps.iter().find(|s| s.name == winner_name) {
+                            if !winner.saves.is_empty() {
+                                let saved = extract_saves(&output, &winner.saves)?;
+                                for (k, v) in &saved {
+                                    eprintln!("    saved {k} = {v}");
+                                }
+                                vars.extend(saved);
                             }
-                            break Err(e);
-                        }
-                    }
-                };
-
-                match result {
-                    Ok(output) => {
-                        // Extract saves
-                        if !step.saves.is_empty() {
-                            let saved = extract_saves(&output, &step.saves)?;
-                            for (k, v) in &saved {
-                                eprintln!("    saved {k} = {v}");
+                            if winner.next.is_some() {
+                                pending_next = winner.next.clone();
                             }
-                            vars.extend(saved);
                         }
-
-                        step_outputs.insert(step.name.clone(), output);
-                        eprintln!("  completed '{}'", step.name);
-
-                        // Handle `next` jump
-                        if step.next.is_some() {
-                            pending_next = step.next.clone();
-                        }
+                        step_outputs.insert(winner_name.clone(), output);
+                        eprintln!(
+                            "  completed race group '{group_name}' (winner: '{winner_name}')"
+                        );
                     }
-                    Err(e) => match step.on_failure.as_ref().unwrap_or(&FailurePolicy::Fail) {
-                        FailurePolicy::Fail => return Err(e),
-                        FailurePolicy::Continue => {
-                            eprintln!("  step '{}' failed (continuing): {e}", step.name);
-                        }
-                        FailurePolicy::Retry => {
-                            // All retries exhausted
-                            return Err(e);
-                        }
-                    },
+                    Err(e) => return Err(e),
                 }
             }
         }

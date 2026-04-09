@@ -527,3 +527,198 @@ fn prompt_var_with_default_uses_default_when_no_prompt() {
     // No user prompt provided, so default stays
     assert_eq!(vars["content"], "fallback");
 }
+
+// ── build_zag_args ──────────────────────────────────────────────────────────
+
+#[test]
+fn build_zag_args_basic() {
+    let mut s = step("test");
+    s.provider = Some("claude".into());
+    s.model = Some("sonnet".into());
+    s.system_prompt = Some("be helpful".into());
+    s.max_turns = Some(5);
+    s.json = true;
+    s.timeout = Some("5m".into());
+    s.tags = vec!["review".into()];
+
+    let args = build_zag_args(&s, "do stuff", "my-workflow", None);
+
+    assert!(args.contains(&"run".to_string()));
+    assert!(args.contains(&"do stuff".to_string()));
+    assert!(args.contains(&"--provider".to_string()));
+    assert!(args.contains(&"claude".to_string()));
+    assert!(args.contains(&"--model".to_string()));
+    assert!(args.contains(&"sonnet".to_string()));
+    assert!(args.contains(&"--system-prompt".to_string()));
+    assert!(args.contains(&"--max-turns".to_string()));
+    assert!(args.contains(&"5".to_string()));
+    assert!(args.contains(&"--json".to_string()));
+    assert!(args.contains(&"--timeout".to_string()));
+    assert!(args.contains(&"5m".to_string()));
+    assert!(args.contains(&"--name".to_string()));
+    assert!(args.contains(&"zig-my-workflow-test".to_string()));
+    assert!(args.contains(&"zig-workflow".to_string()));
+    assert!(args.contains(&"review".to_string()));
+}
+
+#[test]
+fn build_zag_args_auto_approve() {
+    let mut s = step("test");
+    s.auto_approve = true;
+    let args = build_zag_args(&s, "prompt", "wf", None);
+    assert!(args.contains(&"--auto-approve".to_string()));
+
+    let s2 = step("test");
+    let args2 = build_zag_args(&s2, "prompt", "wf", None);
+    assert!(!args2.contains(&"--auto-approve".to_string()));
+}
+
+#[test]
+fn build_zag_args_env() {
+    let mut s = step("test");
+    s.env = HashMap::from([("MODE".into(), "strict".into())]);
+    let args = build_zag_args(&s, "prompt", "wf", None);
+    assert!(args.contains(&"--env".to_string()));
+    assert!(args.contains(&"MODE=strict".to_string()));
+}
+
+#[test]
+fn build_zag_args_isolation() {
+    let mut s = step("test");
+    s.worktree = true;
+    s.sandbox = Some("worker-box".into());
+    let args = build_zag_args(&s, "prompt", "wf", None);
+    assert!(args.contains(&"--worktree".to_string()));
+    assert!(args.contains(&"--sandbox".to_string()));
+    assert!(args.contains(&"worker-box".to_string()));
+}
+
+#[test]
+fn build_zag_args_files_and_dirs() {
+    let mut s = step("test");
+    s.files = vec!["input.txt".into(), "data.json".into()];
+    s.add_dirs = vec!["/tmp/shared".into()];
+    let args = build_zag_args(&s, "prompt", "wf", None);
+
+    let file_count = args.iter().filter(|a| *a == "--file").count();
+    assert_eq!(file_count, 2);
+    assert!(args.contains(&"input.txt".to_string()));
+    assert!(args.contains(&"data.json".to_string()));
+    assert!(args.contains(&"--add-dir".to_string()));
+    assert!(args.contains(&"/tmp/shared".to_string()));
+}
+
+#[test]
+fn build_zag_args_description() {
+    let mut s = step("test");
+    s.description = "Analyze the code".into();
+    let args = build_zag_args(&s, "prompt", "wf", None);
+    assert!(args.contains(&"--description".to_string()));
+    assert!(args.contains(&"Analyze the code".to_string()));
+
+    // Empty description should not produce the flag
+    let s2 = step("test");
+    let args2 = build_zag_args(&s2, "prompt", "wf", None);
+    assert!(!args2.contains(&"--description".to_string()));
+}
+
+#[test]
+fn build_zag_args_json_schema() {
+    let mut s = step("test");
+    s.json_schema = Some(r#"{"type":"object"}"#.into());
+    let args = build_zag_args(&s, "prompt", "wf", None);
+    assert!(args.contains(&"--json-schema".to_string()));
+    assert!(args.contains(&r#"{"type":"object"}"#.to_string()));
+}
+
+#[test]
+fn build_zag_args_root() {
+    let mut s = step("test");
+    s.root = Some("/tmp/work".into());
+    let args = build_zag_args(&s, "prompt", "wf", None);
+    assert!(args.contains(&"--root".to_string()));
+    assert!(args.contains(&"/tmp/work".to_string()));
+}
+
+#[test]
+fn build_zag_args_model_override() {
+    let mut s = step("test");
+    s.model = Some("sonnet".into());
+    let args = build_zag_args(&s, "prompt", "wf", Some("opus"));
+    // Override should take precedence
+    let model_idx = args.iter().position(|a| a == "--model").unwrap();
+    assert_eq!(args[model_idx + 1], "opus");
+}
+
+#[test]
+fn build_zag_args_model_no_override() {
+    let mut s = step("test");
+    s.model = Some("sonnet".into());
+    let args = build_zag_args(&s, "prompt", "wf", None);
+    let model_idx = args.iter().position(|a| a == "--model").unwrap();
+    assert_eq!(args[model_idx + 1], "sonnet");
+}
+
+#[test]
+fn build_zag_args_no_model() {
+    let s = step("test");
+    let args = build_zag_args(&s, "prompt", "wf", None);
+    assert!(!args.contains(&"--model".to_string()));
+}
+
+// ── partition_tier ──────────────────────────────────────────────────────────
+
+#[test]
+fn partition_tier_no_race_groups() {
+    let steps = [step("a"), step("b")];
+    let refs: Vec<&Step> = steps.iter().collect();
+    let (sequential, race_groups) = partition_tier(&refs);
+    assert_eq!(sequential.len(), 2);
+    assert!(race_groups.is_empty());
+}
+
+#[test]
+fn partition_tier_with_race_group() {
+    let mut a = step("a");
+    a.race_group = Some("solvers".into());
+    let mut b = step("b");
+    b.race_group = Some("solvers".into());
+    let steps = [a, b];
+    let refs: Vec<&Step> = steps.iter().collect();
+    let (sequential, race_groups) = partition_tier(&refs);
+    assert!(sequential.is_empty());
+    assert_eq!(race_groups.len(), 1);
+    assert_eq!(race_groups["solvers"].len(), 2);
+}
+
+#[test]
+fn partition_tier_mixed() {
+    let mut a = step("a");
+    a.race_group = Some("group1".into());
+    let b = step("b");
+    let mut c = step("c");
+    c.race_group = Some("group1".into());
+    let steps = [a, b, c];
+    let refs: Vec<&Step> = steps.iter().collect();
+    let (sequential, race_groups) = partition_tier(&refs);
+    assert_eq!(sequential.len(), 1);
+    assert_eq!(sequential[0].name, "b");
+    assert_eq!(race_groups["group1"].len(), 2);
+}
+
+#[test]
+fn partition_tier_multiple_race_groups() {
+    let mut a = step("a");
+    a.race_group = Some("fast".into());
+    let mut b = step("b");
+    b.race_group = Some("slow".into());
+    let mut c = step("c");
+    c.race_group = Some("fast".into());
+    let steps = [a, b, c];
+    let refs: Vec<&Step> = steps.iter().collect();
+    let (sequential, race_groups) = partition_tier(&refs);
+    assert!(sequential.is_empty());
+    assert_eq!(race_groups.len(), 2);
+    assert_eq!(race_groups["fast"].len(), 2);
+    assert_eq!(race_groups["slow"].len(), 1);
+}

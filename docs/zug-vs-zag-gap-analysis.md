@@ -158,8 +158,13 @@ escalation pattern).
 
 ## Remaining Gaps
 
-After implementing recommendations 1-7, the remaining gaps are:
+After implementing recommendations 1-7 at the model layer and wiring them
+through to zag CLI flags in the execution engine, the remaining gaps are:
 
+- **`interactive` execution** — the field is parsed and validated, but executing
+  interactive steps requires `zag spawn` (not `zag run`) which is a fundamentally
+  different execution model (async session lifecycle). Deferred pending deeper
+  investigation of `zag spawn` blocking behavior.
 - **Event-driven automation** (`watch`, `subscribe`) — requires runtime support
 - **`input` / `broadcast` at runtime** — the `interactive` field enables the
   session mode, but sending messages requires execution engine integration
