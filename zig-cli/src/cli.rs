@@ -31,7 +31,7 @@ pub enum Command {
         prompt: Option<String>,
     },
 
-    /// Manage workflows (create, delete)
+    /// Manage workflows (create, delete, list, show)
     Workflow {
         #[command(subcommand)]
         command: WorkflowCommand,
@@ -85,6 +85,15 @@ pub enum WorkflowCommand {
     /// Delete a workflow file
     Delete {
         /// Name or path of the workflow to delete
+        workflow: String,
+    },
+
+    /// List available workflows
+    List,
+
+    /// Show details of a workflow
+    Show {
+        /// Name or path of the workflow to show
         workflow: String,
     },
 }
@@ -228,6 +237,30 @@ mod tests {
         match cli.command {
             Command::Man { topic } => assert!(topic.is_none()),
             _ => panic!("expected Man command"),
+        }
+    }
+
+    #[test]
+    fn parse_workflow_list() {
+        let cli = Cli::try_parse_from(["zig", "workflow", "list"]).unwrap();
+        match cli.command {
+            Command::Workflow {
+                command: WorkflowCommand::List,
+            } => {}
+            _ => panic!("expected Workflow List command"),
+        }
+    }
+
+    #[test]
+    fn parse_workflow_show() {
+        let cli = Cli::try_parse_from(["zig", "workflow", "show", "my-wf"]).unwrap();
+        match cli.command {
+            Command::Workflow {
+                command: WorkflowCommand::Show { workflow },
+            } => {
+                assert_eq!(workflow, "my-wf");
+            }
+            _ => panic!("expected Workflow Show command"),
         }
     }
 
