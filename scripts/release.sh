@@ -60,9 +60,14 @@ echo "  new:     $NEW_VERSION"
 echo "  tag:     $TAG"
 echo ""
 
-# --- create and push tag ---
+# --- update versions and commit ---
+scripts/update-versions.sh "$NEW_VERSION"
+git add -A
+git diff --cached --quiet || git commit -m "chore: bump version to $NEW_VERSION"
+
+# --- create and push tag + version commit ---
 git tag -a "$TAG" -m "Release $TAG"
-git push origin "$TAG"
+git push origin main "$TAG"
 
 echo ""
 echo "Tag $TAG created and pushed. The release workflow will handle the rest."

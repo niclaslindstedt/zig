@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   update-repo:
-    name: update changelog and versions
+    name: update changelog
     runs-on: ubuntu-latest
     outputs:
       release_notes: ${{ steps.notes.outputs.release_notes }}
@@ -25,8 +25,6 @@ jobs:
       - name: extract version from tag
         id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-      - name: update versions
-        run: scripts/update-versions.sh "${{ steps.version.outputs.version }}"
       - name: generate changelog
         run: scripts/generate-changelog.sh "${{ steps.version.outputs.version }}"
       - name: extract release notes
@@ -39,7 +37,7 @@ jobs:
       - name: commit changes
         run: |
           git add -A
-          git diff --cached --quiet || git commit -m "chore: update versions and changelog for ${{ github.ref_name }}"
+          git diff --cached --quiet || git commit -m "chore: update changelog for ${{ github.ref_name }}"
           git push origin HEAD:main || true
 
   build:
