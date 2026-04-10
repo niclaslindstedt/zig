@@ -25,9 +25,6 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
-          # The default GITHUB_TOKEN deliberately does not trigger downstream
-          # workflows. Use a PAT so the tag push triggers the release workflow.
-          token: ${{ secrets.RELEASE_TOKEN || github.token }}
       - uses: dtolnay/rust-toolchain@stable
       - name: configure git
         run: |
