@@ -6,7 +6,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use std::time::Instant;
+
 use crate::error::ZigError;
+use crate::session::{OutputStream, SessionCoordinator, SessionStatus, SessionWriter};
 use crate::workflow::model::{FailurePolicy, Step, StepCommand, Workflow};
 use crate::workflow::{parser, validate};
 
@@ -29,7 +32,7 @@ pub fn run_workflow(workflow_path: &str, user_prompt: Option<&str>) -> Result<()
         return Err(ZigError::Validation(msgs.join("; ")));
     }
 
-    execute(&workflow, user_prompt)
+    execute(&workflow, &path, user_prompt)
 }
 
 /// Verify that `zag` is installed and available on PATH.
@@ -481,6 +484,7 @@ fn run_zag_streaming(
     args: &[String],
     step_name: &str,
     prefix: Option<&str>,
+    session: Option<&Arc<SessionWriter>>,
 ) -> Result<(std::process::ExitStatus, String), ZigError> {
     let mut cmd = Command::new("zag");
     cmd.args(args)
@@ -498,6 +502,10 @@ fn run_zag_streaming(
     let buffer_clone = Arc::clone(&buffer);
     let prefix_stdout = prefix.map(String::from);
     let prefix_stderr = prefix.map(String::from);
+    let session_stdout = session.cloned();
+    let session_stderr = session.cloned();
+    let step_name_stdout = step_name.to_string();
+    let step_name_stderr = step_name.to_string();
 
     let stdout_thread = thread::spawn(move || {
         let reader = BufReader::new(stdout);
@@ -506,6 +514,9 @@ fn run_zag_streaming(
             if let Ok(mut buf) = buffer_clone.lock() {
                 buf.push_str(&line);
                 buf.push('\n');
+            }
+            if let Some(w) = &session_stdout {
+                let _ = w.step_output(&step_name_stdout, OutputStream::Stdout, &line);
             }
             let mut h = stderr_handle.lock();
             let _ = match &prefix_stdout {
@@ -519,6 +530,9 @@ fn run_zag_streaming(
         let reader = BufReader::new(stderr);
         let stderr_handle = std::io::stderr();
         for line in reader.lines().map_while(Result::ok) {
+            if let Some(w) = &session_stderr {
+                let _ = w.step_output(&step_name_stderr, OutputStream::Stderr, &line);
+            }
             let mut h = stderr_handle.lock();
             let _ = match &prefix_stderr {
                 Some(p) => writeln!(h, "[{p}] {line}"),
@@ -553,9 +567,10 @@ fn execute_step(
     workflow_name: &str,
     model_override: Option<&str>,
     prefix: Option<&str>,
+    session: Option<&Arc<SessionWriter>>,
 ) -> Result<String, ZigError> {
     let args = build_zag_args(step, prompt, workflow_name, model_override);
-    let (status, stdout) = run_zag_streaming(&args, &step.name, prefix)?;
+    let (status, stdout) = run_zag_streaming(&args, &step.name, prefix, session)?;
 
     if !status.success() {
         return Err(ZigError::Execution(format!(
@@ -576,6 +591,7 @@ fn run_step_attempts(
     prompt: &str,
     workflow_name: &str,
     prefix: Option<&str>,
+    session: Option<&Arc<SessionWriter>>,
 ) -> Result<String, ZigError> {
     let mut attempts = 0;
     let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
@@ -591,9 +607,12 @@ fn run_step_attempts(
         } else {
             None
         };
-        match execute_step(step, prompt, workflow_name, model_override, prefix) {
+        match execute_step(step, prompt, workflow_name, model_override, prefix, session) {
             Ok(output) => return Ok(output),
             Err(e) => {
+                if let Some(w) = session {
+                    let _ = w.step_failed(&step.name, None, attempts, &e.to_string());
+                }
                 if attempts < max_attempts {
                     eprintln!(
                         "    retry {}/{} for step '{}'",
@@ -684,7 +703,27 @@ fn execute_race_group(
     steps: &[&Step],
     prompts: &HashMap<String, String>,
     workflow_name: &str,
+    tier_index: usize,
+    session: Option<&Arc<SessionWriter>>,
 ) -> Result<(String, String), ZigError> {
+    if let Some(w) = session {
+        for step in steps {
+            let zag_session_id = format!("zig-{workflow_name}-{}", step.name);
+            let preview = prompts
+                .get(&step.name)
+                .map(|p| prompt_preview(p))
+                .unwrap_or_default();
+            let _ = w.step_started(
+                &step.name,
+                tier_index,
+                &zag_session_id,
+                zag_command_name(&step.command),
+                step.model.as_deref(),
+                &preview,
+            );
+        }
+    }
+    let race_started = Instant::now();
     let mut children: Vec<(String, std::process::Child)> = Vec::new();
 
     for step in steps {
@@ -714,6 +753,7 @@ fn execute_race_group(
                     let _ = child.wait();
                 }
 
+                let elapsed = race_started.elapsed().as_millis() as u64;
                 if !exit_status.success() {
                     let stderr = winner_child
                         .stderr
@@ -723,12 +763,16 @@ fn execute_race_group(
                             buf
                         })
                         .unwrap_or_default();
-                    return Err(ZigError::Execution(format!(
+                    let err_msg = format!(
                         "race winner '{}' failed (exit {}): {}",
                         winner_name,
                         exit_status,
                         stderr.trim()
-                    )));
+                    );
+                    if let Some(w) = session {
+                        let _ = w.step_failed(&winner_name, exit_status.code(), 1, &err_msg);
+                    }
+                    return Err(ZigError::Execution(err_msg));
                 }
 
                 let stdout = winner_child
@@ -741,6 +785,9 @@ fn execute_race_group(
                     .unwrap_or_default();
 
                 eprintln!("  race won by '{winner_name}'");
+                if let Some(w) = session {
+                    let _ = w.step_completed(&winner_name, 0, elapsed, Vec::new());
+                }
                 return Ok((winner_name, stdout));
             }
         }
@@ -750,6 +797,7 @@ fn execute_race_group(
 }
 
 /// Execute a single sequential step with retry logic, saves, and next-jump handling.
+#[allow(clippy::too_many_arguments)]
 fn execute_sequential_step(
     step: &Step,
     vars: &mut HashMap<String, String>,
@@ -757,6 +805,8 @@ fn execute_sequential_step(
     step_outputs: &mut HashMap<String, String>,
     workflow_name: &str,
     pending_next: &mut Option<String>,
+    tier_index: usize,
+    session: Option<&Arc<SessionWriter>>,
 ) -> Result<(), ZigError> {
     if let Some(condition) = &step.condition {
         if !evaluate_condition(condition, vars)? {
@@ -764,6 +814,9 @@ fn execute_sequential_step(
                 "  skipping '{}' (condition not met: {condition})",
                 step.name
             );
+            if let Some(w) = session {
+                let _ = w.step_skipped(&step.name, &format!("condition not met: {condition}"));
+            }
             return Ok(());
         }
     }
@@ -771,20 +824,42 @@ fn execute_sequential_step(
     eprintln!("  running step '{}'...", step.name);
 
     let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
-    let result = run_step_attempts(step, &prompt, workflow_name, None);
+    if let Some(w) = session {
+        let zag_session_id = format!("zig-{workflow_name}-{}", step.name);
+        let _ = w.step_started(
+            &step.name,
+            tier_index,
+            &zag_session_id,
+            zag_command_name(&step.command),
+            step.model.as_deref(),
+            &prompt_preview(&prompt),
+        );
+    }
+    let started = Instant::now();
+    let result = run_step_attempts(step, &prompt, workflow_name, None, session);
 
     match result {
         Ok(output) => {
+            let mut saved_keys: Vec<String> = Vec::new();
             if !step.saves.is_empty() {
                 let saved = extract_saves(&output, &step.saves)?;
                 for (k, v) in &saved {
                     eprintln!("    saved {k} = {v}");
+                    saved_keys.push(k.clone());
                 }
                 vars.extend(saved);
             }
 
             step_outputs.insert(step.name.clone(), output);
             eprintln!("  completed '{}'", step.name);
+            if let Some(w) = session {
+                let _ = w.step_completed(
+                    &step.name,
+                    0,
+                    started.elapsed().as_millis() as u64,
+                    saved_keys,
+                );
+            }
 
             if step.next.is_some() {
                 *pending_next = step.next.clone();
@@ -812,6 +887,7 @@ fn execute_sequential_step(
 /// step name to disambiguate. After completion, results are processed in
 /// tier-declaration order so `saves`, `next`, and `on_failure` semantics
 /// remain deterministic.
+#[allow(clippy::too_many_arguments)]
 fn execute_parallel_tier(
     steps: &[&Step],
     vars: &mut HashMap<String, String>,
@@ -819,6 +895,8 @@ fn execute_parallel_tier(
     step_outputs: &mut HashMap<String, String>,
     workflow_name: &str,
     pending_next: &mut Option<String>,
+    tier_index: usize,
+    session: Option<&Arc<SessionWriter>>,
 ) -> Result<(), ZigError> {
     // Evaluate conditions and render prompts up front, so threads receive
     // the same variable snapshot they would have under sequential execution.
@@ -831,6 +909,9 @@ fn execute_parallel_tier(
                     "  skipping '{}' (condition not met: {condition})",
                     step.name
                 );
+                if let Some(w) = session {
+                    let _ = w.step_skipped(&step.name, &format!("condition not met: {condition}"));
+                }
                 continue;
             }
         }
@@ -845,15 +926,35 @@ fn execute_parallel_tier(
 
     eprintln!("  running {} steps in parallel...", active.len());
 
+    let mut start_times: HashMap<String, Instant> = HashMap::new();
     let mut handles: Vec<thread::JoinHandle<(String, Result<String, ZigError>)>> = Vec::new();
     for step in &active {
         let step_clone: Step = (*step).clone();
         let prompt = prompts.remove(&step.name).unwrap_or_default();
-        let workflow_name = workflow_name.to_string();
+        let workflow_name_owned = workflow_name.to_string();
         let name = step.name.clone();
         eprintln!("  starting '{name}'...");
+        if let Some(w) = session {
+            let zag_session_id = format!("zig-{workflow_name}-{name}");
+            let _ = w.step_started(
+                &name,
+                tier_index,
+                &zag_session_id,
+                zag_command_name(&step.command),
+                step.model.as_deref(),
+                &prompt_preview(&prompt),
+            );
+        }
+        start_times.insert(name.clone(), Instant::now());
+        let session_clone = session.cloned();
         let handle = thread::spawn(move || {
-            let res = run_step_attempts(&step_clone, &prompt, &workflow_name, Some(&name));
+            let res = run_step_attempts(
+                &step_clone,
+                &prompt,
+                &workflow_name_owned,
+                Some(&name),
+                session_clone.as_ref(),
+            );
             (name, res)
         });
         handles.push(handle);
@@ -877,17 +978,26 @@ fn execute_parallel_tier(
         let Some(res) = results.remove(&step.name) else {
             continue;
         };
+        let elapsed = start_times
+            .remove(&step.name)
+            .map(|t| t.elapsed().as_millis() as u64)
+            .unwrap_or(0);
         match res {
             Ok(output) => {
+                let mut saved_keys: Vec<String> = Vec::new();
                 if !step.saves.is_empty() {
                     let saved = extract_saves(&output, &step.saves)?;
                     for (k, v) in &saved {
                         eprintln!("    saved {k} = {v}");
+                        saved_keys.push(k.clone());
                     }
                     vars.extend(saved);
                 }
                 step_outputs.insert(step.name.clone(), output);
                 eprintln!("  completed '{}'", step.name);
+                if let Some(w) = session {
+                    let _ = w.step_completed(&step.name, 0, elapsed, saved_keys);
+                }
                 if step.next.is_some() && pending_next.is_none() {
                     *pending_next = step.next.clone();
                 }
@@ -932,7 +1042,11 @@ fn init_vars(workflow: &Workflow) -> HashMap<String, String> {
 }
 
 /// Main execution loop for a validated workflow.
-fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigError> {
+fn execute(
+    workflow: &Workflow,
+    workflow_path: &std::path::Path,
+    user_prompt: Option<&str>,
+) -> Result<(), ZigError> {
     let mut vars = init_vars(workflow);
 
     // Bind user prompt to the variable with `from = "prompt"`, if any.
@@ -972,6 +1086,28 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
         tiers.len()
     );
 
+    // Open a zig session log for this run. Failure to open the log is
+    // non-fatal — `zig run` should still execute even if `~/.zig` is
+    // unwritable. The session writer is `Option<Arc<...>>` everywhere
+    // downstream so the writer-less path stays intact for tests.
+    let coordinator = match SessionWriter::create(
+        &workflow.workflow.name,
+        &workflow_path.to_string_lossy(),
+        user_prompt,
+        tiers.len(),
+    ) {
+        Ok(writer) => {
+            eprintln!("zig session: {}", writer.session_id());
+            Some(SessionCoordinator::start(writer))
+        }
+        Err(e) => {
+            eprintln!("warning: failed to open zig session log: {e}");
+            None
+        }
+    };
+    let session_writer: Option<Arc<SessionWriter>> = coordinator.as_ref().map(|c| c.writer());
+    let session_ref = session_writer.as_ref();
+
     let mut iteration = 0;
     let mut pending_next: Option<String> = None;
 
@@ -996,8 +1132,13 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
             break;
         };
 
-        for tier in &tiers_to_run {
+        for (tier_index, tier) in tiers_to_run.iter().enumerate() {
             let (non_race, race_groups) = partition_tier(tier);
+
+            if let Some(w) = session_ref {
+                let names: Vec<String> = tier.iter().map(|s| s.name.clone()).collect();
+                let _ = w.tier_started(tier_index, names);
+            }
 
             // Independent steps in the same tier run concurrently. A single
             // step takes the sequential path so its output streams without
@@ -1011,6 +1152,8 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
                         &mut step_outputs,
                         &workflow.workflow.name,
                         &mut pending_next,
+                        tier_index,
+                        session_ref,
                     )?;
                 }
             } else {
@@ -1021,6 +1164,8 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
                     &mut step_outputs,
                     &workflow.workflow.name,
                     &mut pending_next,
+                    tier_index,
+                    session_ref,
                 )?;
             }
 
@@ -1051,7 +1196,13 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
                     continue;
                 }
 
-                match execute_race_group(&active_steps, &prompts, &workflow.workflow.name) {
+                match execute_race_group(
+                    &active_steps,
+                    &prompts,
+                    &workflow.workflow.name,
+                    tier_index,
+                    session_ref,
+                ) {
                     Ok((winner_name, output)) => {
                         // Find the winning step to process saves/next
                         if let Some(winner) = active_steps.iter().find(|s| s.name == winner_name) {
@@ -1086,7 +1237,38 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
     }
 
     eprintln!("workflow '{}' completed", workflow.workflow.name);
+    if let Some(c) = coordinator {
+        let _ = c.finish(SessionStatus::Success);
+    }
     Ok(())
+}
+
+/// Short label for the zag subcommand a step will invoke. Used in
+/// `step_started` events so listeners can distinguish run/review/plan/etc.
+fn zag_command_name(cmd: &Option<StepCommand>) -> &'static str {
+    match cmd {
+        None => "run",
+        Some(StepCommand::Review) => "review",
+        Some(StepCommand::Plan) => "plan",
+        Some(StepCommand::Pipe) => "pipe",
+        Some(StepCommand::Collect) => "collect",
+        Some(StepCommand::Summary) => "summary",
+    }
+}
+
+/// Truncated single-line preview of a rendered prompt for the session log.
+fn prompt_preview(prompt: &str) -> String {
+    const MAX: usize = 200;
+    let collapsed: String = prompt
+        .chars()
+        .map(|c| if c == '\n' { ' ' } else { c })
+        .collect();
+    if collapsed.chars().count() <= MAX {
+        collapsed
+    } else {
+        let truncated: String = collapsed.chars().take(MAX).collect();
+        format!("{truncated}…")
+    }
 }
 
 #[cfg(test)]

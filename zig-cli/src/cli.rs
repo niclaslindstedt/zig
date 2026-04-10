@@ -61,6 +61,20 @@ pub enum Command {
         /// Topic to display (e.g., run, zug, patterns). Omit to list all topics.
         topic: Option<String>,
     },
+
+    /// Tail a running or completed zig session
+    Listen {
+        /// Session id (full UUID or unique prefix). Omit with --latest/--active.
+        session_id: Option<String>,
+
+        /// Tail the most recently started session
+        #[arg(long, conflicts_with_all = ["session_id", "active"])]
+        latest: bool,
+
+        /// Tail the most recently active (still-running) session
+        #[arg(long, conflicts_with_all = ["session_id", "latest"])]
+        active: bool,
+    },
 }
 
 /// Subcommands for `zig workflow`.
@@ -256,6 +270,46 @@ mod tests {
             Command::Man { topic } => assert!(topic.is_none()),
             _ => panic!("expected Man command"),
         }
+    }
+
+    #[test]
+    fn parse_listen_with_id() {
+        let cli = Cli::try_parse_from(["zig", "listen", "abc123"]).unwrap();
+        match cli.command {
+            Command::Listen {
+                session_id,
+                latest,
+                active,
+            } => {
+                assert_eq!(session_id.as_deref(), Some("abc123"));
+                assert!(!latest);
+                assert!(!active);
+            }
+            _ => panic!("expected Listen command"),
+        }
+    }
+
+    #[test]
+    fn parse_listen_latest() {
+        let cli = Cli::try_parse_from(["zig", "listen", "--latest"]).unwrap();
+        match cli.command {
+            Command::Listen {
+                session_id,
+                latest,
+                active,
+            } => {
+                assert!(session_id.is_none());
+                assert!(latest);
+                assert!(!active);
+            }
+            _ => panic!("expected Listen command"),
+        }
+    }
+
+    #[test]
+    fn parse_listen_active_conflicts_with_latest() {
+        let result = Cli::try_parse_from(["zig", "listen", "--latest", "--active"]);
+        assert!(result.is_err());
     }
 
     #[test]
