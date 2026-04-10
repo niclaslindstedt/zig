@@ -1,6 +1,9 @@
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
 
 use crate::error::ZigError;
@@ -469,40 +472,141 @@ fn build_zag_args(
     args
 }
 
-/// Execute a single step by invoking `zag run`.
+/// Spawn `zag` and stream its stdout/stderr live to our stderr while
+/// also accumulating stdout into a buffer for `saves` extraction.
+///
+/// If `prefix` is `Some`, every emitted line is prefixed with `[prefix] `
+/// — used to disambiguate output from steps running in parallel.
+fn run_zag_streaming(
+    args: &[String],
+    step_name: &str,
+    prefix: Option<&str>,
+) -> Result<(std::process::ExitStatus, String), ZigError> {
+    let mut cmd = Command::new("zag");
+    cmd.args(args)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| ZigError::Zag(format!("failed to launch zag for step '{step_name}': {e}")))?;
+
+    let stdout = child.stdout.take().expect("stdout was piped");
+    let stderr = child.stderr.take().expect("stderr was piped");
+
+    let buffer = Arc::new(Mutex::new(String::new()));
+    let buffer_clone = Arc::clone(&buffer);
+    let prefix_stdout = prefix.map(String::from);
+    let prefix_stderr = prefix.map(String::from);
+
+    let stdout_thread = thread::spawn(move || {
+        let reader = BufReader::new(stdout);
+        let stderr_handle = std::io::stderr();
+        for line in reader.lines().map_while(Result::ok) {
+            if let Ok(mut buf) = buffer_clone.lock() {
+                buf.push_str(&line);
+                buf.push('\n');
+            }
+            let mut h = stderr_handle.lock();
+            let _ = match &prefix_stdout {
+                Some(p) => writeln!(h, "[{p}] {line}"),
+                None => writeln!(h, "{line}"),
+            };
+        }
+    });
+
+    let stderr_thread = thread::spawn(move || {
+        let reader = BufReader::new(stderr);
+        let stderr_handle = std::io::stderr();
+        for line in reader.lines().map_while(Result::ok) {
+            let mut h = stderr_handle.lock();
+            let _ = match &prefix_stderr {
+                Some(p) => writeln!(h, "[{p}] {line}"),
+                None => writeln!(h, "{line}"),
+            };
+        }
+    });
+
+    let status = child
+        .wait()
+        .map_err(|e| ZigError::Execution(format!("failed to wait for child: {e}")))?;
+
+    let _ = stdout_thread.join();
+    let _ = stderr_thread.join();
+
+    let captured = Arc::try_unwrap(buffer)
+        .map_err(|_| ZigError::Execution("buffer still shared after threads joined".into()))?
+        .into_inner()
+        .map_err(|_| ZigError::Execution("output buffer poisoned".into()))?;
+
+    Ok((status, captured))
+}
+
+/// Execute a single step by invoking `zag`, streaming its output live.
 ///
 /// Returns the captured stdout from zag. The optional `model_override`
-/// is used during retries to escalate to a different model.
+/// is used during retries to escalate to a different model. The optional
+/// `prefix` tags streamed lines with the step name (used for parallel runs).
 fn execute_step(
     step: &Step,
     prompt: &str,
     workflow_name: &str,
     model_override: Option<&str>,
+    prefix: Option<&str>,
 ) -> Result<String, ZigError> {
     let args = build_zag_args(step, prompt, workflow_name, model_override);
-    let mut cmd = Command::new("zag");
-    cmd.args(&args);
+    let (status, stdout) = run_zag_streaming(&args, &step.name, prefix)?;
 
-    let output = cmd.output().map_err(|e| {
-        ZigError::Zag(format!(
-            "failed to launch zag for step '{}': {e}",
-            step.name
-        ))
-    })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
+    if !status.success() {
         return Err(ZigError::Execution(format!(
-            "step '{}' failed (exit {}): {}",
-            step.name,
-            output.status,
-            stderr.trim()
+            "step '{}' failed (exit {})",
+            step.name, status,
         )));
     }
 
-    String::from_utf8(output.stdout).map_err(|e| {
-        ZigError::Execution(format!("step '{}' produced invalid UTF-8: {e}", step.name))
-    })
+    Ok(stdout)
+}
+
+/// Run a step with retry logic, returning its captured stdout on success.
+///
+/// Extracted so both sequential and parallel execution paths share the
+/// same retry / model-escalation behavior.
+fn run_step_attempts(
+    step: &Step,
+    prompt: &str,
+    workflow_name: &str,
+    prefix: Option<&str>,
+) -> Result<String, ZigError> {
+    let mut attempts = 0;
+    let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
+        step.max_retries.unwrap_or(1) + 1
+    } else {
+        1
+    };
+
+    loop {
+        attempts += 1;
+        let model_override = if attempts > 1 {
+            step.retry_model.as_deref()
+        } else {
+            None
+        };
+        match execute_step(step, prompt, workflow_name, model_override, prefix) {
+            Ok(output) => return Ok(output),
+            Err(e) => {
+                if attempts < max_attempts {
+                    eprintln!(
+                        "    retry {}/{} for step '{}'",
+                        attempts,
+                        max_attempts - 1,
+                        step.name
+                    );
+                    continue;
+                }
+                return Err(e);
+            }
+        }
+    }
 }
 
 /// Extract variable values from step output using `saves` selectors.
@@ -667,37 +771,7 @@ fn execute_sequential_step(
     eprintln!("  running step '{}'...", step.name);
 
     let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
-
-    let mut attempts = 0;
-    let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
-        step.max_retries.unwrap_or(1) + 1
-    } else {
-        1
-    };
-
-    let result = loop {
-        attempts += 1;
-        let model_override = if attempts > 1 {
-            step.retry_model.as_deref()
-        } else {
-            None
-        };
-        match execute_step(step, &prompt, workflow_name, model_override) {
-            Ok(output) => break Ok(output),
-            Err(e) => {
-                if attempts < max_attempts {
-                    eprintln!(
-                        "    retry {}/{} for step '{}'",
-                        attempts,
-                        max_attempts - 1,
-                        step.name
-                    );
-                    continue;
-                }
-                break Err(e);
-            }
-        }
-    };
+    let result = run_step_attempts(step, &prompt, workflow_name, None);
 
     match result {
         Ok(output) => {
@@ -725,6 +799,115 @@ fn execute_sequential_step(
                 return Err(e);
             }
         },
+    }
+
+    Ok(())
+}
+
+/// Run multiple independent steps in a tier concurrently.
+///
+/// All non-skipped steps are spawned in their own threads and we wait for
+/// every one to finish (unlike race groups, which kill losers). Output
+/// lines from each step are streamed live to stderr, prefixed with the
+/// step name to disambiguate. After completion, results are processed in
+/// tier-declaration order so `saves`, `next`, and `on_failure` semantics
+/// remain deterministic.
+fn execute_parallel_tier(
+    steps: &[&Step],
+    vars: &mut HashMap<String, String>,
+    user_prompt: Option<&str>,
+    step_outputs: &mut HashMap<String, String>,
+    workflow_name: &str,
+    pending_next: &mut Option<String>,
+) -> Result<(), ZigError> {
+    // Evaluate conditions and render prompts up front, so threads receive
+    // the same variable snapshot they would have under sequential execution.
+    let mut active: Vec<&Step> = Vec::new();
+    let mut prompts: HashMap<String, String> = HashMap::new();
+    for step in steps {
+        if let Some(condition) = &step.condition {
+            if !evaluate_condition(condition, vars)? {
+                eprintln!(
+                    "  skipping '{}' (condition not met: {condition})",
+                    step.name
+                );
+                continue;
+            }
+        }
+        let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
+        prompts.insert(step.name.clone(), prompt);
+        active.push(*step);
+    }
+
+    if active.is_empty() {
+        return Ok(());
+    }
+
+    eprintln!("  running {} steps in parallel...", active.len());
+
+    let mut handles: Vec<thread::JoinHandle<(String, Result<String, ZigError>)>> = Vec::new();
+    for step in &active {
+        let step_clone: Step = (*step).clone();
+        let prompt = prompts.remove(&step.name).unwrap_or_default();
+        let workflow_name = workflow_name.to_string();
+        let name = step.name.clone();
+        eprintln!("  starting '{name}'...");
+        let handle = thread::spawn(move || {
+            let res = run_step_attempts(&step_clone, &prompt, &workflow_name, Some(&name));
+            (name, res)
+        });
+        handles.push(handle);
+    }
+
+    let mut results: HashMap<String, Result<String, ZigError>> = HashMap::new();
+    for handle in handles {
+        match handle.join() {
+            Ok((name, res)) => {
+                results.insert(name, res);
+            }
+            Err(_) => {
+                return Err(ZigError::Execution("parallel step thread panicked".into()));
+            }
+        }
+    }
+
+    // Process results in tier-declaration order so `next` is deterministic.
+    let mut errors: Vec<String> = Vec::new();
+    for step in &active {
+        let Some(res) = results.remove(&step.name) else {
+            continue;
+        };
+        match res {
+            Ok(output) => {
+                if !step.saves.is_empty() {
+                    let saved = extract_saves(&output, &step.saves)?;
+                    for (k, v) in &saved {
+                        eprintln!("    saved {k} = {v}");
+                    }
+                    vars.extend(saved);
+                }
+                step_outputs.insert(step.name.clone(), output);
+                eprintln!("  completed '{}'", step.name);
+                if step.next.is_some() && pending_next.is_none() {
+                    *pending_next = step.next.clone();
+                }
+            }
+            Err(e) => match step.on_failure.as_ref().unwrap_or(&FailurePolicy::Fail) {
+                FailurePolicy::Continue => {
+                    eprintln!("  step '{}' failed (continuing): {e}", step.name);
+                }
+                FailurePolicy::Fail | FailurePolicy::Retry => {
+                    errors.push(format!("'{}': {e}", step.name));
+                }
+            },
+        }
+    }
+
+    if !errors.is_empty() {
+        return Err(ZigError::Execution(format!(
+            "parallel step(s) failed: {}",
+            errors.join("; ")
+        )));
     }
 
     Ok(())
@@ -814,12 +997,25 @@ fn execute(workflow: &Workflow, user_prompt: Option<&str>) -> Result<(), ZigErro
         };
 
         for tier in &tiers_to_run {
-            let (sequential, race_groups) = partition_tier(tier);
+            let (non_race, race_groups) = partition_tier(tier);
 
-            // Run sequential steps normally
-            for step in &sequential {
-                execute_sequential_step(
-                    step,
+            // Independent steps in the same tier run concurrently. A single
+            // step takes the sequential path so its output streams without
+            // a name prefix; multiple steps go through the parallel path.
+            if non_race.len() <= 1 {
+                for step in &non_race {
+                    execute_sequential_step(
+                        step,
+                        &mut vars,
+                        effective_user_prompt,
+                        &mut step_outputs,
+                        &workflow.workflow.name,
+                        &mut pending_next,
+                    )?;
+                }
+            } else {
+                execute_parallel_tier(
+                    &non_race,
                     &mut vars,
                     effective_user_prompt,
                     &mut step_outputs,
