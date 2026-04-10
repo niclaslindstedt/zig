@@ -1,9 +1,10 @@
 name: release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_run:
+    workflows: ["version-bump"]
+    types:
+      - completed
 
 permissions:
   contents: write
@@ -12,8 +13,10 @@ jobs:
   update-repo:
     name: update changelog
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     outputs:
       release_notes: ${{ steps.notes.outputs.release_notes }}
+      tag: ${{ steps.version.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -22,9 +25,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-      - name: extract version from tag
+      - name: extract version
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        run: |
+          git fetch --tags
+          TAG=$(git describe --tags --abbrev=0 --match 'v*')
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+      - name: checkout tag
+        run: git checkout "${{ steps.version.outputs.tag }}"
       - name: generate changelog
         run: scripts/generate-changelog.sh "${{ steps.version.outputs.version }}"
       - name: extract release notes
@@ -34,11 +43,18 @@ jobs:
           echo "release_notes<<$EOF" >> "$GITHUB_OUTPUT"
           sed -n "/^## \[${{ steps.version.outputs.version }}\]/,/^## \[/{ /^## \[.*\]/!p; }" CHANGELOG.md >> "$GITHUB_OUTPUT"
           echo "$EOF" >> "$GITHUB_OUTPUT"
-      - name: commit changes
+      - name: commit changelog and retag
         run: |
+          TAG="${{ steps.version.outputs.tag }}"
           git add -A
-          git diff --cached --quiet || git commit -m "chore: update changelog for ${{ github.ref_name }}"
-          git push origin HEAD:main || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: update changelog for ${TAG}"
+          fi
+          # Fast-forward main to include the changelog commit.
+          git push origin HEAD:main
+          # Move the tag to the new commit so build/publish use the updated sources.
+          git tag -f -a "${TAG}" -m "Release ${TAG}"
+          git push origin -f "refs/tags/${TAG}"
 
   build:
     name: build (${{ matrix.target }})
@@ -67,6 +83,8 @@ jobs:
             cross: false
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.update-repo.outputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -123,11 +141,13 @@ jobs:
 
   publish-crates:
     name: publish crates
-    needs: release
+    needs: [update-repo, release]
     runs-on: ubuntu-latest
     environment: crates-io
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.update-repo.outputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
       - name: publish zig-core
         run: cargo publish -p zig-core --token "${{ secrets.CRATES_TOKEN }}"
