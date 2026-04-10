@@ -69,6 +69,23 @@ fn main() -> Result<()> {
         Command::Init => {
             println!("zig init: initializing project (not yet implemented)");
         }
+        Command::Listen {
+            session_id,
+            latest,
+            active,
+        } => {
+            let selector = if let Some(id) = session_id {
+                zig_core::listen::SessionSelector::Id(id)
+            } else if active {
+                zig_core::listen::SessionSelector::Active
+            } else if latest {
+                zig_core::listen::SessionSelector::Latest
+            } else {
+                // Default to --latest when no flag is provided.
+                zig_core::listen::SessionSelector::Latest
+            };
+            zig_core::listen::listen(selector, zig_core::listen::ListenOptions::default())?;
+        }
         Command::Man { topic } => {
             if let Some(topic) = topic {
                 match zig_core::man::get(&topic) {
