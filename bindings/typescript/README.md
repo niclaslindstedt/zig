@@ -183,6 +183,15 @@ console.log(wf.steps.length);
 | `.listen(options?)` | `Promise<void>` | Tail a running/completed session |
 | `.man(topic?)` | `Promise<string>` | Show a manual page topic |
 
+## Utility functions
+
+| Function | Returns | Description |
+|----------|---------|-------------|
+| `parseWorkflow(content)` | `Workflow` | Parse a TOML `.zug` string into a typed `Workflow` object |
+| `parseWorkflowFile(path)` | `Promise<Workflow>` | Read and parse a `.zug` file from disk |
+| `zagSessionName(workflow, step)` | `string` | Compute the zag session name for a single step (`zig-{workflow}-{step}`) |
+| `zagSessionNames(workflow)` | `Record<string, string>` | Extract all zag session names from a parsed workflow |
+
 ## Workflow types
 
 The SDK exports TypeScript types that mirror the Rust data model:
@@ -213,6 +222,32 @@ The `Pattern` type covers the seven orchestration patterns supported by zig:
 | `"hierarchical-decomposition"` | Break down into sub-tasks, delegate, synthesize |
 | `"human-in-the-loop"` | Automated steps with human approval gates |
 | `"inter-agent-communication"` | Agents collaborate via shared variables |
+
+## Bridging to zag-agent
+
+Zig names each zag session deterministically as `zig-{workflowName}-{stepName}`.
+The SDK exposes helpers to compute these names so you can use
+[`@nlindstedt/zag-agent`](https://github.com/niclaslindstedt/zag/tree/main/bindings/typescript)
+to control individual agent sessions spawned by a workflow:
+
+```typescript
+import { parseWorkflowFile, zagSessionName, zagSessionNames } from "@nlindstedt/zig-workflow";
+import { ZagBuilder } from "@nlindstedt/zag-agent";
+
+// Single step session name
+const session = zagSessionName("deploy", "lint");
+// "zig-deploy-lint"
+
+// All session names from a workflow file
+const wf = await parseWorkflowFile("deploy.zug");
+const sessions = zagSessionNames(wf);
+// { lint: "zig-deploy-lint", test: "zig-deploy-test", deploy: "zig-deploy-deploy" }
+
+// Use with zag-agent to control the agent session
+const output = await new ZagBuilder()
+  .session(sessions.lint)
+  .continueLast();
+```
 
 ## Error handling
 

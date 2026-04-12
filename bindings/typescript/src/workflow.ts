@@ -2,6 +2,60 @@ import { readFile } from "node:fs/promises";
 import type { Workflow, Step, Variable, VarType } from "./types.js";
 import { ZigError } from "./types.js";
 
+// ---------------------------------------------------------------------------
+// Zag session name utilities
+// ---------------------------------------------------------------------------
+
+/**
+ * Compute the zag session name that zig assigns to a workflow step.
+ *
+ * Zig names each zag session deterministically as `zig-{workflowName}-{stepName}`.
+ * Use this to construct session identifiers for `@nlindstedt/zag-agent` without
+ * parsing CLI output.
+ *
+ * @param workflowName - The workflow name (from `workflow.workflow.name`)
+ * @param stepName - The step name (from `step.name`)
+ * @returns The zag session name, e.g. `"zig-deploy-lint"`
+ *
+ * @example
+ * ```ts
+ * import { zagSessionName } from "@nlindstedt/zig-workflow";
+ *
+ * const name = zagSessionName("deploy", "lint");
+ * // "zig-deploy-lint"
+ * ```
+ */
+export function zagSessionName(workflowName: string, stepName: string): string {
+  return `zig-${workflowName}-${stepName}`;
+}
+
+/**
+ * Extract all zag session names from a parsed workflow.
+ *
+ * Returns a map of step name → zag session name for every step in the workflow.
+ * Use these session names with `@nlindstedt/zag-agent` to resume, message, or
+ * control individual agent sessions spawned by zig.
+ *
+ * @param workflow - A parsed `Workflow` object (from `parseWorkflow` or `parseWorkflowFile`)
+ * @returns Record mapping step names to their zag session names
+ *
+ * @example
+ * ```ts
+ * import { parseWorkflowFile, zagSessionNames } from "@nlindstedt/zig-workflow";
+ *
+ * const wf = await parseWorkflowFile("deploy.zug");
+ * const sessions = zagSessionNames(wf);
+ * // { lint: "zig-deploy-lint", test: "zig-deploy-test", deploy: "zig-deploy-deploy" }
+ * ```
+ */
+export function zagSessionNames(workflow: Workflow): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const step of workflow.steps) {
+    result[step.name] = zagSessionName(workflow.workflow.name, step.name);
+  }
+  return result;
+}
+
 /**
  * Parse a TOML .zug workflow string into a typed Workflow object.
  *

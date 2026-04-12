@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ZigBuilder } from "../src/builder.js";
 import { ZigError, ZigVersionError } from "../src/types.js";
 import type { Workflow } from "../src/types.js";
-import { parseWorkflow } from "../src/workflow.js";
+import { parseWorkflow, zagSessionName, zagSessionNames } from "../src/workflow.js";
 import {
   parseSemver,
   compareSemver,
@@ -397,5 +397,49 @@ timeout = "5m"
     assert.equal(wf.steps[0].root, "/tmp/project");
     assert.equal(wf.steps[0].max_turns, 10);
     assert.equal(wf.steps[0].timeout, "5m");
+  });
+});
+
+describe("Zag session names", () => {
+  it("should compute a single session name", () => {
+    assert.equal(zagSessionName("deploy", "lint"), "zig-deploy-lint");
+    assert.equal(zagSessionName("ci-pipeline", "test"), "zig-ci-pipeline-test");
+  });
+
+  it("should extract all session names from a workflow", () => {
+    const toml = `
+[workflow]
+name = "deploy"
+
+[[step]]
+name = "lint"
+prompt = "Run linters"
+
+[[step]]
+name = "test"
+prompt = "Run tests"
+
+[[step]]
+name = "deploy"
+prompt = "Deploy to prod"
+depends_on = ["lint", "test"]
+`;
+    const wf = parseWorkflow(toml);
+    const sessions = zagSessionNames(wf);
+    assert.deepStrictEqual(sessions, {
+      lint: "zig-deploy-lint",
+      test: "zig-deploy-test",
+      deploy: "zig-deploy-deploy",
+    });
+  });
+
+  it("should return empty record for workflow with no steps", () => {
+    const toml = `
+[workflow]
+name = "empty"
+`;
+    const wf = parseWorkflow(toml);
+    const sessions = zagSessionNames(wf);
+    assert.deepStrictEqual(sessions, {});
   });
 });

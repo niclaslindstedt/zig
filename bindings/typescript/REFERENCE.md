@@ -12,6 +12,7 @@ Comprehensive reference for the TypeScript binding of zig, a workflow orchestrat
   - [Terminal Methods](#terminal-methods)
 - [StreamingSession](#streamingsession)
 - [Workflow Parsing](#workflow-parsing)
+- [Zag Session Names](#zag-session-names)
 - [Types](#types)
   - [Workflow](#workflow)
   - [WorkflowMeta](#workflowmeta)
@@ -27,6 +28,7 @@ Comprehensive reference for the TypeScript binding of zig, a workflow orchestrat
   - [Validate a Workflow](#validate-a-workflow)
   - [Parse a .zug File](#parse-a-zug-file)
   - [Manage Workflows](#manage-workflows)
+  - [Bridge to zag-agent](#bridge-to-zag-agent)
   - [Error Handling](#error-handling)
 - [Internals](#internals)
   - [CLI Arg Construction](#cli-arg-construction)
@@ -142,6 +144,32 @@ async function parseWorkflowFile(path: string): Promise<Workflow>
 ```
 
 Read a `.zug` file from disk and parse it into a `Workflow` object. Throws `ZigError` if the file cannot be read.
+
+---
+
+## Zag Session Names
+
+Zig names each zag session deterministically as `zig-{workflowName}-{stepName}`. These utilities compute session names so you can use `@nlindstedt/zag-agent` to control individual agent sessions spawned by a workflow.
+
+```typescript
+import { zagSessionName, zagSessionNames } from "@nlindstedt/zig-workflow";
+```
+
+### zagSessionName
+
+```typescript
+function zagSessionName(workflowName: string, stepName: string): string
+```
+
+Compute the zag session name for a single workflow step. Returns `"zig-{workflowName}-{stepName}"`.
+
+### zagSessionNames
+
+```typescript
+function zagSessionNames(workflow: Workflow): Record<string, string>
+```
+
+Extract all zag session names from a parsed `Workflow` object. Returns a record mapping step names to their corresponding zag session names.
 
 ---
 
@@ -542,6 +570,33 @@ await zig.workflowCreate({
 
 // Delete
 await zig.workflowDelete("old-pipeline");
+```
+
+### Bridge to zag-agent
+
+Use session name utilities to control individual agent sessions with `@nlindstedt/zag-agent`:
+
+```typescript
+import { ZigBuilder, parseWorkflowFile, zagSessionName, zagSessionNames } from "@nlindstedt/zig-workflow";
+import { ZagBuilder } from "@nlindstedt/zag-agent";
+
+// 1. Parse the workflow to discover step names and session IDs
+const wf = await parseWorkflowFile("deploy.zug");
+const sessions = zagSessionNames(wf);
+// { lint: "zig-deploy-lint", test: "zig-deploy-test", deploy: "zig-deploy-deploy" }
+
+// 2. Run the workflow with zig
+await new ZigBuilder().runInteractive("deploy");
+
+// 3. After the workflow runs, use zag-agent to interact with individual sessions
+//    e.g., resume the "lint" step's agent session
+const output = await new ZagBuilder()
+  .session(sessions.lint)
+  .continueLast();
+
+// Or compute a single session name directly
+const testSession = zagSessionName("deploy", "test");
+// "zig-deploy-test"
 ```
 
 ### Error Handling

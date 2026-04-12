@@ -1,5 +1,10 @@
 export { ZigBuilder } from "./builder.js";
-export { parseWorkflow, parseWorkflowFile } from "./workflow.js";
+export {
+  parseWorkflow,
+  parseWorkflowFile,
+  zagSessionName,
+  zagSessionNames,
+} from "./workflow.js";
 export type {
   Workflow,
   WorkflowMeta,
