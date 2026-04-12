@@ -35,7 +35,7 @@ prompt = "Analyze ${target}"
 ### `[vars.<name>]` — Variables
 
 Variables are shared state between steps. They can be referenced in prompts
-via `${var_name}` and updated by steps via the `saves` field.
+and system prompts via `${var_name}` and updated by steps via the `saves` field.
 
 | Field            | Required | Description                                         |
 |------------------|----------|-----------------------------------------------------|
@@ -105,7 +105,7 @@ Each step is one zag agent invocation.
 | `on_failure`     | No       | `fail`  | `fail`, `continue`, or `retry`           |
 | `max_retries`    | No       |         | Retry limit (when `on_failure = "retry"`)|
 | `next`           | No       |         | Explicit next step (enables loops)       |
-| `system_prompt`  | No       |         | Agent system prompt override             |
+| `system_prompt`  | No       |         | Agent system prompt override (`${var}` refs allowed) |
 | `max_turns`      | No       |         | Maximum agentic turns                    |
 
 ## Saves Selectors

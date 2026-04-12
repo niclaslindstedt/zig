@@ -77,6 +77,18 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
             }
         }
 
+        // Check variable references in system_prompt
+        if let Some(system_prompt) = &step.system_prompt {
+            for var_ref in extract_var_refs(system_prompt) {
+                if !var_names.contains(var_ref.as_str()) {
+                    errors.push(ZigError::Validation(format!(
+                        "step '{}' system_prompt references unknown variable '${{{var_ref}}}'",
+                        step.name
+                    )));
+                }
+            }
+        }
+
         // Check saves reference declared variables
         for var_name in step.saves.keys() {
             if !var_names.contains(var_name.as_str()) {

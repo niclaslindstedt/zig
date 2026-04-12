@@ -328,6 +328,7 @@ fn build_zag_args(
     prompt: &str,
     workflow_name: &str,
     model_override: Option<&str>,
+    rendered_system_prompt: Option<&str>,
 ) -> Vec<String> {
     let session_name = |dep: &str| format!("zig-{workflow_name}-{dep}");
 
@@ -400,8 +401,8 @@ fn build_zag_args(
             args.extend(["--model".into(), model.to_string()]);
         }
 
-        if let Some(system_prompt) = &step.system_prompt {
-            args.extend(["--system-prompt".into(), system_prompt.clone()]);
+        if let Some(sp) = rendered_system_prompt {
+            args.extend(["--system-prompt".into(), sp.to_string()]);
         }
         if let Some(max_turns) = step.max_turns {
             args.extend(["--max-turns".into(), max_turns.to_string()]);
@@ -568,8 +569,15 @@ fn execute_step(
     model_override: Option<&str>,
     prefix: Option<&str>,
     session: Option<&Arc<SessionWriter>>,
+    rendered_system_prompt: Option<&str>,
 ) -> Result<String, ZigError> {
-    let args = build_zag_args(step, prompt, workflow_name, model_override);
+    let args = build_zag_args(
+        step,
+        prompt,
+        workflow_name,
+        model_override,
+        rendered_system_prompt,
+    );
     let (status, stdout) = run_zag_streaming(&args, &step.name, prefix, session)?;
 
     if !status.success() {
@@ -592,6 +600,7 @@ fn run_step_attempts(
     workflow_name: &str,
     prefix: Option<&str>,
     session: Option<&Arc<SessionWriter>>,
+    rendered_system_prompt: Option<&str>,
 ) -> Result<String, ZigError> {
     let mut attempts = 0;
     let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
@@ -607,7 +616,15 @@ fn run_step_attempts(
         } else {
             None
         };
-        match execute_step(step, prompt, workflow_name, model_override, prefix, session) {
+        match execute_step(
+            step,
+            prompt,
+            workflow_name,
+            model_override,
+            prefix,
+            session,
+            rendered_system_prompt,
+        ) {
             Ok(output) => return Ok(output),
             Err(e) => {
                 if let Some(w) = session {
@@ -684,8 +701,9 @@ fn spawn_step(
     step: &Step,
     prompt: &str,
     workflow_name: &str,
+    rendered_system_prompt: Option<&str>,
 ) -> Result<std::process::Child, ZigError> {
-    let args = build_zag_args(step, prompt, workflow_name, None);
+    let args = build_zag_args(step, prompt, workflow_name, None, rendered_system_prompt);
     let mut cmd = Command::new("zag");
     cmd.args(&args)
         .stdout(std::process::Stdio::piped())
@@ -702,6 +720,7 @@ fn spawn_step(
 fn execute_race_group(
     steps: &[&Step],
     prompts: &HashMap<String, String>,
+    system_prompts: &HashMap<String, String>,
     workflow_name: &str,
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
@@ -731,7 +750,8 @@ fn execute_race_group(
             ZigError::Execution(format!("missing prompt for step '{}'", step.name))
         })?;
         eprintln!("  racing step '{}'...", step.name);
-        let child = spawn_step(step, prompt, workflow_name)?;
+        let rendered_sp = system_prompts.get(&step.name).map(|s| s.as_str());
+        let child = spawn_step(step, prompt, workflow_name, rendered_sp)?;
         children.push((step.name.clone(), child));
     }
 
@@ -824,6 +844,10 @@ fn execute_sequential_step(
     eprintln!("  running step '{}'...", step.name);
 
     let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
+    let rendered_sp = step
+        .system_prompt
+        .as_ref()
+        .map(|sp| substitute_vars(sp, vars));
     if let Some(w) = session {
         let zag_session_id = format!("zig-{workflow_name}-{}", step.name);
         let _ = w.step_started(
@@ -836,7 +860,14 @@ fn execute_sequential_step(
         );
     }
     let started = Instant::now();
-    let result = run_step_attempts(step, &prompt, workflow_name, None, session);
+    let result = run_step_attempts(
+        step,
+        &prompt,
+        workflow_name,
+        None,
+        session,
+        rendered_sp.as_deref(),
+    );
 
     match result {
         Ok(output) => {
@@ -902,6 +933,7 @@ fn execute_parallel_tier(
     // the same variable snapshot they would have under sequential execution.
     let mut active: Vec<&Step> = Vec::new();
     let mut prompts: HashMap<String, String> = HashMap::new();
+    let mut rendered_sps: HashMap<String, String> = HashMap::new();
     for step in steps {
         if let Some(condition) = &step.condition {
             if !evaluate_condition(condition, vars)? {
@@ -917,6 +949,9 @@ fn execute_parallel_tier(
         }
         let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
         prompts.insert(step.name.clone(), prompt);
+        if let Some(sp) = &step.system_prompt {
+            rendered_sps.insert(step.name.clone(), substitute_vars(sp, vars));
+        }
         active.push(*step);
     }
 
@@ -931,6 +966,7 @@ fn execute_parallel_tier(
     for step in &active {
         let step_clone: Step = (*step).clone();
         let prompt = prompts.remove(&step.name).unwrap_or_default();
+        let rendered_sp = rendered_sps.remove(&step.name);
         let workflow_name_owned = workflow_name.to_string();
         let name = step.name.clone();
         eprintln!("  starting '{name}'...");
@@ -954,6 +990,7 @@ fn execute_parallel_tier(
                 &workflow_name_owned,
                 Some(&name),
                 session_clone.as_ref(),
+                rendered_sp.as_deref(),
             );
             (name, res)
         });
@@ -1175,6 +1212,7 @@ fn execute(
 
                 // Build prompts for all racers (conditions evaluated here)
                 let mut prompts = HashMap::new();
+                let mut race_sps: HashMap<String, String> = HashMap::new();
                 let mut active_steps: Vec<&Step> = Vec::new();
                 for step in race_steps {
                     if let Some(condition) = &step.condition {
@@ -1189,6 +1227,9 @@ fn execute(
                     let prompt =
                         render_step_prompt(step, &vars, effective_user_prompt, &step_outputs);
                     prompts.insert(step.name.clone(), prompt);
+                    if let Some(sp) = &step.system_prompt {
+                        race_sps.insert(step.name.clone(), substitute_vars(sp, &vars));
+                    }
                     active_steps.push(step);
                 }
 
@@ -1199,6 +1240,7 @@ fn execute(
                 match execute_race_group(
                     &active_steps,
                     &prompts,
+                    &race_sps,
                     &workflow.workflow.name,
                     tier_index,
                     session_ref,

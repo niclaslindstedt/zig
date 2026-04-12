@@ -1278,3 +1278,70 @@ depends_on = ["analyze"]
 
     assert!(validate(&wf).is_ok());
 }
+
+// ── system_prompt variable references ─────────────────────────────────────
+
+#[test]
+fn error_unknown_variable_in_system_prompt() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-sys-var"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+system_prompt = "You are a ${nonexistent_role}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string()
+            .contains("system_prompt references unknown variable '${nonexistent_role}'")
+    }));
+}
+
+#[test]
+fn valid_variable_in_system_prompt() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "good-sys-var"
+
+[vars.role]
+type = "string"
+default = "doctor"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+system_prompt = "You are a ${role}"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn valid_dotted_var_ref_in_system_prompt() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "dotted-sys"
+
+[vars.config]
+type = "json"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+system_prompt = "Expertise level: ${config.level}"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
