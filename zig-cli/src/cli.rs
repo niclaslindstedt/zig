@@ -75,6 +75,26 @@ pub enum Command {
         /// Bearer token for authentication (or set ZIG_SERVE_TOKEN env var)
         #[arg(long)]
         token: Option<String>,
+
+        /// Graceful shutdown timeout in seconds
+        #[arg(long, default_value = "30")]
+        shutdown_timeout: u64,
+
+        /// Enable TLS with auto-generated self-signed certificates
+        #[arg(long)]
+        tls: bool,
+
+        /// Path to TLS certificate PEM file (implies --tls)
+        #[arg(long)]
+        tls_cert: Option<String>,
+
+        /// Path to TLS private key PEM file (implies --tls)
+        #[arg(long)]
+        tls_key: Option<String>,
+
+        /// Rate limit in requests per second (e.g., 100)
+        #[arg(long)]
+        rate_limit: Option<u64>,
     },
 
     /// Tail a running or completed zig session
