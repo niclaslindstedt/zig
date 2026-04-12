@@ -15,6 +15,7 @@
 name = "healthcare-triage"
 description = "Hospital triage simulation with nurse intake and specialist referral"
 tags = ["healthcare", "simulation", "roles"]
+version = "1.0.0"
 provider = "claude"
 
 # ── Roles ────────────────────────────────────────────────────────────────────
