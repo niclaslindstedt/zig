@@ -125,10 +125,12 @@ Workflows are discovered in these locations:
 
 1. Current directory — any file with a `.zug` extension
 2. `./workflows/` subdirectory — any file with a `.zug` extension
+3. `~/.zig/workflows/` global directory — any file with a `.zug` extension
 
 When referencing a workflow by name (e.g., `my-workflow`), zig tries these
 paths in order: `my-workflow`, `my-workflow.zug`, `workflows/my-workflow`,
-`workflows/my-workflow.zug`.
+`workflows/my-workflow.zug`, `~/.zig/workflows/my-workflow`,
+`~/.zig/workflows/my-workflow.zug`.
 
 ## Examples
 

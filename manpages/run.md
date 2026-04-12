@@ -30,19 +30,24 @@ The `workflow` argument is resolved in this order:
 2. With `.zug` extension appended (e.g., `my-workflow` → `my-workflow.zug`)
 3. Under `./workflows/` directory (e.g., `workflows/my-workflow`)
 4. Under `./workflows/` with `.zug` appended (e.g., `workflows/my-workflow.zug`)
+5. Under `~/.zig/workflows/` global directory
+6. Under `~/.zig/workflows/` with `.zug` appended
 
 ## Execution Model
 
 1. The workflow file is parsed and validated
-2. Steps are sorted into tiers using Kahn's algorithm (topological sort)
-3. Each tier's steps run in order; steps with no unmet dependencies can run in parallel
-4. Variable substitution (`${var}`) is applied to prompts before execution
-5. Step outputs are captured and can be:
+2. Variable constraints are checked before execution begins
+3. Steps are sorted into tiers using Kahn's algorithm (topological sort)
+4. Steps within the same tier run concurrently (auto-parallelized); a single-step tier runs sequentially with live output streaming
+5. Race groups within a tier run in parallel; the first to finish wins and the rest are cancelled
+6. Variable substitution (`${var}`) is applied to prompts and system prompts before execution
+7. Step outputs are captured and can be:
    - Injected into dependent steps via `inject_context`
    - Extracted into variables via `saves` selectors
-6. Conditions are evaluated to determine whether steps should run or be skipped
-7. The `next` field enables loops by jumping back to earlier steps
-8. A maximum of 100 loop iterations is enforced to prevent infinite loops
+8. Conditions are evaluated to determine whether steps should run or be skipped
+9. The `next` field enables loops by jumping back to earlier steps
+10. A maximum of 100 loop iterations is enforced to prevent infinite loops
+11. Each run is logged as a zig session under `~/.zig/` — use `zig listen` to tail
 
 ## Failure Handling
 

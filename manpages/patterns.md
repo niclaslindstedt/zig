@@ -1,8 +1,8 @@
 # Orchestration Patterns
 
 Common workflow patterns for structuring multi-step agent orchestration.
-Use `zig create --pattern <name>` to scaffold a workflow with a specific
-pattern.
+Use `zig workflow create --pattern <name>` to scaffold a workflow with a
+specific pattern.
 
 ## Sequential Pipeline
 
@@ -234,6 +234,6 @@ depends_on = ["recommend"]
 
 ## See Also
 
-- `zig man create` — create workflows with `--pattern`
+- `zig man workflow` — manage workflows, including `create --pattern`
 - `zig man zug` — the `.zug` file format
 - `zig man variables` — variable system and data flow

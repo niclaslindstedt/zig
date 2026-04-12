@@ -143,26 +143,80 @@ max = 100.0
 
 Each step is one zag agent invocation.
 
+#### Core Fields
+
 | Field            | Required | Default | Description                              |
 |------------------|----------|---------|------------------------------------------|
 | `name`           | Yes      |         | Unique step identifier                   |
 | `prompt`         | Yes      |         | Prompt template (`${var}` refs allowed)  |
+| `description`    | No       | `""`    | Human-readable description of this step  |
 | `provider`       | No       |         | Zag provider — overrides workflow-level default |
 | `model`          | No       |         | Model name or size alias — overrides workflow-level default |
 | `depends_on`     | No       | `[]`    | Steps that must complete first           |
 | `inject_context` | No       | `false` | Inject dependency outputs into prompt    |
 | `condition`      | No       |         | Only run if expression evaluates to true |
-| `json`           | No       | `false` | Request structured JSON output           |
-| `json_schema`    | No       |         | JSON schema to validate output           |
-| `saves`          | No       | `{}`    | Extract values from output into variables|
-| `timeout`        | No       |         | Step timeout (e.g., `5m`, `30s`, `1h`)   |
-| `tags`           | No       | `[]`    | Zag session tags                         |
-| `on_failure`     | No       | `fail`  | `fail`, `continue`, or `retry`           |
-| `max_retries`    | No       |         | Retry limit (when `on_failure = "retry"`)|
-| `next`           | No       |         | Explicit next step (enables loops)       |
 | `system_prompt`  | No       |         | Agent system prompt override (`${var}` refs allowed) |
 | `role`           | No       |         | Role name or `${var}` reference (mutually exclusive with `system_prompt`) |
 | `max_turns`      | No       |         | Maximum agentic turns                    |
+
+#### Output and Data Flow
+
+| Field            | Required | Default | Description                              |
+|------------------|----------|---------|------------------------------------------|
+| `json`           | No       | `false` | Request structured JSON output           |
+| `json_schema`    | No       |         | JSON schema to validate output           |
+| `output`         | No       |         | Output format: `text`, `json`, `json-pretty`, `stream-json`, `native-json` |
+| `saves`          | No       | `{}`    | Extract values from output into variables|
+
+#### Failure and Retry
+
+| Field            | Required | Default | Description                              |
+|------------------|----------|---------|------------------------------------------|
+| `on_failure`     | No       | `fail`  | `fail`, `continue`, or `retry`           |
+| `max_retries`    | No       |         | Retry limit (when `on_failure = "retry"`)|
+| `retry_model`    | No       |         | Model to escalate to on retry            |
+| `next`           | No       |         | Explicit next step (enables loops)       |
+| `timeout`        | No       |         | Step timeout (e.g., `5m`, `30s`, `1h`)   |
+| `tags`           | No       | `[]`    | Zag session tags                         |
+
+#### Execution Environment
+
+| Field            | Required | Default | Description                              |
+|------------------|----------|---------|------------------------------------------|
+| `interactive`    | No       | `false` | Spawn a long-lived interactive session   |
+| `auto_approve`   | No       | `false` | Auto-approve all agent actions           |
+| `root`           | No       |         | Working directory override               |
+| `add_dirs`       | No       | `[]`    | Additional directories in agent scope    |
+| `env`            | No       | `{}`    | Per-step environment variables           |
+| `files`          | No       | `[]`    | Files to attach to the agent prompt      |
+
+#### Context Injection
+
+| Field            | Required | Default | Description                              |
+|------------------|----------|---------|------------------------------------------|
+| `context`        | No       | `[]`    | Session IDs to inject as context         |
+| `plan`           | No       |         | Path to a plan file to prepend as context|
+| `mcp_config`     | No       |         | MCP configuration (Claude provider only) |
+
+#### Isolation
+
+| Field            | Required | Default | Description                              |
+|------------------|----------|---------|------------------------------------------|
+| `worktree`       | No       | `false` | Run in an isolated git worktree          |
+| `sandbox`        | No       |         | Docker sandbox name                      |
+| `race_group`     | No       |         | Race group — first to finish wins, rest cancelled |
+
+#### Command Step Types
+
+| Field            | Required | Default | Description                              |
+|------------------|----------|---------|------------------------------------------|
+| `command`        | No       |         | Zag command: `review`, `plan`, `pipe`, `collect`, `summary` |
+| `uncommitted`    | No       | `false` | Review uncommitted changes (`command = "review"`) |
+| `base`           | No       |         | Base branch for review diff (`command = "review"`) |
+| `commit`         | No       |         | Specific commit to review (`command = "review"`) |
+| `title`          | No       |         | Review title (`command = "review"`)      |
+| `plan_output`    | No       |         | Output path for plan (`command = "plan"`)|
+| `instructions`   | No       |         | Additional plan instructions (`command = "plan"`) |
 
 ## Saves Selectors
 

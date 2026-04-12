@@ -29,9 +29,21 @@ The validator performs the following checks:
 - **No self-dependencies** — a step cannot depend on itself
 - **No dependency cycles** — the step graph must be a DAG (detected via DFS)
 - **Next references** — the `next` field must reference an existing step
-- **Variable references** — every `${var}` in prompts must refer to a declared variable
+- **Variable references** — every `${var}` in prompts and system prompts must refer to a declared variable
 - **Saves references** — variables in `saves` must be declared in `[vars]`
 - **Condition references** — variables in conditions must be declared
+- **Role/system_prompt exclusion** — a step cannot set both `role` and `system_prompt`
+- **Role references** — static role names must exist in `[roles]`; dynamic `${var}` role refs must reference declared variables
+- **Role definitions** — `system_prompt` and `system_prompt_file` are mutually exclusive per role
+- **Variable constraints** — type-specific constraints (`min_length`, `max_length`, `min`, `max`, `pattern`, `allowed_values`) must be appropriate for the variable type; ranges must be consistent; regex patterns must compile; default values must satisfy constraints
+- **Input binding** — only one variable may use `from = "prompt"`; `default` and `default_file` are mutually exclusive
+- **retry_model** — requires `on_failure = "retry"`
+- **mcp_config** — requires the `claude` provider (or no explicit provider)
+- **Output format** — must be one of: `text`, `json`, `json-pretty`, `stream-json`, `native-json`
+- **Review fields** — `uncommitted`, `base`, `commit`, `title` require `command = "review"`
+- **Plan fields** — `plan_output`, `instructions` require `command = "plan"`
+- **Pipe/collect/summary** — require `depends_on` (they operate on prior session outputs)
+- **Race groups** — steps in the same `race_group` must not depend on each other
 
 ## Exit Codes
 
