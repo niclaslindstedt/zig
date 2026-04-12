@@ -1,16 +1,16 @@
 /// Embedded manpage content, compiled from `manpages/` markdown files.
 mod pages {
-    pub const ZIG: &str = include_str!("../../manpages/zig.md");
-    pub const RUN: &str = include_str!("../../manpages/run.md");
-    pub const LISTEN: &str = include_str!("../../manpages/listen.md");
-    pub const SERVE: &str = include_str!("../../manpages/serve.md");
-    pub const WORKFLOW: &str = include_str!("../../manpages/workflow.md");
-    pub const DESCRIBE: &str = include_str!("../../manpages/describe.md");
-    pub const VALIDATE: &str = include_str!("../../manpages/validate.md");
-    pub const ZUG: &str = include_str!("../../manpages/zug.md");
-    pub const PATTERNS: &str = include_str!("../../manpages/patterns.md");
-    pub const VARIABLES: &str = include_str!("../../manpages/variables.md");
-    pub const CONDITIONS: &str = include_str!("../../manpages/conditions.md");
+    pub const ZIG: &str = include_str!("../manpages/zig.md");
+    pub const RUN: &str = include_str!("../manpages/run.md");
+    pub const LISTEN: &str = include_str!("../manpages/listen.md");
+    pub const SERVE: &str = include_str!("../manpages/serve.md");
+    pub const WORKFLOW: &str = include_str!("../manpages/workflow.md");
+    pub const DESCRIBE: &str = include_str!("../manpages/describe.md");
+    pub const VALIDATE: &str = include_str!("../manpages/validate.md");
+    pub const ZUG: &str = include_str!("../manpages/zug.md");
+    pub const PATTERNS: &str = include_str!("../manpages/patterns.md");
+    pub const VARIABLES: &str = include_str!("../manpages/variables.md");
+    pub const CONDITIONS: &str = include_str!("../manpages/conditions.md");
 }
 
 /// All available manpage topics in display order.
