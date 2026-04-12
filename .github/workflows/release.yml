@@ -155,3 +155,28 @@ jobs:
         run: sleep 30
       - name: publish zig-cli
         run: cargo publish -p zig-cli --token "${{ secrets.CRATES_TOKEN }}"
+
+  publish-npm:
+    name: publish npm
+    needs: [update-repo, build]
+    runs-on: ubuntu-latest
+    environment: npm-registry
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.update-repo.outputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: install dependencies
+        working-directory: bindings/typescript
+        run: npm install
+
+      - name: publish zig-workflow
+        working-directory: bindings/typescript
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

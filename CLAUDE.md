@@ -66,6 +66,7 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 8. **Workflow management** → `zig-core/src/manage.rs` (list, show, delete)
 9. **Prompt templates** → `zig-core/src/prompt.rs` + `prompts/`
 10. **Manpages** → `manpages/*.md` + `zig-core/src/man.rs`
+11. **TypeScript bindings** → `bindings/typescript/` (types, builder, workflow parser)
 
 ## Documentation sync points
 
@@ -75,6 +76,7 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 | New CLI flag | `zig-cli/src/cli.rs`, relevant `manpages/*.md`, `README.md` |
 | New pattern | `zig-cli/src/cli.rs` (Pattern enum), `manpages/patterns.md`, `manpages/workflow.md` |
 | Workflow format change | `zig-core/src/workflow/`, `manpages/zug.md`, `docs/zug-vs-zag-gap-analysis.md` |
+| CLI or model change | Run `update-bindings` skill — syncs TypeScript binding with Rust source |
 | README staleness | Run `update-readme` skill — tracks last update via `.claude/skills/update-readme/.last-updated` |
 | Manpage staleness | Run `update-manpages` skill — tracks last update via `.claude/skills/update-manpages/.last-updated` |
 | Docs staleness | Run `update-docs` skill — tracks last update via `.claude/skills/update-docs/.last-updated` |
