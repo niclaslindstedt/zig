@@ -63,18 +63,41 @@ pub enum Command {
     },
 
     /// Start an HTTP API server
+    ///
+    /// Settings can also be stored in ~/.zig/serve.toml under a [server]
+    /// section. Precedence: CLI flag > env var > config file > default.
     Serve {
-        /// Port to listen on
-        #[arg(long, short, default_value = "3000")]
-        port: u16,
+        /// Port to listen on (default: 3000)
+        #[arg(long, short)]
+        port: Option<u16>,
 
-        /// Host/IP to bind to
-        #[arg(long, default_value = "127.0.0.1")]
-        host: String,
+        /// Host/IP to bind to (default: 127.0.0.1)
+        #[arg(long)]
+        host: Option<String>,
 
         /// Bearer token for authentication (or set ZIG_SERVE_TOKEN env var)
         #[arg(long)]
         token: Option<String>,
+
+        /// Graceful shutdown timeout in seconds (default: 30)
+        #[arg(long)]
+        shutdown_timeout: Option<u64>,
+
+        /// Enable TLS with auto-generated self-signed certificates
+        #[arg(long)]
+        tls: bool,
+
+        /// Path to TLS certificate PEM file (implies --tls)
+        #[arg(long)]
+        tls_cert: Option<String>,
+
+        /// Path to TLS private key PEM file (implies --tls)
+        #[arg(long)]
+        tls_key: Option<String>,
+
+        /// Rate limit in requests per second (e.g., 100)
+        #[arg(long)]
+        rate_limit: Option<u64>,
     },
 
     /// Tail a running or completed zig session

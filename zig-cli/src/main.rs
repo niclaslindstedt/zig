@@ -72,11 +72,44 @@ fn main() -> Result<()> {
         Command::Init => {
             println!("zig init: initializing project (not yet implemented)");
         }
-        Command::Serve { port, host, token } => {
+        Command::Serve {
+            port,
+            host,
+            token,
+            shutdown_timeout,
+            tls,
+            tls_cert,
+            tls_key,
+            rate_limit,
+        } => {
+            // Precedence: CLI flag > env var > ~/.zig/serve.toml > default.
+            let file = zig_serve::config::FileConfig::load();
+            let s = &file.server;
+
+            let host = host
+                .or_else(|| s.host.clone())
+                .unwrap_or_else(|| "127.0.0.1".into());
+            let port = port.or(s.port).unwrap_or(3000);
             let token = token
                 .or_else(|| std::env::var("ZIG_SERVE_TOKEN").ok())
+                .or_else(|| s.token.clone())
                 .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-            let config = zig_serve::config::ServeConfig { host, port, token };
+            let shutdown_timeout = shutdown_timeout.or(s.shutdown_timeout).unwrap_or(30);
+            let tls_cert = tls_cert.or_else(|| s.tls_cert.clone());
+            let tls_key = tls_key.or_else(|| s.tls_key.clone());
+            let tls = tls || s.tls || tls_cert.is_some();
+            let rate_limit = rate_limit.or(s.rate_limit);
+
+            let config = zig_serve::config::ServeConfig {
+                host,
+                port,
+                token,
+                shutdown_timeout: std::time::Duration::from_secs(shutdown_timeout),
+                tls,
+                tls_cert,
+                tls_key,
+                rate_limit,
+            };
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(zig_serve::start_server(config))
                 .map_err(|e| anyhow::anyhow!("{e}"))?;

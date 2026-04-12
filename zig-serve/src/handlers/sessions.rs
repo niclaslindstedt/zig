@@ -1,10 +1,13 @@
+use std::convert::Infallible;
 use std::path::PathBuf;
 use std::time::Duration;
 
 use axum::Json;
 use axum::extract::Path;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::http::HeaderMap;
 use axum::response::IntoResponse;
+use axum::response::sse::{Event, KeepAlive, Sse};
 use serde::Serialize;
 
 use crate::error::ServeError;
@@ -99,4 +102,68 @@ async fn handle_stream(mut socket: WebSocket, log_path: PathBuf) {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+// -- SSE stream (alternative to WebSocket) --
+
+/// GET /api/v1/sessions/{id}/events/stream
+///
+/// Server-Sent Events endpoint for live session streaming. Supports the
+/// `Last-Event-ID` header for automatic reconnection — the client resumes
+/// from the line number it last received.
+pub async fn stream_sse(
+    Path(id): Path<String>,
+    headers: HeaderMap,
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, ServeError> {
+    let entry = tokio::task::spawn_blocking(move || zig_core::session::find_session(&id))
+        .await
+        .map_err(|e| ServeError::bad_request(format!("task join error: {e}")))?
+        .map_err(ServeError::from)?;
+
+    let log_path = PathBuf::from(&entry.log_path);
+
+    let last_event_id: usize = headers
+        .get("last-event-id")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
+
+    let stream = async_stream::stream! {
+        let mut last_line = last_event_id;
+
+        loop {
+            let content = match std::fs::read_to_string(&log_path) {
+                Ok(c) => c,
+                Err(_) => {
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    continue;
+                }
+            };
+
+            let lines: Vec<&str> = content.lines().collect();
+
+            for (i, line) in lines[last_line..].iter().enumerate() {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+                let event_id = last_line + i + 1;
+                yield Ok(Event::default()
+                    .data(line)
+                    .id(event_id.to_string()));
+            }
+
+            last_line = lines.len();
+
+            if let Some(last) = lines.last() {
+                if last.contains("\"zig_session_ended\"") {
+                    return;
+                }
+            }
+
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    };
+
+    Ok(Sse::new(stream).keep_alive(KeepAlive::default()))
 }
