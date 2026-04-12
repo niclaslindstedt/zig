@@ -137,12 +137,58 @@ the start of every step's prompt:
 zig run code-review "focus on the authentication module"
 ```
 
+## File-Backed Defaults
+
+Instead of an inline `default`, a variable can load its default from a file:
+
+```toml
+[vars.system_instructions]
+type = "string"
+default_file = "prompts/instructions.md"
+```
+
+`default` and `default_file` are mutually exclusive. File paths are resolved
+relative to the `.zug` file (works for both plain files and zip archives).
+
+## Input Binding
+
+Use `from = "prompt"` to bind the CLI user prompt to a variable:
+
+```toml
+[vars.content]
+type = "string"
+from = "prompt"
+required = true
+```
+
+Only one variable may use `from = "prompt"`. When set, the value from
+`zig run <workflow> "content"` is assigned to this variable instead of being
+prepended as "User context:" to every step.
+
+## Constraints
+
+Variables support constraints that are validated before execution begins:
+
+| Constraint       | Applies to | Description                              |
+|------------------|------------|------------------------------------------|
+| `required`       | All types  | Must be non-empty before execution       |
+| `min_length`     | `string`   | Minimum string length                    |
+| `max_length`     | `string`   | Maximum string length                    |
+| `min`            | `number`   | Minimum numeric value                    |
+| `max`            | `number`   | Maximum numeric value                    |
+| `pattern`        | `string`   | Regex pattern the value must match       |
+| `allowed_values` | All types  | Restrict to specific values              |
+
+Default values are also validated at parse time (`zig validate`).
+
 ## Variable Lifecycle
 
-1. Variables are initialized from their `default` values (or empty string)
-2. Steps execute in DAG order; `saves` updates variables after each step
-3. Variable substitution in prompts uses the current value at execution time
-4. Conditions evaluate against the current variable state
+1. Variables are initialized from their `default` or `default_file` values (or empty string)
+2. The `from = "prompt"` binding assigns the user prompt to the bound variable
+3. Constraints are validated before execution begins
+4. Steps execute in DAG order; `saves` updates variables after each step
+5. Variable substitution in prompts and system prompts uses the current value at execution time
+6. Conditions evaluate against the current variable state
 
 ## See Also
 

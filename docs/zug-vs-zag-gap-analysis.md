@@ -29,6 +29,21 @@ management, isolation, and several zag features that have no `.zug` equivalent.
 | `on_failure` (fail/continue/retry) | Shell error handling + `zag retry` |
 | `max_retries` | Loop logic around retry |
 | `next` (explicit jump for loops) | Shell loops with spawn/wait/pipe |
+| `description` per step | `--description` |
+| `roles` (reusable system prompts) | `--system-prompt` from role definitions |
+| `files` (file injection) | `--file` |
+| `retry_model` (escalation on retry) | `zag retry --model` |
+| `race_group` (first-wins semantics) | `zag wait --any` equivalent |
+| `command` step types (review, plan, pipe, collect, summary) | `zag review`, `zag plan`, `zag pipe`, `zag collect`, `zag summary` |
+| `worktree` / `sandbox` isolation | `--worktree` / `--sandbox` |
+| `auto_approve` | `--auto-approve` |
+| `root` / `add_dirs` / `env` | `--root` / `--add-dir` / `--env` |
+| `context` / `plan` injection | `--context` / `--plan` |
+| `mcp_config` | `--mcp-config` |
+| `output` format control | `-o <FORMAT>` |
+| `default_file` for variables | File-backed variable defaults |
+| `from = "prompt"` input binding | CLI prompt to variable binding |
+| Variable constraints (required, min/max, pattern, allowed_values) | Pre-execution validation |
 
 ## Gaps: Zag Features NOT Expressible in .zug
 
@@ -46,44 +61,35 @@ management, isolation, and several zag features that have no `.zug` equivalent.
 patterns are impossible. Named agent messaging, broadcast coordination, and
 agent-message envelopes have no equivalent.
 
-### 2. Interactive Sessions (High Impact)
+### 2. Interactive Sessions (High Impact) — **Partially Implemented**
 
-| Zag Feature | .zug Gap |
+| Zag Feature | Status |
 |---|---|
-| `spawn --interactive` | No interactive step type |
-| `zag run` (interactive mode) | All steps are fire-and-forget |
+| `spawn --interactive` | `interactive` field parsed and validated but not yet wired to execution |
+| `zag run` (interactive mode) | Not yet supported — all steps still fire-and-forget |
 | `run --resume` / `--continue` | No session resumption |
 
-**Impact**: Human-in-the-Loop pattern via interactive input injection is not
-possible. No ability to pause for approval or inject guidance mid-workflow.
+**Impact**: Human-in-the-Loop pattern via interactive input injection is
+partially modeled but not yet executable. The `interactive` field exists at
+the model layer; wiring it to `zag spawn --interactive` requires deeper
+execution engine changes.
 
-### 3. Session Isolation (Medium Impact)
+### ~~3. Session Isolation (Medium Impact)~~ — **Implemented**
 
-| Zag Feature | .zug Gap |
-|---|---|
-| `--worktree [NAME]` | No per-step git worktree isolation |
-| `--sandbox [NAME]` | No per-step Docker sandbox isolation |
+`worktree` and `sandbox` fields on steps, wired to `--worktree` and
+`--sandbox` flags on zag.
 
-**Impact**: Parallel steps modifying the filesystem cannot be safely isolated.
+### ~~4. Race Pattern / Early Exit (Medium Impact)~~ — **Implemented**
 
-### 4. Race Pattern / Early Exit (Medium Impact)
+`race_group` field on steps. Steps sharing a race group run in parallel;
+when the first completes, the rest are cancelled. Validation ensures race
+group members do not depend on each other.
 
-| Zag Feature | .zug Gap |
-|---|---|
-| `wait --any` | No "first completes wins" semantics |
-| `cancel` (mid-workflow) | No dynamic step cancellation |
+### ~~5. Retry with Different Config (Medium Impact)~~ — **Implemented**
 
-**Impact**: Cannot express "try multiple approaches, take whichever finishes
-first" (early-exit race pattern).
-
-### 5. Retry with Different Config (Medium Impact)
-
-| Zag Feature | .zug Gap |
-|---|---|
-| `retry --model large` | `on_failure = "retry"` retries with same config only |
-
-**Impact**: Cannot escalate to a larger model on failure (self-healing with
-escalation pattern).
+`retry_model` field on steps. When `on_failure = "retry"`, the retry uses the
+specified model for escalation. Validation ensures `retry_model` is only set
+when `on_failure = "retry"`.
 
 ### ~~6. Context Injection (Low-Medium Impact)~~ — **Implemented**
 
@@ -107,24 +113,22 @@ All fields implemented: `auto_approve`, `add_dirs`, `env`, `files`,
 command-specific options (`uncommitted`, `base`, `commit`, `title`,
 `plan_output`, `instructions`).
 
-### 10. Session Metadata (Low Impact)
+### ~~10. Session Metadata (Low Impact)~~ — **Partially Implemented**
 
-| Zag Feature | .zug Gap |
-|---|---|
-| `--description` per session | Steps have `name` but no `description` |
-| `session update` | No runtime metadata updates |
+Steps now have a `description` field wired to `--description` on zag.
+Only `session update` (runtime metadata updates) remains unimplemented.
 
 ## Orchestration Pattern Coverage
 
 | # | Pattern | Supported in .zug? | Gap |
 |---|---|---|---|
 | 1 | Sequential Pipeline | **Yes** | — |
-| 2 | Fan-Out / Gather | **Yes** | Missing race/early-exit variant |
+| 2 | Fan-Out / Gather | **Yes** | Race variant now supported via `race_group` |
 | 3 | Coordinator / Dispatcher | **Yes** | — |
 | 4 | Hierarchical Decomposition | **Mostly** | No parent tracking, no agent-driven sub-spawning |
 | 5 | Generator & Critic | **Yes** | — |
 | 6 | Iterative Refinement | **Yes** | — |
-| 7 | Human-in-the-Loop | **No** | No interactive sessions, no `input`, no approval gates |
+| 7 | Human-in-the-Loop | **Partial** | `interactive` field parsed but execution not yet wired; no `input` at runtime |
 | 8 | Inter-Agent Communication | **No** | No `input`, `broadcast`, or agent-message envelopes |
 | 9 | Composite / Event-Driven | **Partial** | No `watch`, no event-driven reactions |
 
@@ -147,7 +151,8 @@ command-specific options (`uncommitted`, `base`, `commit`, `title`,
 ## Remaining Gaps
 
 After implementing recommendations 1-11 at the model layer and wiring them
-through to zag CLI flags in the execution engine, the remaining gaps are:
+through to zag CLI flags in the execution engine, and closing gaps 3-5 and 10,
+the remaining gaps are:
 
 - **`interactive` execution** — the field is parsed and validated, but executing
   interactive steps requires `zag spawn --interactive` (not `zag run`) which is
@@ -156,4 +161,5 @@ through to zag CLI flags in the execution engine, the remaining gaps are:
 - **Event-driven automation** (`watch`, `subscribe`) — requires runtime support
 - **`input` / `broadcast` at runtime** — the `interactive` field enables the
   session mode, but sending messages requires execution engine integration
+- **`session update`** — runtime metadata updates (low priority)
 - **`--size` per step** — Ollama model size parameter (very low priority)

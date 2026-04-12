@@ -16,14 +16,15 @@ zag behind the scenes for agent orchestration.
 
 ## Commands
 
-| Command              | Description                                          |
-|----------------------|------------------------------------------------------|
-| `run <workflow>`     | Execute a `.zug` workflow file                       |
-| `workflow <command>` | Manage workflows (list, show, create, delete)        |
-| `describe <prompt>`  | Generate a `.zug` file from a natural language prompt|
-| `validate <file>`    | Validate a `.zug` workflow file                      |
-| `init`               | Initialize a new zig project                         |
-| `man [topic]`        | Show manual pages for zig topics                     |
+| Command              | Description                                              |
+|----------------------|----------------------------------------------------------|
+| `run <workflow>`     | Execute a `.zug` workflow file                           |
+| `listen [session]`   | Tail a running or completed zig session                  |
+| `workflow <command>` | Manage workflows (list, show, create, delete, pack)      |
+| `describe <prompt>`  | Generate a `.zug` file from a natural language prompt    |
+| `validate <file>`    | Validate a `.zug` workflow file                          |
+| `init`               | Initialize a new zig project                             |
+| `man [topic]`        | Show manual pages for zig topics                         |
 
 ## Global Flags
 
@@ -56,7 +57,8 @@ Use `zig man` to learn more about specific topics:
 
 ```bash
 zig man run          # The run command
-zig man workflow     # Manage workflows (list, show, create, delete)
+zig man listen       # Tail a running or completed zig session
+zig man workflow     # Manage workflows (list, show, create, delete, pack)
 zig man zug          # The .zug file format
 zig man patterns     # Orchestration patterns
 zig man variables    # Variable system and data flow
