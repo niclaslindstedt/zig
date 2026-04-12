@@ -15,6 +15,9 @@ and associated resource files (prompt files, schemas, etc.). Use
 name = "my-workflow"           # Required: unique workflow name
 description = "What it does"   # Optional: human-readable description
 tags = ["tag1", "tag2"]        # Optional: discovery/filtering tags
+version = "1.0.0"              # Optional: workflow version
+provider = "claude"            # Optional: default provider for all steps
+model = "sonnet"               # Optional: default model for all steps
 
 [roles.analyst]                # Reusable role definitions
 system_prompt = "You are an analyst."
@@ -34,11 +37,18 @@ role = "analyst"
 
 ### `[workflow]` — Metadata
 
-| Field         | Required | Description                        |
-|---------------|----------|------------------------------------|
-| `name`        | Yes      | Unique workflow name               |
-| `description` | No       | Human-readable description         |
-| `tags`        | No       | Tags for discovery and filtering   |
+| Field         | Required | Description                                                             |
+|---------------|----------|-------------------------------------------------------------------------|
+| `name`        | Yes      | Unique workflow name                                                    |
+| `description` | No       | Human-readable description                                              |
+| `tags`        | No       | Tags for discovery and filtering                                        |
+| `version`     | No       | Workflow version string (e.g., "1.0.0")                                 |
+| `provider`    | No       | Default provider for all steps (claude, codex, gemini, copilot, ollama) |
+| `model`       | No       | Default model for all steps (steps can override)                        |
+
+When `provider` or `model` is set on the workflow, every step inherits it as a
+default. A step can override the workflow-level value by setting its own
+`provider` or `model` field.
 
 ### `[roles.<name>]` — Roles
 
@@ -137,8 +147,8 @@ Each step is one zag agent invocation.
 |------------------|----------|---------|------------------------------------------|
 | `name`           | Yes      |         | Unique step identifier                   |
 | `prompt`         | Yes      |         | Prompt template (`${var}` refs allowed)  |
-| `provider`       | No       |         | Zag provider (claude, codex, gemini, copilot, ollama) |
-| `model`          | No       |         | Model name or size alias (small, medium, large) |
+| `provider`       | No       |         | Zag provider — overrides workflow-level default |
+| `model`          | No       |         | Model name or size alias — overrides workflow-level default |
 | `depends_on`     | No       | `[]`    | Steps that must complete first           |
 | `inject_context` | No       | `false` | Inject dependency outputs into prompt    |
 | `condition`      | No       |         | Only run if expression evaluates to true |

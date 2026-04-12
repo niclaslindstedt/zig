@@ -15,6 +15,8 @@
 name = "healthcare-triage"
 description = "Hospital triage simulation with nurse intake and specialist referral"
 tags = ["healthcare", "simulation", "roles"]
+version = "1.0.0"
+provider = "claude"
 
 # ── Roles ────────────────────────────────────────────────────────────────────
 
@@ -151,6 +153,7 @@ Examine the patient. Based on the symptoms and history:
 Respond in JSON format."""
 role = "${specialist_type}"
 depends_on = ["triage"]
+model = "large"
 json = true
 condition = "specialist_type"
 saves = { diagnosis = "$.diagnosis", needs_referral = "$.needs_referral", specialist_type = "$.next_specialist", referral_reason = "$.referral_reason", visit_history = "$.visit_notes" }

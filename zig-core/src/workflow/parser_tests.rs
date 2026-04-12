@@ -712,3 +712,96 @@ fn parse_zip_with_no_toml_fails() {
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("no .toml"));
 }
+
+// ── Workflow-level version, provider, model ────────────────────────────────
+
+#[test]
+fn parse_workflow_version() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "versioned"
+version = "1.2.3"
+
+[[step]]
+name = "hello"
+prompt = "Hi"
+"#,
+    )
+    .unwrap();
+    assert_eq!(wf.workflow.version.as_deref(), Some("1.2.3"));
+}
+
+#[test]
+fn parse_workflow_provider_and_model() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "defaults"
+provider = "claude"
+model = "sonnet"
+
+[[step]]
+name = "hello"
+prompt = "Hi"
+"#,
+    )
+    .unwrap();
+    assert_eq!(wf.workflow.provider.as_deref(), Some("claude"));
+    assert_eq!(wf.workflow.model.as_deref(), Some("sonnet"));
+}
+
+#[test]
+fn parse_workflow_all_new_meta_fields() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "full-meta"
+description = "All metadata fields"
+tags = ["test"]
+version = "2.0.0"
+provider = "gemini"
+model = "large"
+
+[[step]]
+name = "hello"
+prompt = "Hi"
+"#,
+    )
+    .unwrap();
+    assert_eq!(wf.workflow.name, "full-meta");
+    assert_eq!(wf.workflow.version.as_deref(), Some("2.0.0"));
+    assert_eq!(wf.workflow.provider.as_deref(), Some("gemini"));
+    assert_eq!(wf.workflow.model.as_deref(), Some("large"));
+}
+
+#[test]
+fn parse_workflow_without_new_fields_defaults_to_none() {
+    let wf = parse(MINIMAL_WORKFLOW).unwrap();
+    assert!(wf.workflow.version.is_none());
+    assert!(wf.workflow.provider.is_none());
+    assert!(wf.workflow.model.is_none());
+}
+
+#[test]
+fn roundtrip_workflow_level_fields() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "roundtrip"
+version = "1.0.0"
+provider = "claude"
+model = "opus"
+
+[[step]]
+name = "hello"
+prompt = "Hi"
+"#,
+    )
+    .unwrap();
+    let toml_str = to_toml(&wf).unwrap();
+    let wf2 = parse(&toml_str).unwrap();
+    assert_eq!(wf2.workflow.version.as_deref(), Some("1.0.0"));
+    assert_eq!(wf2.workflow.provider.as_deref(), Some("claude"));
+    assert_eq!(wf2.workflow.model.as_deref(), Some("opus"));
+}

@@ -134,6 +134,9 @@ export function parseWorkflow(content: string): Workflow {
         if (key === "name") workflow.workflow.name = String(value);
         else if (key === "description") workflow.workflow.description = String(value);
         else if (key === "tags") workflow.workflow.tags = toStringArray(value);
+        else if (key === "version") workflow.workflow.version = String(value);
+        else if (key === "provider") workflow.workflow.provider = String(value);
+        else if (key === "model") workflow.workflow.model = String(value);
         break;
 
       case "vars":

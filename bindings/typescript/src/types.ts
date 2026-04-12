@@ -14,6 +14,12 @@ export interface WorkflowMeta {
   name: string;
   description: string;
   tags: string[];
+  /** Workflow version string (e.g., "1.0.0"). */
+  version?: string;
+  /** Default provider for all steps (claude, codex, gemini, copilot, ollama). Steps can override. */
+  provider?: string;
+  /** Default model for all steps (small, medium, large, or specific name). Steps can override. */
+  model?: string;
 }
 
 /** A workflow variable — shared state between steps. */

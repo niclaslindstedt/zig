@@ -406,6 +406,8 @@ fn build_zag_args(
     workflow_name: &str,
     model_override: Option<&str>,
     rendered_system_prompt: Option<&str>,
+    workflow_provider: Option<&str>,
+    workflow_model: Option<&str>,
 ) -> Vec<String> {
     let session_name = |dep: &str| format!("zig-{workflow_name}-{dep}");
 
@@ -469,11 +471,12 @@ fn build_zag_args(
     // Agent args (provider, model, prompts, output, etc.) only apply to
     // commands that launch an agent: run, review, plan, pipe.
     if accepts_agent_args {
-        if let Some(provider) = &step.provider {
-            args.extend(["--provider".into(), provider.clone()]);
+        let effective_provider = step.provider.as_deref().or(workflow_provider);
+        if let Some(provider) = effective_provider {
+            args.extend(["--provider".into(), provider.to_string()]);
         }
 
-        let effective_model = model_override.or(step.model.as_deref());
+        let effective_model = model_override.or(step.model.as_deref()).or(workflow_model);
         if let Some(model) = effective_model {
             args.extend(["--model".into(), model.to_string()]);
         }
@@ -639,6 +642,7 @@ fn run_zag_streaming(
 /// Returns the captured stdout from zag. The optional `model_override`
 /// is used during retries to escalate to a different model. The optional
 /// `prefix` tags streamed lines with the step name (used for parallel runs).
+#[allow(clippy::too_many_arguments)]
 fn execute_step(
     step: &Step,
     prompt: &str,
@@ -647,6 +651,8 @@ fn execute_step(
     prefix: Option<&str>,
     session: Option<&Arc<SessionWriter>>,
     rendered_system_prompt: Option<&str>,
+    workflow_provider: Option<&str>,
+    workflow_model: Option<&str>,
 ) -> Result<String, ZigError> {
     let args = build_zag_args(
         step,
@@ -654,6 +660,8 @@ fn execute_step(
         workflow_name,
         model_override,
         rendered_system_prompt,
+        workflow_provider,
+        workflow_model,
     );
     let (status, stdout) = run_zag_streaming(&args, &step.name, prefix, session)?;
 
@@ -671,6 +679,7 @@ fn execute_step(
 ///
 /// Extracted so both sequential and parallel execution paths share the
 /// same retry / model-escalation behavior.
+#[allow(clippy::too_many_arguments)]
 fn run_step_attempts(
     step: &Step,
     prompt: &str,
@@ -678,6 +687,8 @@ fn run_step_attempts(
     prefix: Option<&str>,
     session: Option<&Arc<SessionWriter>>,
     rendered_system_prompt: Option<&str>,
+    workflow_provider: Option<&str>,
+    workflow_model: Option<&str>,
 ) -> Result<String, ZigError> {
     let mut attempts = 0;
     let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
@@ -701,6 +712,8 @@ fn run_step_attempts(
             prefix,
             session,
             rendered_system_prompt,
+            workflow_provider,
+            workflow_model,
         ) {
             Ok(output) => return Ok(output),
             Err(e) => {
@@ -779,8 +792,18 @@ fn spawn_step(
     prompt: &str,
     workflow_name: &str,
     rendered_system_prompt: Option<&str>,
+    workflow_provider: Option<&str>,
+    workflow_model: Option<&str>,
 ) -> Result<std::process::Child, ZigError> {
-    let args = build_zag_args(step, prompt, workflow_name, None, rendered_system_prompt);
+    let args = build_zag_args(
+        step,
+        prompt,
+        workflow_name,
+        None,
+        rendered_system_prompt,
+        workflow_provider,
+        workflow_model,
+    );
     let mut cmd = Command::new("zag");
     cmd.args(&args)
         .stdout(std::process::Stdio::piped())
@@ -794,6 +817,7 @@ fn spawn_step(
 ///
 /// When one step finishes successfully, all remaining steps are killed.
 /// Returns the winning step's name and its stdout output.
+#[allow(clippy::too_many_arguments)]
 fn execute_race_group(
     steps: &[&Step],
     prompts: &HashMap<String, String>,
@@ -801,6 +825,8 @@ fn execute_race_group(
     workflow_name: &str,
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
+    workflow_provider: Option<&str>,
+    workflow_model: Option<&str>,
 ) -> Result<(String, String), ZigError> {
     if let Some(w) = session {
         for step in steps {
@@ -828,7 +854,14 @@ fn execute_race_group(
         })?;
         eprintln!("  racing step '{}'...", step.name);
         let rendered_sp = system_prompts.get(&step.name).map(|s| s.as_str());
-        let child = spawn_step(step, prompt, workflow_name, rendered_sp)?;
+        let child = spawn_step(
+            step,
+            prompt,
+            workflow_name,
+            rendered_sp,
+            workflow_provider,
+            workflow_model,
+        )?;
         children.push((step.name.clone(), child));
     }
 
@@ -906,6 +939,8 @@ fn execute_sequential_step(
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
     workflow_dir: &Path,
+    workflow_provider: Option<&str>,
+    workflow_model: Option<&str>,
 ) -> Result<(), ZigError> {
     if let Some(condition) = &step.condition {
         if !evaluate_condition(condition, vars)? {
@@ -943,6 +978,8 @@ fn execute_sequential_step(
         None,
         session,
         rendered_sp.as_deref(),
+        workflow_provider,
+        workflow_model,
     );
 
     match result {
@@ -1006,6 +1043,8 @@ fn execute_parallel_tier(
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
     workflow_dir: &Path,
+    workflow_provider: Option<&str>,
+    workflow_model: Option<&str>,
 ) -> Result<(), ZigError> {
     // Evaluate conditions and render prompts up front, so threads receive
     // the same variable snapshot they would have under sequential execution.
@@ -1061,6 +1100,8 @@ fn execute_parallel_tier(
         }
         start_times.insert(name.clone(), Instant::now());
         let session_clone = session.cloned();
+        let wf_provider = workflow_provider.map(String::from);
+        let wf_model = workflow_model.map(String::from);
         let handle = thread::spawn(move || {
             let res = run_step_attempts(
                 &step_clone,
@@ -1069,6 +1110,8 @@ fn execute_parallel_tier(
                 Some(&name),
                 session_clone.as_ref(),
                 rendered_sp.as_deref(),
+                wf_provider.as_deref(),
+                wf_model.as_deref(),
             );
             (name, res)
         });
@@ -1196,6 +1239,9 @@ fn execute(
 
     let mut step_outputs: HashMap<String, String> = HashMap::new();
 
+    let wf_provider = workflow.workflow.provider.as_deref();
+    let wf_model = workflow.workflow.model.as_deref();
+
     let tiers = topological_sort(&workflow.steps)?;
 
     eprintln!(
@@ -1275,6 +1321,8 @@ fn execute(
                         session_ref,
                         &workflow.roles,
                         workflow_dir,
+                        wf_provider,
+                        wf_model,
                     )?;
                 }
             } else {
@@ -1289,6 +1337,8 @@ fn execute(
                     session_ref,
                     &workflow.roles,
                     workflow_dir,
+                    wf_provider,
+                    wf_model,
                 )?;
             }
 
@@ -1332,6 +1382,8 @@ fn execute(
                     &workflow.workflow.name,
                     tier_index,
                     session_ref,
+                    wf_provider,
+                    wf_model,
                 ) {
                     Ok((winner_name, output)) => {
                         // Find the winning step to process saves/next
