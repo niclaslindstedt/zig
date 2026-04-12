@@ -65,22 +65,16 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             runner: ubuntu-latest
-            cross: false
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-latest
-            cross: true
           - target: x86_64-apple-darwin
             runner: macos-latest
-            cross: false
           - target: aarch64-apple-darwin
             runner: macos-latest
-            cross: false
           - target: x86_64-pc-windows-msvc
             runner: windows-latest
-            cross: false
           - target: aarch64-pc-windows-msvc
             runner: windows-latest
-            cross: false
     steps:
       - uses: actions/checkout@v5
         with:
@@ -88,16 +82,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-      - name: install cross
-        if: matrix.cross
-        run: cargo install cross --locked
-      - name: build
+      - name: install aarch64 cross linker
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          if [ "${{ matrix.cross }}" = "true" ]; then
-            cross build --release --target ${{ matrix.target }} --bin zig
-          else
-            cargo build --release --target ${{ matrix.target }} --bin zig
-          fi
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: build
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo build --release --target ${{ matrix.target }} --bin zig
         shell: bash
       - name: package (unix)
         if: runner.os != 'Windows'
