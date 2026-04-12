@@ -28,6 +28,7 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
 
     let step_names: HashSet<&str> = workflow.steps.iter().map(|s| s.name.as_str()).collect();
     let var_names: HashSet<&str> = workflow.vars.keys().map(|k| k.as_str()).collect();
+    let role_names: HashSet<&str> = workflow.roles.keys().map(|k| k.as_str()).collect();
 
     // Check unique step names
     let mut seen_names = HashSet::new();
@@ -85,6 +86,38 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
                         "step '{}' system_prompt references unknown variable '${{{var_ref}}}'",
                         step.name
                     )));
+                }
+            }
+        }
+
+        // Check role and system_prompt are mutually exclusive
+        if step.role.is_some() && step.system_prompt.is_some() {
+            errors.push(ZigError::Validation(format!(
+                "step '{}' sets both 'role' and 'system_prompt' (they are mutually exclusive)",
+                step.name
+            )));
+        }
+
+        // Check role references
+        if let Some(role_ref) = &step.role {
+            let var_refs = extract_var_refs(role_ref);
+            if var_refs.is_empty() {
+                // Static role reference — must exist in [roles]
+                if !role_names.contains(role_ref.as_str()) {
+                    errors.push(ZigError::Validation(format!(
+                        "step '{}' role references unknown role '{role_ref}'",
+                        step.name
+                    )));
+                }
+            } else {
+                // Dynamic role reference — validate variable refs
+                for var_ref in var_refs {
+                    if !var_names.contains(var_ref.as_str()) {
+                        errors.push(ZigError::Validation(format!(
+                            "step '{}' role references unknown variable '${{{var_ref}}}'",
+                            step.name
+                        )));
+                    }
                 }
             }
         }
@@ -208,6 +241,29 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
         }
     }
 
+    // Check role definitions
+    for (role_name, role) in &workflow.roles {
+        // system_prompt and system_prompt_file are mutually exclusive
+        if role.system_prompt.is_some() && role.system_prompt_file.is_some() {
+            errors.push(ZigError::Validation(format!(
+                "role '{role_name}' sets both 'system_prompt' and 'system_prompt_file' \
+                 (they are mutually exclusive)"
+            )));
+        }
+
+        // Validate ${var} references in role system_prompt
+        if let Some(ref sp) = role.system_prompt {
+            for var_ref in extract_var_refs(sp) {
+                if !var_names.contains(var_ref.as_str()) {
+                    errors.push(ZigError::Validation(format!(
+                        "role '{role_name}' system_prompt references unknown variable \
+                         '${{{var_ref}}}'"
+                    )));
+                }
+            }
+        }
+    }
+
     // Check race_group: steps in the same group must not depend on each other
     let mut race_groups: HashMap<&str, Vec<&str>> = HashMap::new();
     for step in &workflow.steps {
@@ -258,6 +314,14 @@ fn validate_var_constraints(vars: &HashMap<String, Variable>, errors: &mut Vec<Z
     let mut prompt_bound_count = 0;
 
     for (name, var) in vars {
+        // default and default_file are mutually exclusive
+        if var.default.is_some() && var.default_file.is_some() {
+            errors.push(ZigError::Validation(format!(
+                "variable '{name}' sets both 'default' and 'default_file' \
+                 (they are mutually exclusive)"
+            )));
+        }
+
         // Validate `from` field
         if let Some(ref from) = var.from {
             if from != "prompt" {

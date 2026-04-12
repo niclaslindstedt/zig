@@ -108,6 +108,16 @@ pub enum WorkflowCommand {
         #[arg(long, short)]
         pattern: Option<Pattern>,
     },
+
+    /// Pack a workflow directory into a .zug zip archive
+    Pack {
+        /// Path to directory containing the workflow and its prompt files
+        path: String,
+
+        /// Output file path (defaults to <workflow-name>.zug)
+        #[arg(long, short)]
+        output: Option<String>,
+    },
 }
 
 /// Orchestration pattern for workflow creation.

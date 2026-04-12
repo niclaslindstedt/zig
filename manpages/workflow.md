@@ -16,6 +16,7 @@ zig workflow <command> [options]
 | `show <workflow>`    | Show details of a workflow                           |
 | `create [name]`      | Create a new workflow interactively with an AI agent |
 | `delete <workflow>`  | Delete a workflow file                               |
+| `pack <dir>`         | Pack a workflow directory into a .zug zip archive    |
 
 ## zig workflow list
 
@@ -77,6 +78,37 @@ orchestration primitives, and common workflow patterns.
 ### Prerequisites
 
 - `zag` must be installed and available on PATH
+
+## zig workflow pack
+
+Pack a workflow directory into a `.zug` zip archive for distribution.
+
+```
+zig workflow pack <dir> [--output <path>]
+```
+
+The directory must contain exactly one TOML workflow file (`.toml` or `.zug`).
+All files in the directory are included in the archive, preserving directory
+structure. The resulting zip file works directly with `zig run` and `zig validate`.
+
+### Options
+
+| Option              | Short | Description                                   |
+|---------------------|-------|-----------------------------------------------|
+| `--output <path>`   | `-o`  | Output file path (defaults to `<workflow-name>.zug`) |
+
+### Example
+
+```bash
+# Pack a healthcare workflow with 20 prompt files
+zig workflow pack examples/healthcare/ -o healthcare.zug
+
+# Validate the packed archive
+zig validate healthcare.zug
+
+# Run it
+zig run healthcare.zug "I have a headache"
+```
 
 ## zig workflow delete
 

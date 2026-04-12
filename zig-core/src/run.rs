@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use crate::error::ZigError;
 use crate::session::{OutputStream, SessionCoordinator, SessionStatus, SessionWriter};
-use crate::workflow::model::{FailurePolicy, Step, StepCommand, Workflow};
+use crate::workflow::model::{FailurePolicy, Role, Step, StepCommand, Workflow};
 use crate::workflow::{parser, validate};
 
 /// Maximum number of loop iterations to prevent infinite loops from `next` fields.
@@ -25,14 +25,14 @@ pub fn run_workflow(workflow_path: &str, user_prompt: Option<&str>) -> Result<()
     check_zag()?;
 
     let path = resolve_workflow_path(workflow_path)?;
-    let workflow = parser::parse_file(&path)?;
+    let (workflow, source) = parser::parse_workflow(&path)?;
 
     if let Err(errors) = validate::validate(&workflow) {
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         return Err(ZigError::Validation(msgs.join("; ")));
     }
 
-    execute(&workflow, &path, user_prompt)
+    execute(&workflow, &path, user_prompt, source.dir())
 }
 
 /// Verify that `zag` is installed and available on PATH.
@@ -205,6 +205,83 @@ fn json_path_lookup(value: &serde_json::Value, path: &str) -> String {
         serde_json::Value::String(s) => s.clone(),
         other => other.to_string(),
     }
+}
+
+/// Resolve the effective system prompt for a step.
+///
+/// Resolution order:
+/// 1. If `step.system_prompt` is set, use it (with variable substitution).
+/// 2. If `step.role` is set, resolve the role name (may contain `${var}`),
+///    look it up in the roles table, and return the role's system prompt
+///    (loaded from file if `system_prompt_file` is set).
+/// 3. Otherwise, return `None`.
+fn resolve_role_system_prompt(
+    step: &Step,
+    roles: &HashMap<String, Role>,
+    vars: &HashMap<String, String>,
+    workflow_dir: &Path,
+) -> Result<Option<String>, ZigError> {
+    // Direct system_prompt on step takes priority
+    if let Some(ref sp) = step.system_prompt {
+        return Ok(Some(substitute_vars(sp, vars)));
+    }
+
+    // Role reference
+    if let Some(ref role_ref) = step.role {
+        let resolved_name = substitute_vars(role_ref, vars);
+        let role = roles.get(&resolved_name).ok_or_else(|| {
+            ZigError::Execution(format!(
+                "step '{}' references role '{}' which does not exist",
+                step.name, resolved_name
+            ))
+        })?;
+
+        // Load from file or use inline prompt
+        let raw_prompt = if let Some(ref file_path) = role.system_prompt_file {
+            let full_path = workflow_dir.join(file_path);
+            std::fs::read_to_string(&full_path).map_err(|e| {
+                ZigError::Execution(format!(
+                    "failed to read system_prompt_file '{}' for role '{}': {e}",
+                    full_path.display(),
+                    resolved_name
+                ))
+            })?
+        } else if let Some(ref sp) = role.system_prompt {
+            sp.clone()
+        } else {
+            return Ok(None);
+        };
+
+        return Ok(Some(substitute_vars(&raw_prompt, vars)));
+    }
+
+    Ok(None)
+}
+
+/// Load file-backed default values for variables.
+///
+/// For each variable with `default_file` set (and no `default`), reads the
+/// file contents relative to `workflow_dir` and inserts them into the vars map.
+fn load_file_defaults(
+    vars: &mut HashMap<String, String>,
+    declarations: &HashMap<String, crate::workflow::model::Variable>,
+    workflow_dir: &Path,
+) -> Result<(), ZigError> {
+    for (name, decl) in declarations {
+        if decl.default.is_none() {
+            if let Some(ref file_path) = decl.default_file {
+                let full_path = workflow_dir.join(file_path);
+                let content = std::fs::read_to_string(&full_path).map_err(|e| {
+                    ZigError::Execution(format!(
+                        "failed to read default_file '{}' for variable '{name}': {e}",
+                        full_path.display()
+                    ))
+                })?;
+                vars.insert(name.clone(), content);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Evaluate a simple condition expression against the current variable state.
@@ -827,6 +904,8 @@ fn execute_sequential_step(
     pending_next: &mut Option<String>,
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
+    roles: &HashMap<String, Role>,
+    workflow_dir: &Path,
 ) -> Result<(), ZigError> {
     if let Some(condition) = &step.condition {
         if !evaluate_condition(condition, vars)? {
@@ -844,10 +923,7 @@ fn execute_sequential_step(
     eprintln!("  running step '{}'...", step.name);
 
     let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
-    let rendered_sp = step
-        .system_prompt
-        .as_ref()
-        .map(|sp| substitute_vars(sp, vars));
+    let rendered_sp = resolve_role_system_prompt(step, roles, vars, workflow_dir)?;
     if let Some(w) = session {
         let zag_session_id = format!("zig-{workflow_name}-{}", step.name);
         let _ = w.step_started(
@@ -928,6 +1004,8 @@ fn execute_parallel_tier(
     pending_next: &mut Option<String>,
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
+    roles: &HashMap<String, Role>,
+    workflow_dir: &Path,
 ) -> Result<(), ZigError> {
     // Evaluate conditions and render prompts up front, so threads receive
     // the same variable snapshot they would have under sequential execution.
@@ -949,8 +1027,8 @@ fn execute_parallel_tier(
         }
         let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
         prompts.insert(step.name.clone(), prompt);
-        if let Some(sp) = &step.system_prompt {
-            rendered_sps.insert(step.name.clone(), substitute_vars(sp, vars));
+        if let Some(sp) = resolve_role_system_prompt(step, roles, vars, workflow_dir)? {
+            rendered_sps.insert(step.name.clone(), sp);
         }
         active.push(*step);
     }
@@ -1083,8 +1161,12 @@ fn execute(
     workflow: &Workflow,
     workflow_path: &std::path::Path,
     user_prompt: Option<&str>,
+    workflow_dir: &Path,
 ) -> Result<(), ZigError> {
     let mut vars = init_vars(workflow);
+
+    // Load file-backed variable defaults before prompt binding.
+    load_file_defaults(&mut vars, &workflow.vars, workflow_dir)?;
 
     // Bind user prompt to the variable with `from = "prompt"`, if any.
     let prompt_var = workflow
@@ -1191,6 +1273,8 @@ fn execute(
                         &mut pending_next,
                         tier_index,
                         session_ref,
+                        &workflow.roles,
+                        workflow_dir,
                     )?;
                 }
             } else {
@@ -1203,6 +1287,8 @@ fn execute(
                     &mut pending_next,
                     tier_index,
                     session_ref,
+                    &workflow.roles,
+                    workflow_dir,
                 )?;
             }
 
@@ -1227,8 +1313,10 @@ fn execute(
                     let prompt =
                         render_step_prompt(step, &vars, effective_user_prompt, &step_outputs);
                     prompts.insert(step.name.clone(), prompt);
-                    if let Some(sp) = &step.system_prompt {
-                        race_sps.insert(step.name.clone(), substitute_vars(sp, &vars));
+                    if let Some(sp) =
+                        resolve_role_system_prompt(step, &workflow.roles, &vars, workflow_dir)?
+                    {
+                        race_sps.insert(step.name.clone(), sp);
                     }
                     active_steps.push(step);
                 }

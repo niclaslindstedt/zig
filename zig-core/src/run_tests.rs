@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::workflow::model::{Step, StepCommand, VarType, Variable, Workflow, WorkflowMeta};
+use crate::workflow::model::{Role, Step, StepCommand, VarType, Variable, Workflow, WorkflowMeta};
 
 use super::*;
 
@@ -293,6 +293,7 @@ fn init_vars_with_defaults() {
             description: String::new(),
             tags: vec![],
         },
+        roles: HashMap::new(),
         vars: HashMap::from([
             (
                 "target".into(),
@@ -460,6 +461,7 @@ fn prompt_var_binding_populates_variable() {
             name: "test".into(),
             ..Default::default()
         },
+        roles: HashMap::new(),
         vars: HashMap::from([(
             "content".into(),
             Variable {
@@ -511,6 +513,7 @@ fn prompt_var_with_default_uses_default_when_no_prompt() {
             name: "test".into(),
             ..Default::default()
         },
+        roles: HashMap::new(),
         vars: HashMap::from([(
             "content".into(),
             Variable {
@@ -960,4 +963,249 @@ fn build_zag_args_no_system_prompt() {
     let s = step("test");
     let args = build_zag_args(&s, "do stuff", "wf", None, None);
     assert!(!args.contains(&"--system-prompt".to_string()));
+}
+
+// ── resolve_role_system_prompt ──────────────���──────────────────────────────
+
+#[test]
+fn resolve_direct_system_prompt() {
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        system_prompt: Some("You are a doctor.".into()),
+        ..Default::default()
+    };
+    let roles = HashMap::new();
+    let vars = HashMap::new();
+    let dir = std::path::Path::new(".");
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, dir).unwrap();
+    assert_eq!(result, Some("You are a doctor.".to_string()));
+}
+
+#[test]
+fn resolve_direct_system_prompt_with_var_substitution() {
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        system_prompt: Some("You are a ${specialty} specialist.".into()),
+        ..Default::default()
+    };
+    let roles = HashMap::new();
+    let vars = HashMap::from([("specialty".into(), "cardiology".into())]);
+    let dir = std::path::Path::new(".");
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, dir).unwrap();
+    assert_eq!(result, Some("You are a cardiology specialist.".to_string()));
+}
+
+#[test]
+fn resolve_static_role_reference() {
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        role: Some("doctor".into()),
+        ..Default::default()
+    };
+    let roles = HashMap::from([(
+        "doctor".into(),
+        Role {
+            system_prompt: Some("You are a doctor.".into()),
+            ..Default::default()
+        },
+    )]);
+    let vars = HashMap::new();
+    let dir = std::path::Path::new(".");
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, dir).unwrap();
+    assert_eq!(result, Some("You are a doctor.".to_string()));
+}
+
+#[test]
+fn resolve_dynamic_role_reference() {
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        role: Some("${specialist_type}".into()),
+        ..Default::default()
+    };
+    let roles = HashMap::from([(
+        "cardiologist".into(),
+        Role {
+            system_prompt: Some("You are a cardiologist.".into()),
+            ..Default::default()
+        },
+    )]);
+    let vars = HashMap::from([("specialist_type".into(), "cardiologist".into())]);
+    let dir = std::path::Path::new(".");
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, dir).unwrap();
+    assert_eq!(result, Some("You are a cardiologist.".to_string()));
+}
+
+#[test]
+fn resolve_role_with_var_in_prompt() {
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        role: Some("doctor".into()),
+        ..Default::default()
+    };
+    let roles = HashMap::from([(
+        "doctor".into(),
+        Role {
+            system_prompt: Some("You are a ${specialty} specialist.".into()),
+            ..Default::default()
+        },
+    )]);
+    let vars = HashMap::from([("specialty".into(), "cardiology".into())]);
+    let dir = std::path::Path::new(".");
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, dir).unwrap();
+    assert_eq!(result, Some("You are a cardiology specialist.".to_string()));
+}
+
+#[test]
+fn resolve_unknown_role_returns_error() {
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        role: Some("nonexistent".into()),
+        ..Default::default()
+    };
+    let roles = HashMap::new();
+    let vars = HashMap::new();
+    let dir = std::path::Path::new(".");
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, dir);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("does not exist"));
+}
+
+#[test]
+fn resolve_no_system_prompt_or_role() {
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        ..Default::default()
+    };
+    let roles = HashMap::new();
+    let vars = HashMap::new();
+    let dir = std::path::Path::new(".");
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, dir).unwrap();
+    assert_eq!(result, None);
+}
+
+#[test]
+fn resolve_role_with_system_prompt_file() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let prompt_path = tmp.path().join("doctor.md");
+    std::fs::write(&prompt_path, "You are a doctor from a file.").unwrap();
+
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        role: Some("doctor".into()),
+        ..Default::default()
+    };
+    let roles = HashMap::from([(
+        "doctor".into(),
+        Role {
+            system_prompt_file: Some("doctor.md".into()),
+            ..Default::default()
+        },
+    )]);
+    let vars = HashMap::new();
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, tmp.path()).unwrap();
+    assert_eq!(result, Some("You are a doctor from a file.".to_string()));
+}
+
+#[test]
+fn resolve_role_file_with_var_substitution() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let prompt_path = tmp.path().join("specialist.md");
+    std::fs::write(&prompt_path, "You are a ${specialty} specialist.").unwrap();
+
+    let step = Step {
+        name: "test".into(),
+        prompt: "do stuff".into(),
+        role: Some("specialist".into()),
+        ..Default::default()
+    };
+    let roles = HashMap::from([(
+        "specialist".into(),
+        Role {
+            system_prompt_file: Some("specialist.md".into()),
+            ..Default::default()
+        },
+    )]);
+    let vars = HashMap::from([("specialty".into(), "neurology".into())]);
+
+    let result = resolve_role_system_prompt(&step, &roles, &vars, tmp.path()).unwrap();
+    assert_eq!(result, Some("You are a neurology specialist.".to_string()));
+}
+
+// ── load_file_defaults ─────────────────��───────────────────────���──────────
+
+#[test]
+fn load_file_defaults_reads_file() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let default_path = tmp.path().join("instructions.txt");
+    std::fs::write(&default_path, "Follow these instructions carefully.").unwrap();
+
+    let declarations = HashMap::from([(
+        "instructions".into(),
+        Variable {
+            var_type: VarType::String,
+            default_file: Some("instructions.txt".into()),
+            ..Default::default()
+        },
+    )]);
+    let mut vars = HashMap::from([("instructions".into(), String::new())]);
+
+    load_file_defaults(&mut vars, &declarations, tmp.path()).unwrap();
+    assert_eq!(vars["instructions"], "Follow these instructions carefully.");
+}
+
+#[test]
+fn load_file_defaults_skips_when_default_set() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let default_path = tmp.path().join("instructions.txt");
+    std::fs::write(&default_path, "From file").unwrap();
+
+    let declarations = HashMap::from([(
+        "instructions".into(),
+        Variable {
+            var_type: VarType::String,
+            default: Some(toml::Value::String("inline default".into())),
+            default_file: Some("instructions.txt".into()),
+            ..Default::default()
+        },
+    )]);
+    let mut vars = HashMap::from([("instructions".into(), "inline default".into())]);
+
+    // Should not override since `default` is set
+    load_file_defaults(&mut vars, &declarations, tmp.path()).unwrap();
+    assert_eq!(vars["instructions"], "inline default");
+}
+
+#[test]
+fn load_file_defaults_missing_file_returns_error() {
+    let tmp = tempfile::TempDir::new().unwrap();
+
+    let declarations = HashMap::from([(
+        "instructions".into(),
+        Variable {
+            var_type: VarType::String,
+            default_file: Some("nonexistent.txt".into()),
+            ..Default::default()
+        },
+    )]);
+    let mut vars = HashMap::from([("instructions".into(), String::new())]);
+
+    let result = load_file_defaults(&mut vars, &declarations, tmp.path());
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("nonexistent.txt"));
 }

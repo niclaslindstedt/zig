@@ -1,0 +1,159 @@
+# Healthcare Triage Workflow
+#
+# Simulates a hospital environment where a triage nurse interviews the patient,
+# determines which specialist to refer them to, and then the specialist examines
+# the patient. The specialist may refer to another specialist or set a diagnosis.
+#
+# Usage:
+#   zig run examples/healthcare/healthcare.toml "I've been having chest pain and shortness of breath for two days"
+#
+# Or pack and distribute:
+#   zig workflow pack examples/healthcare/ -o healthcare.zug
+#   zig run healthcare.zug "I've been having headaches and blurry vision"
+
+[workflow]
+name = "healthcare-triage"
+description = "Hospital triage simulation with nurse intake and specialist referral"
+tags = ["healthcare", "simulation", "roles"]
+
+# ── Roles ────────────────────────────────────────────────────────────────────
+
+[roles.nurse-triage]
+system_prompt_file = "prompts/nurse-triage.md"
+
+[roles.cardiologist]
+system_prompt_file = "prompts/cardiologist.md"
+
+[roles.neurologist]
+system_prompt_file = "prompts/neurologist.md"
+
+[roles.dermatologist]
+system_prompt_file = "prompts/dermatologist.md"
+
+[roles.orthopedist]
+system_prompt_file = "prompts/orthopedist.md"
+
+[roles.gastroenterologist]
+system_prompt_file = "prompts/gastroenterologist.md"
+
+[roles.pulmonologist]
+system_prompt_file = "prompts/pulmonologist.md"
+
+[roles.endocrinologist]
+system_prompt_file = "prompts/endocrinologist.md"
+
+[roles.urologist]
+system_prompt_file = "prompts/urologist.md"
+
+[roles.ophthalmologist]
+system_prompt_file = "prompts/ophthalmologist.md"
+
+[roles.ent-specialist]
+system_prompt_file = "prompts/ent-specialist.md"
+
+[roles.rheumatologist]
+system_prompt_file = "prompts/rheumatologist.md"
+
+[roles.oncologist]
+system_prompt_file = "prompts/oncologist.md"
+
+[roles.psychiatrist]
+system_prompt_file = "prompts/psychiatrist.md"
+
+[roles.psychologist]
+system_prompt_file = "prompts/psychologist.md"
+
+[roles.dietitian]
+system_prompt_file = "prompts/dietitian.md"
+
+[roles.physical-therapist]
+system_prompt_file = "prompts/physical-therapist.md"
+
+[roles.allergist]
+system_prompt_file = "prompts/allergist.md"
+
+[roles.nephrologist]
+system_prompt_file = "prompts/nephrologist.md"
+
+[roles.emergency-physician]
+system_prompt_file = "prompts/emergency-physician.md"
+
+# ── Variables ────────────────────────────────────────────────────────────────
+
+[vars.symptoms]
+type = "string"
+from = "prompt"
+required = true
+description = "Patient's reported symptoms and complaints"
+
+[vars.specialist_type]
+type = "string"
+default = ""
+description = "The specialist to refer the patient to (set by triage nurse or previous specialist)"
+
+[vars.triage_notes]
+type = "string"
+default = ""
+description = "Triage nurse assessment notes passed to the specialist"
+
+[vars.diagnosis]
+type = "string"
+default = ""
+description = "Final or working diagnosis set by a specialist"
+
+[vars.needs_referral]
+type = "bool"
+default = false
+description = "Whether the current specialist is referring to another specialist"
+
+[vars.referral_reason]
+type = "string"
+default = ""
+description = "Reason for referral to the next specialist"
+
+[vars.visit_history]
+type = "string"
+default = ""
+description = "Accumulated notes from all specialist visits so far"
+
+# ── Steps ────────────────────────────────────────────────────────────────────
+
+[[step]]
+name = "triage"
+prompt = """Patient presents with the following complaints:
+
+${symptoms}
+
+Conduct a triage assessment. Ask clarifying questions mentally (simulate the interview), assess severity, and determine which specialist the patient should see.
+
+Respond in JSON format."""
+role = "nurse-triage"
+json = true
+saves = { specialist_type = "$.specialist_type", triage_notes = "$.triage_notes" }
+description = "Triage nurse interviews the patient and determines specialist referral"
+
+[[step]]
+name = "specialist"
+prompt = """You are seeing a patient referred to you.
+
+**Triage Notes:** ${triage_notes}
+
+**Patient Symptoms:** ${symptoms}
+
+**Previous Visit Notes:** ${visit_history}
+
+**Referral Reason:** ${referral_reason}
+
+Examine the patient. Based on the symptoms and history:
+1. Conduct a focused assessment within your specialty
+2. Either set a diagnosis or refer to another specialist
+
+Respond in JSON format."""
+role = "${specialist_type}"
+depends_on = ["triage"]
+json = true
+condition = "specialist_type"
+saves = { diagnosis = "$.diagnosis", needs_referral = "$.needs_referral", specialist_type = "$.next_specialist", referral_reason = "$.referral_reason", visit_history = "$.visit_notes" }
+next = "specialist"
+description = "Specialist examines the patient and either diagnoses or refers"
+max_turns = 5

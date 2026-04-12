@@ -34,6 +34,9 @@ fn main() -> Result<()> {
                     pattern.as_ref().map(|p| p.as_core_name()),
                 )?;
             }
+            WorkflowCommand::Pack { path, output } => {
+                zig_core::pack::pack(&path, output.as_deref())?;
+            }
         },
         Command::Describe { prompt, output } => {
             let dest = output.unwrap_or_else(|| "workflow.zug".to_string());
@@ -43,7 +46,7 @@ fn main() -> Result<()> {
         }
         Command::Validate { workflow } => {
             let path = Path::new(&workflow);
-            let wf = zig_core::workflow::parser::parse_file(path)?;
+            let (wf, _source) = zig_core::workflow::parser::parse_workflow(path)?;
 
             match zig_core::workflow::validate::validate(&wf) {
                 Ok(()) => {

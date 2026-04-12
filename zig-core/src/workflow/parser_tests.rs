@@ -503,3 +503,212 @@ depends_on = ["worker"]
 
     assert_eq!(wf.steps[1].command, Some(StepCommand::Summary));
 }
+
+// ── roles parsing ───────────────────────────────────────────────────────────
+
+#[test]
+fn parse_roles_section() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "roles-test"
+
+[roles.doctor]
+system_prompt = "You are a doctor."
+
+[roles.nurse]
+system_prompt_file = "prompts/nurse.md"
+
+[[step]]
+name = "triage"
+prompt = "Triage the patient"
+role = "nurse"
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(wf.roles.len(), 2);
+    assert_eq!(
+        wf.roles["doctor"].system_prompt.as_deref(),
+        Some("You are a doctor.")
+    );
+    assert_eq!(
+        wf.roles["nurse"].system_prompt_file.as_deref(),
+        Some("prompts/nurse.md")
+    );
+    assert_eq!(wf.steps[0].role.as_deref(), Some("nurse"));
+}
+
+#[test]
+fn parse_step_with_role_and_no_system_prompt() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "role-step"
+
+[roles.analyst]
+system_prompt = "You are an analyst."
+
+[[step]]
+name = "analyze"
+prompt = "Analyze this"
+role = "analyst"
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(wf.steps[0].role.as_deref(), Some("analyst"));
+    assert!(wf.steps[0].system_prompt.is_none());
+}
+
+#[test]
+fn parse_variable_default_file() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "default-file"
+
+[vars.instructions]
+type = "string"
+default_file = "defaults/instructions.txt"
+
+[[step]]
+name = "go"
+prompt = "Follow ${instructions}"
+"#,
+    )
+    .unwrap();
+
+    assert_eq!(
+        wf.vars["instructions"].default_file.as_deref(),
+        Some("defaults/instructions.txt")
+    );
+}
+
+// ── zip archive parsing ─────────────────────────────────────────────────────
+
+#[test]
+fn parse_workflow_from_zip_archive() {
+    use std::io::Write;
+
+    let tmp = tempfile::TempDir::new().unwrap();
+    let zip_path = tmp.path().join("test.zug");
+
+    // Create a zip archive containing a workflow TOML
+    let file = std::fs::File::create(&zip_path).unwrap();
+    let mut zip_writer = zip::ZipWriter::new(file);
+
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+    zip_writer.start_file("workflow.toml", options).unwrap();
+    zip_writer
+        .write_all(
+            br#"[workflow]
+name = "from-zip"
+
+[[step]]
+name = "hello"
+prompt = "Say hello"
+"#,
+        )
+        .unwrap();
+    zip_writer.finish().unwrap();
+
+    let (wf, source) = parse_workflow(&zip_path).unwrap();
+    assert_eq!(wf.workflow.name, "from-zip");
+    assert_eq!(wf.steps.len(), 1);
+    assert!(matches!(source, WorkflowSource::Zip { .. }));
+}
+
+#[test]
+fn parse_workflow_plain_toml_returns_directory_source() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let toml_path = tmp.path().join("workflow.zug");
+    std::fs::write(
+        &toml_path,
+        r#"[workflow]
+name = "plain"
+
+[[step]]
+name = "hello"
+prompt = "Say hello"
+"#,
+    )
+    .unwrap();
+
+    let (wf, source) = parse_workflow(&toml_path).unwrap();
+    assert_eq!(wf.workflow.name, "plain");
+    assert!(matches!(source, WorkflowSource::Directory(_)));
+}
+
+#[test]
+fn parse_zip_with_role_prompt_files() {
+    use std::io::Write;
+
+    let tmp = tempfile::TempDir::new().unwrap();
+    let zip_path = tmp.path().join("healthcare.zug");
+
+    let file = std::fs::File::create(&zip_path).unwrap();
+    let mut zip_writer = zip::ZipWriter::new(file);
+
+    let options =
+        zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+    // Add workflow TOML
+    zip_writer.start_file("healthcare.toml", options).unwrap();
+    zip_writer
+        .write_all(
+            br#"[workflow]
+name = "healthcare"
+
+[roles.doctor]
+system_prompt_file = "prompts/doctor.md"
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "doctor"
+"#,
+        )
+        .unwrap();
+
+    // Add prompt file
+    zip_writer.start_file("prompts/doctor.md", options).unwrap();
+    zip_writer
+        .write_all(b"You are a doctor. Examine the patient carefully.")
+        .unwrap();
+
+    zip_writer.finish().unwrap();
+
+    let (wf, source) = parse_workflow(&zip_path).unwrap();
+    assert_eq!(wf.workflow.name, "healthcare");
+
+    // Verify the prompt file exists in the extracted directory
+    let prompt_path = source.dir().join("prompts/doctor.md");
+    assert!(prompt_path.exists());
+    assert_eq!(
+        std::fs::read_to_string(&prompt_path).unwrap(),
+        "You are a doctor. Examine the patient carefully."
+    );
+}
+
+#[test]
+fn parse_zip_with_no_toml_fails() {
+    use std::io::Write;
+
+    let tmp = tempfile::TempDir::new().unwrap();
+    let zip_path = tmp.path().join("empty.zug");
+
+    let file = std::fs::File::create(&zip_path).unwrap();
+    let mut zip_writer = zip::ZipWriter::new(file);
+
+    let options = zip::write::SimpleFileOptions::default();
+    zip_writer.start_file("readme.md", options).unwrap();
+    zip_writer.write_all(b"No workflow here").unwrap();
+    zip_writer.finish().unwrap();
+
+    let result = parse_workflow(&zip_path);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("no .toml"));
+}
