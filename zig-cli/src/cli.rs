@@ -62,6 +62,21 @@ pub enum Command {
         topic: Option<String>,
     },
 
+    /// Start an HTTP API server
+    Serve {
+        /// Port to listen on
+        #[arg(long, short, default_value = "3000")]
+        port: u16,
+
+        /// Host/IP to bind to
+        #[arg(long, default_value = "127.0.0.1")]
+        host: String,
+
+        /// Bearer token for authentication (or set ZIG_SERVE_TOKEN env var)
+        #[arg(long)]
+        token: Option<String>,
+    },
+
     /// Tail a running or completed zig session
     Listen {
         /// Session id (full UUID or unique prefix). Omit with --latest/--active.

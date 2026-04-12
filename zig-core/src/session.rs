@@ -223,6 +223,54 @@ pub fn save_global_index(path: &Path, index: &GlobalSessionIndex) -> Result<(), 
 }
 
 // ---------------------------------------------------------------------
+// Query helpers
+// ---------------------------------------------------------------------
+
+/// List all sessions from the project index.
+pub fn list_sessions() -> Result<Vec<SessionLogIndexEntry>, ZigError> {
+    let index_path = paths::project_index_path(None)
+        .ok_or_else(|| ZigError::Io("HOME environment variable not set".into()))?;
+    let index = load_project_index(&index_path);
+    Ok(index.sessions)
+}
+
+/// Read all events from a session JSONL log file.
+pub fn read_session_events(log_path: &Path) -> Result<Vec<SessionLogEvent>, ZigError> {
+    let content = std::fs::read_to_string(log_path)
+        .map_err(|e| ZigError::Io(format!("failed to read {}: {e}", log_path.display())))?;
+
+    let mut events = Vec::new();
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let event: SessionLogEvent = serde_json::from_str(line)
+            .map_err(|e| ZigError::Parse(format!("failed to parse session event: {e}")))?;
+        events.push(event);
+    }
+    Ok(events)
+}
+
+/// Find a session by ID (or unique prefix) and return its index entry.
+pub fn find_session(session_id: &str) -> Result<SessionLogIndexEntry, ZigError> {
+    let sessions = list_sessions()?;
+    let matches: Vec<_> = sessions
+        .into_iter()
+        .filter(|s| s.zig_session_id.starts_with(session_id))
+        .collect();
+
+    match matches.len() {
+        0 => Err(ZigError::Io(format!("session not found: {session_id}"))),
+        1 => Ok(matches.into_iter().next().unwrap()),
+        _ => Err(ZigError::Io(format!(
+            "ambiguous session prefix '{session_id}' matches {} sessions",
+            matches.len()
+        ))),
+    }
+}
+
+// ---------------------------------------------------------------------
 // Writer
 // ---------------------------------------------------------------------
 

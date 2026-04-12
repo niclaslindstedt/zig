@@ -1,12 +1,23 @@
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+
 use crate::error::ZigError;
 use crate::run::resolve_workflow_path;
+use crate::workflow::model::Workflow;
 use crate::workflow::parser;
 
-/// List all `.zug` workflow files found in the current directory, `./workflows/`,
-/// and the global `~/.zig/workflows/` directory.
-pub fn list_workflows() -> Result<(), ZigError> {
+/// Summary information about a discovered workflow file.
+#[derive(Debug, Clone, Serialize)]
+pub struct WorkflowInfo {
+    pub name: String,
+    pub description: String,
+    pub step_count: usize,
+    pub path: String,
+}
+
+/// Return structured data about all discovered workflows.
+pub fn get_workflow_list() -> Result<Vec<WorkflowInfo>, ZigError> {
     let mut entries = discover_zug_files(Path::new("."));
 
     if let Some(global_dir) = crate::paths::global_workflows_dir() {
@@ -17,42 +28,73 @@ pub fn list_workflows() -> Result<(), ZigError> {
         }
     }
 
-    if entries.is_empty() {
+    let mut infos = Vec::new();
+    for path in &entries {
+        let display = path.display().to_string();
+        match parser::parse_file(path) {
+            Ok(wf) => {
+                infos.push(WorkflowInfo {
+                    name: wf.workflow.name,
+                    description: wf.workflow.description,
+                    step_count: wf.steps.len(),
+                    path: display,
+                });
+            }
+            Err(_) => {
+                infos.push(WorkflowInfo {
+                    name: "(parse error)".to_string(),
+                    description: String::new(),
+                    step_count: 0,
+                    path: display,
+                });
+            }
+        }
+    }
+
+    Ok(infos)
+}
+
+/// Return the parsed workflow for a given workflow name or path.
+pub fn get_workflow_detail(workflow: &str) -> Result<Workflow, ZigError> {
+    let path = resolve_workflow_path(workflow)?;
+    parser::parse_file(&path)
+}
+
+/// List all `.zug` workflow files found in the current directory, `./workflows/`,
+/// and the global `~/.zig/workflows/` directory.
+pub fn list_workflows() -> Result<(), ZigError> {
+    let infos = get_workflow_list()?;
+
+    if infos.is_empty() {
         println!("No workflows found.");
         println!("Hint: create one with `zig workflow create <name>`");
         return Ok(());
     }
 
-    // Determine column widths
-    let mut rows: Vec<(String, String, String, String)> = Vec::new();
-    for path in &entries {
-        let display = path.display().to_string();
-        match parser::parse_file(path) {
-            Ok(wf) => {
-                let steps = format!("{} steps", wf.steps.len());
-                rows.push((wf.workflow.name, wf.workflow.description, steps, display));
-            }
-            Err(_) => {
-                rows.push((
-                    "(parse error)".to_string(),
-                    String::new(),
-                    String::new(),
-                    display,
-                ));
-            }
-        }
-    }
-
-    let name_w = rows.iter().map(|r| r.0.len()).max().unwrap_or(0).max(4);
-    let desc_w = rows.iter().map(|r| r.1.len()).max().unwrap_or(0).max(11);
-    let steps_w = rows.iter().map(|r| r.2.len()).max().unwrap_or(0).max(5);
+    let name_w = infos.iter().map(|r| r.name.len()).max().unwrap_or(0).max(4);
+    let desc_w = infos
+        .iter()
+        .map(|r| r.description.len())
+        .max()
+        .unwrap_or(0)
+        .max(11);
+    let steps_w = infos
+        .iter()
+        .map(|r| format!("{} steps", r.step_count).len())
+        .max()
+        .unwrap_or(0)
+        .max(5);
 
     println!(
         "{:<name_w$}  {:<desc_w$}  {:<steps_w$}  PATH",
         "NAME", "DESCRIPTION", "STEPS"
     );
-    for (name, desc, steps, path) in &rows {
-        println!("{name:<name_w$}  {desc:<desc_w$}  {steps:<steps_w$}  {path}");
+    for info in &infos {
+        let steps = format!("{} steps", info.step_count);
+        println!(
+            "{:<name_w$}  {:<desc_w$}  {:<steps_w$}  {}",
+            info.name, info.description, steps, info.path
+        );
     }
 
     Ok(())

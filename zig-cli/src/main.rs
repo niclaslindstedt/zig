@@ -72,6 +72,15 @@ fn main() -> Result<()> {
         Command::Init => {
             println!("zig init: initializing project (not yet implemented)");
         }
+        Command::Serve { port, host, token } => {
+            let token = token
+                .or_else(|| std::env::var("ZIG_SERVE_TOKEN").ok())
+                .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+            let config = zig_serve::config::ServeConfig { host, port, token };
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(zig_serve::start_server(config))
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+        }
         Command::Listen {
             session_id,
             latest,
