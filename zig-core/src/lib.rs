@@ -8,6 +8,7 @@ pub mod error;
 pub mod listen;
 pub mod man;
 pub mod manage;
+pub mod pack;
 pub mod paths;
 pub mod prompt;
 pub mod run;

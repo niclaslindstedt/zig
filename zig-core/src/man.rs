@@ -17,7 +17,10 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("zig", "Overview of the zig CLI"),
     ("run", "Execute a .zug workflow file"),
     ("listen", "Tail a running or completed zig session"),
-    ("workflow", "Manage workflows (list, show, create, delete)"),
+    (
+        "workflow",
+        "Manage workflows (list, show, create, delete, pack)",
+    ),
     ("describe", "Generate a .zug file from a prompt"),
     ("validate", "Validate a .zug workflow file"),
     ("zug", "The .zug workflow format"),

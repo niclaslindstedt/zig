@@ -12,6 +12,11 @@ pub struct Workflow {
     /// Workflow metadata.
     pub workflow: WorkflowMeta,
 
+    /// Reusable role definitions that can be referenced by steps.
+    /// Keys are role names; values define the role's system prompt.
+    #[serde(default)]
+    pub roles: HashMap<String, Role>,
+
     /// Shared variables that flow between steps.
     /// Keys are variable names; values define type, default, and description.
     #[serde(default)]
@@ -37,6 +42,23 @@ pub struct WorkflowMeta {
     pub tags: Vec<String>,
 }
 
+/// A reusable role definition that can be referenced by steps.
+///
+/// Roles define system prompts that shape agent behavior. Each role can
+/// provide its prompt inline or load it from an external file, enabling
+/// maintainable workflows with many distinct personas.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Role {
+    /// Inline system prompt for this role. Supports `${var}` references.
+    #[serde(default)]
+    pub system_prompt: Option<String>,
+
+    /// Path to a file containing the system prompt (relative to the .zug file).
+    /// Loaded at execution time. Supports `${var}` references in the file content.
+    #[serde(default)]
+    pub system_prompt_file: Option<String>,
+}
+
 /// A workflow variable — shared state between steps.
 ///
 /// Variables can be referenced in step prompts via `${var_name}` and updated
@@ -51,6 +73,11 @@ pub struct Variable {
     /// provided at runtime or set by a preceding step.
     #[serde(default)]
     pub default: Option<toml::Value>,
+
+    /// Path to a file whose contents become the default value (relative to .zug file).
+    /// Mutually exclusive with `default`.
+    #[serde(default)]
+    pub default_file: Option<String>,
 
     /// Human-readable description of this variable's purpose.
     #[serde(default)]
@@ -181,8 +208,15 @@ pub struct Step {
     pub next: Option<String>,
 
     /// System prompt override for this step's agent.
+    /// Mutually exclusive with `role`.
     #[serde(default)]
     pub system_prompt: Option<String>,
+
+    /// Role name or `${var}` reference — resolved to a role from `[roles]` at runtime.
+    /// The role's system prompt is used as this step's system prompt.
+    /// Mutually exclusive with `system_prompt`.
+    #[serde(default)]
+    pub role: Option<String>,
 
     /// Maximum number of agentic turns for this step.
     #[serde(default)]

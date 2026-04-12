@@ -1279,6 +1279,275 @@ depends_on = ["analyze"]
     assert!(validate(&wf).is_ok());
 }
 
+// ── role validation ──────────────────────────────────────────────────────
+
+#[test]
+fn valid_step_with_static_role() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "static-role"
+
+[roles.doctor]
+system_prompt = "You are a doctor."
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "doctor"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn valid_step_with_dynamic_role() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "dynamic-role"
+
+[roles.cardiologist]
+system_prompt = "You are a cardiologist."
+
+[vars.specialist_type]
+type = "string"
+default = "cardiologist"
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "${specialist_type}"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn error_step_role_and_system_prompt_conflict() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "role-conflict"
+
+[roles.doctor]
+system_prompt = "You are a doctor."
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "doctor"
+system_prompt = "You are a nurse."
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("both 'role' and 'system_prompt'")
+            && e.to_string().contains("mutually exclusive")
+    }));
+}
+
+#[test]
+fn error_step_references_unknown_role() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-role-ref"
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "nonexistent"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| { e.to_string().contains("unknown role 'nonexistent'") })
+    );
+}
+
+#[test]
+fn error_dynamic_role_references_unknown_variable() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-dynamic-role"
+
+[roles.doctor]
+system_prompt = "You are a doctor."
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "${unknown_var}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string()
+            .contains("role references unknown variable '${unknown_var}'")
+    }));
+}
+
+#[test]
+fn error_role_system_prompt_and_file_conflict() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "role-file-conflict"
+
+[roles.doctor]
+system_prompt = "You are a doctor."
+system_prompt_file = "prompts/doctor.md"
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "doctor"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string()
+            .contains("both 'system_prompt' and 'system_prompt_file'")
+            && e.to_string().contains("mutually exclusive")
+    }));
+}
+
+#[test]
+fn error_role_system_prompt_references_unknown_variable() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad-role-var"
+
+[roles.doctor]
+system_prompt = "You are a ${specialty} specialist."
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "doctor"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string()
+            .contains("role 'doctor' system_prompt references unknown variable '${specialty}'")
+    }));
+}
+
+#[test]
+fn valid_role_system_prompt_with_variable() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "role-with-var"
+
+[vars.specialty]
+type = "string"
+default = "cardiology"
+
+[roles.doctor]
+system_prompt = "You are a ${specialty} specialist."
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "doctor"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn valid_role_with_system_prompt_file_only() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "role-file-only"
+
+[roles.doctor]
+system_prompt_file = "prompts/doctor.md"
+
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "doctor"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+// ── variable default_file validation ────────────────────────────────────────
+
+#[test]
+fn error_variable_default_and_default_file_conflict() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "var-file-conflict"
+
+[vars.instructions]
+type = "string"
+default = "inline default"
+default_file = "defaults/instructions.txt"
+
+[[step]]
+name = "go"
+prompt = "Follow ${instructions}"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("both 'default' and 'default_file'")
+            && e.to_string().contains("mutually exclusive")
+    }));
+}
+
+#[test]
+fn valid_variable_with_default_file() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "var-file"
+
+[vars.instructions]
+type = "string"
+default_file = "defaults/instructions.txt"
+
+[[step]]
+name = "go"
+prompt = "Follow ${instructions}"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
 // ── system_prompt variable references ─────────────────────────────────────
 
 #[test]

@@ -4,6 +4,10 @@ A `.zug` file is a TOML file that describes a workflow — a DAG of AI agent
 steps with shared variables, conditional routing, and data flow. Zig compiles
 this into zag orchestration commands at execution time.
 
+A `.zug` file can also be a **zip archive** containing one TOML workflow file
+and associated resource files (prompt files, schemas, etc.). Use
+`zig workflow pack` to create distributable zip archives.
+
 ## File Structure
 
 ```toml
@@ -11,6 +15,9 @@ this into zag orchestration commands at execution time.
 name = "my-workflow"           # Required: unique workflow name
 description = "What it does"   # Optional: human-readable description
 tags = ["tag1", "tag2"]        # Optional: discovery/filtering tags
+
+[roles.analyst]                # Reusable role definitions
+system_prompt = "You are an analyst."
 
 [vars.target]                  # Variable declarations
 type = "string"
@@ -20,6 +27,7 @@ description = "Path to analyze"
 [[step]]                       # Step definitions (one or more)
 name = "analyze"
 prompt = "Analyze ${target}"
+role = "analyst"
 ```
 
 ## Sections
@@ -32,6 +40,42 @@ prompt = "Analyze ${target}"
 | `description` | No       | Human-readable description         |
 | `tags`        | No       | Tags for discovery and filtering   |
 
+### `[roles.<name>]` — Roles
+
+Roles define reusable system prompts that shape agent behavior. Each role
+provides its prompt inline or loads it from an external file. Steps reference
+roles by name via the `role` field.
+
+| Field               | Required | Description                                    |
+|---------------------|----------|------------------------------------------------|
+| `system_prompt`     | No*      | Inline system prompt (`${var}` refs allowed)   |
+| `system_prompt_file`| No*      | Path to file containing the system prompt      |
+
+\* One of `system_prompt` or `system_prompt_file` should be set. They are
+mutually exclusive.
+
+```toml
+[roles.doctor]
+system_prompt = "You are a board-certified physician."
+
+[roles.nurse]
+system_prompt_file = "prompts/nurse.md"       # Loaded relative to the .zug file
+```
+
+Steps reference roles statically or dynamically:
+
+```toml
+[[step]]
+name = "examine"
+prompt = "Examine the patient"
+role = "doctor"                               # Static reference
+
+[[step]]
+name = "specialist"
+prompt = "Specialist examination"
+role = "${specialist_type}"                   # Dynamic — resolved at runtime
+```
+
 ### `[vars.<name>]` — Variables
 
 Variables are shared state between steps. They can be referenced in prompts
@@ -41,6 +85,7 @@ and system prompts via `${var_name}` and updated by steps via the `saves` field.
 |------------------|----------|-----------------------------------------------------|
 | `type`           | Yes      | `string`, `number`, `bool`, or `json`               |
 | `default`        | No       | Default value (TOML literal)                        |
+| `default_file`   | No       | Path to file whose contents become the default      |
 | `description`    | No       | Human-readable purpose                              |
 | `from`           | No       | Input source binding (`"prompt"`)                   |
 | `required`       | No       | Must be non-empty before execution                  |
@@ -106,6 +151,7 @@ Each step is one zag agent invocation.
 | `max_retries`    | No       |         | Retry limit (when `on_failure = "retry"`)|
 | `next`           | No       |         | Explicit next step (enables loops)       |
 | `system_prompt`  | No       |         | Agent system prompt override (`${var}` refs allowed) |
+| `role`           | No       |         | Role name or `${var}` reference (mutually exclusive with `system_prompt`) |
 | `max_turns`      | No       |         | Maximum agentic turns                    |
 
 ## Saves Selectors
@@ -194,6 +240,34 @@ next = "quality-gate"
 on_failure = "retry"
 max_retries = 2
 ```
+
+## Zip Archives
+
+A `.zug` file can be a zip archive containing a TOML workflow and associated
+files (prompt files, schemas, defaults). This enables distributing self-contained
+workflow packages.
+
+### Creating Archives
+
+```bash
+# Pack a directory into a .zug zip archive
+zig workflow pack examples/healthcare/ -o healthcare.zug
+```
+
+The directory must contain exactly one TOML workflow file. All files in the
+directory are included in the archive.
+
+### Using Archives
+
+Archives work transparently with `zig run` and `zig validate`:
+
+```bash
+zig validate healthcare.zug
+zig run healthcare.zug "I have chest pain"
+```
+
+File paths (`system_prompt_file`, `default_file`) are resolved relative to the
+TOML file — this works identically for both plain files and zip archives.
 
 ## See Also
 
