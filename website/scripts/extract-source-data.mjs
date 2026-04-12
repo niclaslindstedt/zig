@@ -144,7 +144,9 @@ function extractVarTypes() {
   const block = src.match(/pub enum VarType\s*\{([\s\S]*?)^}/m);
   if (!block) return [];
 
-  return [...block[1].matchAll(/(\w+),?/g)].map((m) => m[1].toLowerCase());
+  return [...block[1].matchAll(/^\s+(\w+),?$/gm)]
+    .map((m) => m[1].toLowerCase())
+    .filter((v) => !v.startsWith("#"));
 }
 
 // ---------------------------------------------------------------------------
