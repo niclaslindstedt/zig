@@ -1,0 +1,45 @@
+{
+  "name": "@nlindstedt/zig-workflow",
+  "version": "0.4.1",
+  "description": "TypeScript SDK for zig — workflow orchestration engine for AI coding agents",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "tsc --outDir dist-test && node --test dist-test/tests/builder.test.js dist-test/tests/streaming.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/niclaslindstedt/zig",
+    "directory": "bindings/typescript"
+  },
+  "keywords": [
+    "zig",
+    "zag",
+    "ai",
+    "agent",
+    "orchestration",
+    "workflow",
+    "automation",
+    "zug"
+  ]
+}
