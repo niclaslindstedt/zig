@@ -311,6 +311,40 @@ export class ZigBuilder {
   }
 
   /**
+   * Initialize a new zig project in the current directory.
+   *
+   * Runs with inherited stdio since init may prompt for configuration.
+   *
+   * @example
+   * ```ts
+   * await new ZigBuilder().init();
+   * ```
+   */
+  async init(): Promise<void> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "init"];
+    return runZig(this._bin, args);
+  }
+
+  /**
+   * Pack a workflow directory into a .zug zip archive.
+   *
+   * @param path - Path to directory containing the workflow and its prompt files
+   * @param output - Output file path (defaults to <workflow-name>.zug)
+   *
+   * @example
+   * ```ts
+   * await new ZigBuilder().workflowPack("./my-workflow");
+   * ```
+   */
+  async workflowPack(path: string, output?: string): Promise<string> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "workflow", "pack", path];
+    if (output) args.push("--output", output);
+    return execZig(this._bin, args);
+  }
+
+  /**
    * Show a manual page topic.
    *
    * @param topic - Topic name (e.g., "run", "zug", "patterns"). Omit to list all topics.
