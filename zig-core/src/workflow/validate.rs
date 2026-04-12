@@ -152,9 +152,14 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
             )));
         }
 
-        // Check mcp_config requires claude provider (or no provider specified)
+        // Check mcp_config requires claude provider (or no provider specified).
+        // The effective provider considers both step-level and workflow-level defaults.
         if step.mcp_config.is_some() {
-            if let Some(ref provider) = step.provider {
+            let effective_provider = step
+                .provider
+                .as_ref()
+                .or(workflow.workflow.provider.as_ref());
+            if let Some(provider) = effective_provider {
                 if provider != "claude" {
                     errors.push(ZigError::Validation(format!(
                         "step '{}' sets mcp_config but provider is '{}' \

@@ -40,6 +40,20 @@ pub struct WorkflowMeta {
     /// Tags for discovery and filtering.
     #[serde(default)]
     pub tags: Vec<String>,
+
+    /// Workflow version string (e.g., "1.0.0").
+    #[serde(default)]
+    pub version: Option<String>,
+
+    /// Default zag provider for all steps (claude, codex, gemini, copilot, ollama).
+    /// Individual steps can override this with their own `provider` field.
+    #[serde(default)]
+    pub provider: Option<String>,
+
+    /// Default model name or size alias for all steps (small, medium, large, or specific name).
+    /// Individual steps can override this with their own `model` field.
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// A reusable role definition that can be referenced by steps.

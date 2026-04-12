@@ -71,6 +71,18 @@ pub fn show_workflow(workflow: &str) -> Result<(), ZigError> {
     if !wf.workflow.tags.is_empty() {
         println!("Tags:        {}", wf.workflow.tags.join(", "));
     }
+    if let Some(ref version) = wf.workflow.version {
+        println!("Version:     {version}");
+    }
+    if let Some(ref provider) = wf.workflow.provider {
+        print!("Provider:    {provider}");
+        if let Some(ref model) = wf.workflow.model {
+            print!(" / {model}");
+        }
+        println!();
+    } else if let Some(ref model) = wf.workflow.model {
+        println!("Model:       {model}");
+    }
 
     if !wf.vars.is_empty() {
         println!("\nVariables:");

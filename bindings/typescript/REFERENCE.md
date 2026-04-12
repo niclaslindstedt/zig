@@ -225,6 +225,15 @@ interface WorkflowMeta {
 
   /** Tags for discovery and filtering. */
   tags: string[];
+
+  /** Workflow version string (e.g., "1.0.0"). */
+  version?: string;
+
+  /** Default provider for all steps. Steps can override. */
+  provider?: string;
+
+  /** Default model for all steps. Steps can override. */
+  model?: string;
 }
 ```
 

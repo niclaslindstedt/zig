@@ -443,3 +443,50 @@ name = "empty"
     assert.deepStrictEqual(sessions, {});
   });
 });
+
+describe("parseWorkflow: workflow-level version, provider, model", () => {
+  it("should parse version from [workflow]", () => {
+    const toml = `
+[workflow]
+name = "versioned"
+version = "1.2.3"
+
+[[step]]
+name = "s1"
+prompt = "Hello"
+`;
+    const wf = parseWorkflow(toml);
+    assert.equal(wf.workflow.version, "1.2.3");
+  });
+
+  it("should parse provider and model from [workflow]", () => {
+    const toml = `
+[workflow]
+name = "defaults"
+provider = "claude"
+model = "sonnet"
+
+[[step]]
+name = "s1"
+prompt = "Hello"
+`;
+    const wf = parseWorkflow(toml);
+    assert.equal(wf.workflow.provider, "claude");
+    assert.equal(wf.workflow.model, "sonnet");
+  });
+
+  it("should leave version/provider/model undefined when not set", () => {
+    const toml = `
+[workflow]
+name = "minimal"
+
+[[step]]
+name = "s1"
+prompt = "Hello"
+`;
+    const wf = parseWorkflow(toml);
+    assert.equal(wf.workflow.version, undefined);
+    assert.equal(wf.workflow.provider, undefined);
+    assert.equal(wf.workflow.model, undefined);
+  });
+});

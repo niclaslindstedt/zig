@@ -1614,3 +1614,114 @@ system_prompt = "Expertise level: ${config.level}"
 
     assert!(validate(&wf).is_ok());
 }
+
+// ── Workflow-level provider/model validation ──────────────────────────────────
+
+#[test]
+fn valid_workflow_level_provider_model() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "wf-defaults"
+provider = "claude"
+model = "sonnet"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn error_mcp_config_with_workflow_level_non_claude_provider() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "wf-bad-mcp"
+provider = "gemini"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+mcp_config = "config.json"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("mcp_config")
+            && e.to_string()
+                .contains("only supported with the claude provider")
+    }));
+}
+
+#[test]
+fn valid_mcp_config_with_workflow_level_claude_provider() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "wf-good-mcp"
+provider = "claude"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+mcp_config = "config.json"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn step_provider_overrides_workflow_provider_for_mcp_validation() {
+    // Workflow says claude, but step overrides to gemini — should fail
+    let wf = parse(
+        r#"
+[workflow]
+name = "override-bad"
+provider = "claude"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+provider = "gemini"
+mcp_config = "config.json"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| {
+        e.to_string().contains("mcp_config")
+            && e.to_string()
+                .contains("only supported with the claude provider")
+    }));
+}
+
+#[test]
+fn step_provider_overrides_workflow_provider_for_mcp_positive() {
+    // Workflow says gemini, but step overrides to claude — should pass
+    let wf = parse(
+        r#"
+[workflow]
+name = "override-good"
+provider = "gemini"
+
+[[step]]
+name = "a"
+prompt = "Do something"
+provider = "claude"
+mcp_config = "config.json"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
