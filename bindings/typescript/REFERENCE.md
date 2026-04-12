@@ -89,6 +89,8 @@ These methods execute the builder configuration. Each spawns a `zig` subprocess.
 | `workflowCreate` | `async workflowCreate(options?): Promise<void>` | Create a workflow interactively. Options: `name?`, `output?`, `pattern?`. |
 | `describe` | `async describe(prompt: string, output?: string): Promise<void>` | Generate a .zug file from natural language. |
 | `listen` | `async listen(options?): Promise<void>` | Tail a running/completed session. Options: `sessionId?`, `latest?`, `active?`. |
+| `init` | `async init(): Promise<void>` | Initialize a new zig project in the current directory. |
+| `workflowPack` | `async workflowPack(path: string, output?: string): Promise<string>` | Pack a workflow directory into a .zug zip archive. |
 | `man` | `async man(topic?: string): Promise<string>` | Show a manual page topic. |
 
 ---
@@ -181,6 +183,7 @@ All types are importable from `@nlindstedt/zig-workflow`:
 import type {
   Workflow,
   WorkflowMeta,
+  Role,
   Variable,
   VarType,
   Step,
@@ -204,6 +207,9 @@ A complete workflow definition parsed from a `.zug` file.
 interface Workflow {
   /** Workflow metadata (name, description, tags). */
   workflow: WorkflowMeta;
+
+  /** Reusable role definitions that can be referenced by steps. */
+  roles: Record<string, Role>;
 
   /** Shared variables that flow between steps, keyed by name. */
   vars: Record<string, Variable>;
@@ -237,6 +243,20 @@ interface WorkflowMeta {
 }
 ```
 
+### Role
+
+A reusable role definition that can be referenced by steps via the `role` field.
+
+```typescript
+interface Role {
+  /** Inline system prompt for this role. Supports ${var} references. */
+  system_prompt?: string;
+
+  /** Path to a file containing the system prompt (relative to the .zug file). */
+  system_prompt_file?: string;
+}
+```
+
 ### Variable
 
 A workflow variable — shared state between steps. Variables can be referenced
@@ -249,6 +269,9 @@ interface Variable {
 
   /** Default value. If absent, the variable must be provided at runtime. */
   default?: unknown;
+
+  /** Path to a file whose contents become the default value (relative to .zug file). */
+  default_file?: string;
 
   /** Human-readable description. */
   description: string;
@@ -309,7 +332,8 @@ interface Step {
   next?: string;                      // Explicit next step (for loops)
 
   // --- Agent configuration ---
-  system_prompt?: string;             // System prompt override
+  system_prompt?: string;             // System prompt override (mutually exclusive with role)
+  role?: string;                      // Role name or ${var} ref (mutually exclusive with system_prompt)
   max_turns?: number;                 // Maximum agentic turns
   interactive: boolean;               // Long-lived interactive session
   auto_approve: boolean;              // Skip permission prompts
@@ -659,6 +683,8 @@ zig [--debug] [--quiet] workflow create [name] [--output path] [--pattern pat]
 zig [--debug] [--quiet] workflow delete <workflow>
 zig [--debug] [--quiet] describe <prompt> [--output path]
 zig [--debug] [--quiet] listen [session_id] [--latest] [--active]
+zig [--debug] [--quiet] init
+zig [--debug] [--quiet] workflow pack <path> [--output path]
 zig [--debug] [--quiet] man [topic]
 ```
 

@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import type { Workflow, Step, Variable, VarType } from "./types.js";
+import type { Workflow, Role, Step, Variable, VarType } from "./types.js";
 import { ZigError } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -76,12 +76,14 @@ export function parseWorkflow(content: string): Workflow {
   // .zug files use a predictable subset: [workflow], [vars.*], [[step]].
   const workflow: Workflow = {
     workflow: { name: "", description: "", tags: [] },
+    roles: {},
     vars: {},
     steps: [],
   };
 
   const lines = content.split("\n");
-  let currentSection: "root" | "workflow" | "vars" | "step" = "root";
+  let currentSection: "root" | "workflow" | "roles" | "vars" | "step" = "root";
+  let currentRoleName: string | null = null;
   let currentVarName: string | null = null;
   let currentStep: Partial<Step> | null = null;
 
@@ -100,6 +102,18 @@ export function parseWorkflow(content: string): Workflow {
       continue;
     }
 
+    const roleMatch = /^\[roles\.(\w+)\]$/.exec(trimmed);
+    if (roleMatch) {
+      currentSection = "roles";
+      currentRoleName = roleMatch[1];
+      if (!workflow.roles[currentRoleName]) {
+        workflow.roles[currentRoleName] = {};
+      }
+      currentVarName = null;
+      currentStep = null;
+      continue;
+    }
+
     const varMatch = /^\[vars\.(\w+)\]$/.exec(trimmed);
     if (varMatch) {
       currentSection = "vars";
@@ -110,6 +124,7 @@ export function parseWorkflow(content: string): Workflow {
           description: "",
         };
       }
+      currentRoleName = null;
       currentStep = null;
       continue;
     }
@@ -139,11 +154,20 @@ export function parseWorkflow(content: string): Workflow {
         else if (key === "model") workflow.workflow.model = String(value);
         break;
 
+      case "roles":
+        if (currentRoleName && workflow.roles[currentRoleName]) {
+          const r = workflow.roles[currentRoleName];
+          if (key === "system_prompt") r.system_prompt = String(value);
+          else if (key === "system_prompt_file") r.system_prompt_file = String(value);
+        }
+        break;
+
       case "vars":
         if (currentVarName && workflow.vars[currentVarName]) {
           const v = workflow.vars[currentVarName];
           if (key === "type") v.type = String(value) as VarType;
           else if (key === "default") v.default = value;
+          else if (key === "default_file") v.default_file = String(value);
           else if (key === "description") v.description = String(value);
           else if (key === "from") v.from = String(value);
           else if (key === "required") v.required = Boolean(value);
@@ -152,6 +176,7 @@ export function parseWorkflow(content: string): Workflow {
           else if (key === "min") v.min = Number(value);
           else if (key === "max") v.max = Number(value);
           else if (key === "pattern") v.pattern = String(value);
+          else if (key === "allowed_values") v.allowed_values = Array.isArray(value) ? value : [value];
         }
         break;
 
@@ -230,6 +255,7 @@ function assignStepField(step: Partial<Step>, key: string, value: unknown): void
     case "max_retries": step.max_retries = Number(value); break;
     case "next": step.next = String(value); break;
     case "system_prompt": step.system_prompt = String(value); break;
+    case "role": step.role = String(value); break;
     case "max_turns": step.max_turns = Number(value); break;
     case "description": step.description = String(value); break;
     case "interactive": step.interactive = Boolean(value); break;

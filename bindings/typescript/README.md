@@ -181,6 +181,8 @@ console.log(wf.steps.length);
 | `.workflowCreate(options?)` | `Promise<void>` | Create a workflow interactively |
 | `.describe(prompt, output?)` | `Promise<void>` | Generate a .zug file from natural language |
 | `.listen(options?)` | `Promise<void>` | Tail a running/completed session |
+| `.init()` | `Promise<void>` | Initialize a new zig project in the current directory |
+| `.workflowPack(path, output?)` | `Promise<string>` | Pack a workflow directory into a .zug zip archive |
 | `.man(topic?)` | `Promise<string>` | Show a manual page topic |
 
 ## Utility functions
@@ -200,6 +202,7 @@ The SDK exports TypeScript types that mirror the Rust data model:
 import type {
   Workflow,
   WorkflowMeta,
+  Role,
   Variable,
   VarType,
   Step,

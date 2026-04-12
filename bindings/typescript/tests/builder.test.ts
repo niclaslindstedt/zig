@@ -444,6 +444,85 @@ name = "empty"
   });
 });
 
+describe("parseWorkflow: roles", () => {
+  it("should parse roles section", () => {
+    const toml = `
+[workflow]
+name = "with-roles"
+
+[roles.reviewer]
+system_prompt = "You are a code reviewer"
+
+[roles.planner]
+system_prompt_file = "prompts/planner.md"
+
+[[step]]
+name = "review"
+prompt = "Review the code"
+role = "reviewer"
+`;
+    const wf = parseWorkflow(toml);
+    assert.ok(wf.roles.reviewer);
+    assert.equal(wf.roles.reviewer.system_prompt, "You are a code reviewer");
+    assert.equal(wf.roles.reviewer.system_prompt_file, undefined);
+    assert.ok(wf.roles.planner);
+    assert.equal(wf.roles.planner.system_prompt_file, "prompts/planner.md");
+    assert.equal(wf.roles.planner.system_prompt, undefined);
+    assert.equal(wf.steps[0].role, "reviewer");
+  });
+
+  it("should default to empty roles", () => {
+    const toml = `
+[workflow]
+name = "no-roles"
+
+[[step]]
+name = "s1"
+prompt = "Hello"
+`;
+    const wf = parseWorkflow(toml);
+    assert.deepStrictEqual(wf.roles, {});
+  });
+});
+
+describe("parseWorkflow: variable default_file and allowed_values", () => {
+  it("should parse default_file on a variable", () => {
+    const toml = `
+[workflow]
+name = "file-default"
+
+[vars.template]
+type = "string"
+default_file = "prompts/template.txt"
+description = "Template content"
+
+[[step]]
+name = "s1"
+prompt = "Use template"
+`;
+    const wf = parseWorkflow(toml);
+    assert.equal(wf.vars.template.default_file, "prompts/template.txt");
+  });
+
+  it("should parse allowed_values on a variable", () => {
+    const toml = `
+[workflow]
+name = "constrained"
+
+[vars.env]
+type = "string"
+allowed_values = ["dev", "staging", "prod"]
+description = "Target environment"
+
+[[step]]
+name = "s1"
+prompt = "Deploy"
+`;
+    const wf = parseWorkflow(toml);
+    assert.deepStrictEqual(wf.vars.env.allowed_values, ["dev", "staging", "prod"]);
+  });
+});
+
 describe("parseWorkflow: workflow-level version, provider, model", () => {
   it("should parse version from [workflow]", () => {
     const toml = `

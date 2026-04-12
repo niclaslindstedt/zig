@@ -8,6 +8,7 @@ export {
 export type {
   Workflow,
   WorkflowMeta,
+  Role,
   Variable,
   VarType,
   Step,

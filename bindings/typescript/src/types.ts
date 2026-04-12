@@ -5,8 +5,18 @@
 /** A complete workflow definition parsed from a `.zug` file. */
 export interface Workflow {
   workflow: WorkflowMeta;
+  /** Reusable role definitions that can be referenced by steps. */
+  roles: Record<string, Role>;
   vars: Record<string, Variable>;
   steps: Step[];
+}
+
+/** A reusable role definition that can be referenced by steps. */
+export interface Role {
+  /** Inline system prompt for this role. Supports ${var} references. */
+  system_prompt?: string;
+  /** Path to a file containing the system prompt (relative to the .zug file). */
+  system_prompt_file?: string;
 }
 
 /** Workflow-level metadata. */
@@ -28,6 +38,8 @@ export interface Variable {
   type: VarType;
   /** Default value. If absent, the variable must be provided at runtime. */
   default?: unknown;
+  /** Path to a file whose contents become the default value (relative to .zug file). */
+  default_file?: string;
   /** Human-readable description of this variable's purpose. */
   description: string;
 
@@ -95,8 +107,10 @@ export interface Step {
   next?: string;
 
   // --- Agent configuration ---
-  /** System prompt override for this step's agent. */
+  /** System prompt override for this step's agent. Mutually exclusive with role. */
   system_prompt?: string;
+  /** Role name or ${var} reference — resolved to a role from [roles] at runtime. Mutually exclusive with system_prompt. */
+  role?: string;
   /** Maximum number of agentic turns for this step. */
   max_turns?: number;
   /** Human-readable description of this step's purpose. */
