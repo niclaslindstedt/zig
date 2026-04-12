@@ -3,6 +3,7 @@ mod pages {
     pub const ZIG: &str = include_str!("../../manpages/zig.md");
     pub const RUN: &str = include_str!("../../manpages/run.md");
     pub const LISTEN: &str = include_str!("../../manpages/listen.md");
+    pub const SERVE: &str = include_str!("../../manpages/serve.md");
     pub const WORKFLOW: &str = include_str!("../../manpages/workflow.md");
     pub const DESCRIBE: &str = include_str!("../../manpages/describe.md");
     pub const VALIDATE: &str = include_str!("../../manpages/validate.md");
@@ -17,6 +18,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("zig", "Overview of the zig CLI"),
     ("run", "Execute a .zug workflow file"),
     ("listen", "Tail a running or completed zig session"),
+    ("serve", "Start an HTTP API server"),
     (
         "workflow",
         "Manage workflows (list, show, create, delete, pack)",
@@ -37,6 +39,7 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "zig" => Some(pages::ZIG),
         "run" => Some(pages::RUN),
         "listen" => Some(pages::LISTEN),
+        "serve" => Some(pages::SERVE),
         "workflow" => Some(pages::WORKFLOW),
         "describe" => Some(pages::DESCRIBE),
         "validate" => Some(pages::VALIDATE),

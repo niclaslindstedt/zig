@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::process::Command;
 
+use serde::Serialize;
+
 use crate::error::ZigError;
 use crate::prompt;
 use crate::run;
@@ -92,17 +94,25 @@ fn pattern_guidance(pattern: &str) -> &'static str {
     }
 }
 
-/// Launch an interactive zag session for workflow creation.
-///
-/// The agent is given full context about zag and the .zug format, and guides
-/// the user through designing their workflow.
-pub fn run_create(
+/// Prepared parameters for workflow creation — used by both the CLI
+/// (which spawns zag directly) and the API (which returns data to the frontend).
+#[derive(Debug, Clone, Serialize)]
+pub struct CreateParams {
+    pub system_prompt: String,
+    pub initial_prompt: String,
+    pub output_path: String,
+    pub session_name: String,
+    pub session_tag: String,
+}
+
+/// Prepare the prompts and configuration for workflow creation without
+/// launching zag. Returns structured data that can be used by the CLI
+/// to spawn zag or by the API to return to the frontend.
+pub fn prepare_create(
     name: Option<&str>,
     output: Option<&str>,
     pattern: Option<&str>,
-) -> Result<(), ZigError> {
-    run::check_zag()?;
-
+) -> Result<CreateParams, ZigError> {
     let zag_help = get_zag_help();
     let zag_orch = get_zag_orch_reference();
     let system_prompt = build_system_prompt(&zag_help, &zag_orch);
@@ -139,11 +149,33 @@ pub fn run_create(
         }
     }
 
+    Ok(CreateParams {
+        system_prompt,
+        initial_prompt,
+        output_path,
+        session_name: "zig-create".to_string(),
+        session_tag: "zig-workflow-creation".to_string(),
+    })
+}
+
+/// Launch an interactive zag session for workflow creation.
+///
+/// The agent is given full context about zag and the .zug format, and guides
+/// the user through designing their workflow.
+pub fn run_create(
+    name: Option<&str>,
+    output: Option<&str>,
+    pattern: Option<&str>,
+) -> Result<(), ZigError> {
+    run::check_zag()?;
+
+    let params = prepare_create(name, output, pattern)?;
+
     let status = Command::new("zag")
-        .args(["run", &initial_prompt])
-        .args(["--system-prompt", &system_prompt])
-        .args(["--name", "zig-create"])
-        .args(["--tag", "zig-workflow-creation"])
+        .args(["run", &params.initial_prompt])
+        .args(["--system-prompt", &params.system_prompt])
+        .args(["--name", &params.session_name])
+        .args(["--tag", &params.session_tag])
         .status()
         .map_err(|e| ZigError::Zag(format!("failed to launch zag: {e}")))?;
 
@@ -152,8 +184,8 @@ pub fn run_create(
     }
 
     // Validate the output if it was created
-    if Path::new(&output_path).exists() {
-        match crate::workflow::parser::parse_file(Path::new(&output_path)) {
+    if Path::new(&params.output_path).exists() {
+        match crate::workflow::parser::parse_file(Path::new(&params.output_path)) {
             Ok(workflow) => {
                 if let Err(errors) = crate::workflow::validate::validate(&workflow) {
                     eprintln!("Warning: generated workflow has validation issues:");

@@ -1,0 +1,27 @@
+[package]
+name = "zig-serve"
+version = "0.4.1"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+repository = "https://github.com/niclaslindstedt/zig"
+homepage = "https://github.com/niclaslindstedt/zig"
+description = "HTTP API server for zig — workflow orchestration engine for AI coding agents"
+keywords = ["ai", "agent", "orchestration", "workflow", "api"]
+categories = ["web-programming::http-server", "development-tools"]
+
+[dependencies]
+zig-core = { version = "0.4.1", path = "../zig-core" }
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors", "trace"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+tempfile = "3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
