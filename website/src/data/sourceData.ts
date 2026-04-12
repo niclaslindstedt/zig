@@ -27,7 +27,7 @@ export interface StepField {
 
 // --- Data ---
 
-export const version = "0.1.0";
+export const version = "0.4.1";
 
 export const commands: CommandData[] = [
   {
@@ -53,6 +53,10 @@ export const commands: CommandData[] = [
   {
     "name": "man",
     "description": "Show manual pages for zig topics"
+  },
+  {
+    "name": "listen",
+    "description": "Tail a running or completed zig session"
   }
 ];
 
@@ -72,6 +76,10 @@ export const workflowSubcommands: CommandData[] = [
   {
     "name": "create",
     "description": "Create a new workflow interactively with an AI agent"
+  },
+  {
+    "name": "pack",
+    "description": "Pack a workflow directory into a .zug zip archive"
   }
 ];
 
@@ -160,6 +168,11 @@ export const stepFields: StepField[] = [
     "description": "JSON schema to validate agent output against (implies `json = true`)."
   },
   {
+    "name": "output",
+    "type": "String?",
+    "description": "Output format override: \"text\", \"json\", \"json-pretty\", \"stream-json\", \"native-json\". When set, maps to `-o <FORMAT>` on zag and overrides the `json` bool field."
+  },
+  {
     "name": "saves",
     "type": "HashMap<String",
     "description": "Map of variable names to save from this step's output. Values are JSONPath-like selectors (e.g., `\"$.score\"`). If the output is plain text, use `\"$\"` to capture the full output."
@@ -192,7 +205,12 @@ export const stepFields: StepField[] = [
   {
     "name": "system_prompt",
     "type": "String?",
-    "description": "System prompt override for this step's agent."
+    "description": "System prompt override for this step's agent. Mutually exclusive with `role`."
+  },
+  {
+    "name": "role",
+    "type": "String?",
+    "description": "Role name or `${var}` reference — resolved to a role from `[roles]` at runtime. The role's system prompt is used as this step's system prompt. Mutually exclusive with `system_prompt`."
   },
   {
     "name": "max_turns",
@@ -235,6 +253,21 @@ export const stepFields: StepField[] = [
     "description": "Files to attach to the agent prompt."
   },
   {
+    "name": "context",
+    "type": "list",
+    "description": "Session IDs to inject as context (beyond depends_on). Maps to `--context <SESSION_ID>` flags on zag."
+  },
+  {
+    "name": "plan",
+    "type": "String?",
+    "description": "Path to a plan file to prepend as context. Maps to `--plan <PATH>` on zag."
+  },
+  {
+    "name": "mcp_config",
+    "type": "String?",
+    "description": "Per-step MCP configuration (JSON string or file path, Claude only). Maps to `--mcp-config <CONFIG>` on zag."
+  },
+  {
     "name": "worktree",
     "type": "bool",
     "description": "If true, run this step in an isolated git worktree."
@@ -253,9 +286,44 @@ export const stepFields: StepField[] = [
     "name": "retry_model",
     "type": "String?",
     "description": "Model to use when retrying this step (only applies when on_failure = \"retry\"). Enables escalation to a larger model."
+  },
+  {
+    "name": "command",
+    "type": "StepCommand?",
+    "description": "Zag command to invoke for this step. Default (None) uses `zag run`. Other options: \"review\", \"plan\", \"pipe\", \"collect\", \"summary\"."
+  },
+  {
+    "name": "uncommitted",
+    "type": "bool",
+    "description": "Review uncommitted changes (only valid when `command = \"review\"`)."
+  },
+  {
+    "name": "base",
+    "type": "String?",
+    "description": "Base branch for review diff (only valid when `command = \"review\"`)."
+  },
+  {
+    "name": "commit",
+    "type": "String?",
+    "description": "Specific commit to review (only valid when `command = \"review\"`)."
+  },
+  {
+    "name": "title",
+    "type": "String?",
+    "description": "Title for the review (only valid when `command = \"review\"`)."
+  },
+  {
+    "name": "plan_output",
+    "type": "String?",
+    "description": "Output path for generated plan (only valid when `command = \"plan\"`)."
+  },
+  {
+    "name": "instructions",
+    "type": "String?",
+    "description": "Additional instructions for plan generation (only valid when `command = \"plan\"`)."
   }
 ];
 
 export const varTypes: string[] = ["string","number","bool","json"];
 
-export const manpageTopics: string[] = ["conditions","describe","patterns","run","validate","variables","workflow","zig","zug"];
+export const manpageTopics: string[] = ["conditions","describe","listen","patterns","run","validate","variables","workflow","zig","zug"];

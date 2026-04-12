@@ -1,4 +1,4 @@
-import { commands, patterns, stepFields } from "../data/sourceData";
+import { commands, workflowSubcommands, patterns, stepFields } from "../data/sourceData";
 
 const features = [
   {
@@ -8,9 +8,9 @@ const features = [
     icon: "\u{1F4AC}",
   },
   {
-    title: `${commands.length + 4} Commands`,
+    title: `${commands.length + workflowSubcommands.length} Commands`,
     description:
-      `Everything you need: ${commands.map((c) => c.name).join(", ")}, plus workflow subcommands for list, show, create, and delete.`,
+      `Everything you need: ${commands.map((c) => c.name).join(", ")}, plus workflow subcommands for ${workflowSubcommands.map((s) => s.name).join(", ")}.`,
     icon: "\u{2328}\u{FE0F}",
   },
   {
