@@ -136,7 +136,7 @@ jobs:
     name: publish crates
     needs: [update-repo, release]
     runs-on: ubuntu-latest
-    environment: crates-io
+    environment: crates-registry
     permissions:
       contents: read
       id-token: write
@@ -174,14 +174,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-
-      - name: upgrade npm for trusted publishing
-        # `--force` works around a self-upgrade bug where the bundled npm
-        # fails with "Cannot find module 'promise-retry'". Trusted publishing
-        # requires npm >= 11.5.1, newer than what ships with Node 22.
-        run: npm install -g npm@latest --force
 
       - name: install dependencies
         working-directory: bindings/typescript
