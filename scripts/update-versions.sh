@@ -25,6 +25,10 @@ for toml in zig-cli/Cargo.toml zig-serve/Cargo.toml; do
     echo "  updated zig-core dependency in $toml"
 done
 
+sed -i.bak "s/zig-serve = { version = \"[^\"]*\"/zig-serve = { version = \"$NEW_VERSION\"/" zig-cli/Cargo.toml
+rm -f zig-cli/Cargo.toml.bak
+echo "  updated zig-serve dependency in zig-cli/Cargo.toml"
+
 # --- regenerate lockfile ---
 cargo generate-lockfile 2>/dev/null || cargo check 2>/dev/null || true
 echo "  regenerated Cargo.lock"
