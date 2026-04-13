@@ -27,6 +27,94 @@ pub fn ensure_global_workflows_dir() -> Result<PathBuf, ZigError> {
 }
 
 // =====================================================================
+// Resource directories.
+//
+// Layout under the global base directory:
+//
+//   ~/.zig/
+//     resources/
+//       _shared/                    files advertised to every workflow
+//       <workflow-name>/            files advertised to a single named workflow
+//
+// Project-local resources live under `<git-root>/.zig/resources/` and are
+// discovered by walking up from the current working directory until a git
+// root is found (matching the convention used for session storage).
+// =====================================================================
+
+/// Return the global resources directory derived from a given home directory.
+pub fn global_resources_dir_from(home: &Path) -> PathBuf {
+    home.join(".zig").join("resources")
+}
+
+/// Return the global resources directory: `~/.zig/resources/`.
+/// Returns `None` if the HOME environment variable is not set.
+pub fn global_resources_dir() -> Option<PathBuf> {
+    std::env::var("HOME")
+        .ok()
+        .map(|h| global_resources_dir_from(Path::new(&h)))
+}
+
+/// Return the per-workflow global resources directory: `~/.zig/resources/<name>/`.
+pub fn global_resources_for(workflow: &str) -> Option<PathBuf> {
+    global_resources_dir().map(|d| d.join(workflow))
+}
+
+/// Return the shared global resources directory: `~/.zig/resources/_shared/`.
+///
+/// Files placed here are advertised to every workflow regardless of name.
+pub fn global_shared_resources_dir() -> Option<PathBuf> {
+    global_resources_dir().map(|d| d.join("_shared"))
+}
+
+/// Ensure the global resources directory (or a child of it) exists.
+pub fn ensure_global_resources_dir(child: Option<&str>) -> Result<PathBuf, ZigError> {
+    let mut dir = global_resources_dir()
+        .ok_or_else(|| ZigError::Io("HOME environment variable not set".into()))?;
+    if let Some(c) = child {
+        dir = dir.join(c);
+    }
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| ZigError::Io(format!("failed to create {}: {e}", dir.display())))?;
+    }
+    Ok(dir)
+}
+
+/// Walk up from `start` looking for a `.zig/resources` directory. Stops at the
+/// containing git repository root (matching `find_git_root`'s discovery
+/// boundary), or returns the directory in `start` itself if it exists.
+///
+/// Returns `None` if no such directory is found before hitting the git root
+/// or the filesystem root.
+pub fn cwd_resources_dir_from(start: &Path) -> Option<PathBuf> {
+    let mut current = start;
+    let stop = find_git_root(start);
+
+    loop {
+        let candidate = current.join(".zig").join("resources");
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+        if let Some(ref root) = stop {
+            if current == root.as_path() {
+                return None;
+            }
+        }
+        match current.parent() {
+            Some(p) => current = p,
+            None => return None,
+        }
+    }
+}
+
+/// Walk up from the process's current working directory looking for a
+/// `.zig/resources` directory. See [`cwd_resources_dir_from`].
+pub fn cwd_resources_dir() -> Option<PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    cwd_resources_dir_from(&cwd)
+}
+
+// =====================================================================
 // Session storage paths.
 //
 // Layout mirrors zag (`zag-agent/src/config.rs:183` `resolve_project_dir`):

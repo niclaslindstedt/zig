@@ -54,6 +54,86 @@ pub struct WorkflowMeta {
     /// Individual steps can override this with their own `model` field.
     #[serde(default)]
     pub model: Option<String>,
+
+    /// Workflow-level reference files advertised in the system prompt for every step.
+    ///
+    /// Each entry is either a bare path string or a table with `path`, `name`,
+    /// `description`, and `required` fields. Paths are resolved relative to
+    /// the `.zug` file's directory. See [`ResourceSpec`] for the accepted
+    /// shapes.
+    #[serde(default)]
+    pub resources: Vec<ResourceSpec>,
+}
+
+/// A resource entry — a knowledge file the agent is *told about* (not inlined)
+/// via the system prompt, so it can choose to read it with its file tools.
+///
+/// Accepts two TOML shapes for ergonomics:
+///
+/// ```toml
+/// # Short form — just a path
+/// resources = ["./cv.md", "./style-guide.md"]
+///
+/// # Full form — per-resource metadata
+/// [[resource]]
+/// path = "./cv.md"
+/// name = "cv"
+/// description = "Candidate's current CV"
+/// required = true
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ResourceSpec {
+    /// Bare path form: `"./cv.md"`.
+    Path(String),
+    /// Table form with optional metadata.
+    Detailed {
+        /// Path to the resource file, relative to the `.zug` file's directory.
+        path: String,
+        /// Optional display name. Defaults to the file name if absent.
+        #[serde(default)]
+        name: Option<String>,
+        /// Optional one-line description shown alongside the path in the prompt.
+        #[serde(default)]
+        description: Option<String>,
+        /// If true, execution fails when the file cannot be found. Defaults to false (warn + skip).
+        #[serde(default)]
+        required: bool,
+    },
+}
+
+impl ResourceSpec {
+    /// The raw path string as written in the `.zug` file.
+    pub fn path(&self) -> &str {
+        match self {
+            ResourceSpec::Path(p) => p,
+            ResourceSpec::Detailed { path, .. } => path,
+        }
+    }
+
+    /// The optional explicit display name, if one was set.
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            ResourceSpec::Path(_) => None,
+            ResourceSpec::Detailed { name, .. } => name.as_deref(),
+        }
+    }
+
+    /// The optional description, if one was set.
+    pub fn description(&self) -> Option<&str> {
+        match self {
+            ResourceSpec::Path(_) => None,
+            ResourceSpec::Detailed { description, .. } => description.as_deref(),
+        }
+    }
+
+    /// Whether this resource is required. Bare-path form is never required.
+    pub fn required(&self) -> bool {
+        match self {
+            ResourceSpec::Path(_) => false,
+            ResourceSpec::Detailed { required, .. } => *required,
+        }
+    }
 }
 
 /// A reusable role definition that can be referenced by steps.
@@ -266,6 +346,14 @@ pub struct Step {
     /// Files to attach to the agent prompt.
     #[serde(default)]
     pub files: Vec<String>,
+
+    /// Step-level reference files advertised in the system prompt.
+    ///
+    /// These are appended to the workflow-level `resources` for this specific
+    /// step. Paths are resolved relative to the `.zug` file's directory.
+    /// See [`ResourceSpec`] for the accepted shapes.
+    #[serde(default)]
+    pub resources: Vec<ResourceSpec>,
 
     // --- Context injection ---
     /// Session IDs to inject as context (beyond depends_on).

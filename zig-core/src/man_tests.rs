@@ -11,6 +11,7 @@ fn get_existing_topic() {
     assert!(get("patterns").is_some());
     assert!(get("variables").is_some());
     assert!(get("conditions").is_some());
+    assert!(get("resources").is_some());
 }
 
 #[test]

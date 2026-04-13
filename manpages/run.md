@@ -5,7 +5,7 @@ Execute a `.zug` workflow file.
 ## Synopsis
 
 ```
-zig run <workflow> [prompt]
+zig run <workflow> [prompt] [--no-resources]
 ```
 
 ## Description
@@ -21,6 +21,12 @@ run concurrently when their dependencies are satisfied.
 |------------|----------------------------------------------------------|
 | `workflow` | Name or path of the workflow to run                      |
 | `prompt`   | Optional context prompt injected into every workflow step|
+
+## Flags
+
+| Flag             | Description                                                                                  |
+|------------------|----------------------------------------------------------------------------------------------|
+| `--no-resources` | Disable the `<resources>` block normally injected into each step's system prompt. Useful when you want a workflow to run with no global / cwd / inline resource advertisements at all. See `zig man resources`. |
 
 ## Workflow Resolution
 
@@ -70,6 +76,9 @@ zig run ./workflows/deploy.zug
 
 # Run with additional context
 zig run code-review "focus on the authentication module"
+
+# Run without injecting any resource advertisements
+zig run code-review --no-resources
 ```
 
 ## Prerequisites
@@ -81,3 +90,4 @@ zig run code-review "focus on the authentication module"
 - `zig man zug` — the `.zug` file format
 - `zig man variables` — variable substitution and data flow
 - `zig man conditions` — condition expressions
+- `zig man resources` — managing reference files for agents

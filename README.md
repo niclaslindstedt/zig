@@ -74,6 +74,11 @@ zig workflow show <workflow>    Show details of a workflow
 zig workflow create [name]      Create a new workflow interactively with an AI agent
 zig workflow delete <workflow>  Delete a workflow file
 zig workflow pack <path>        Pack a workflow directory into a .zug zip archive
+zig resources list              List discovered resource files (global + cwd tiers)
+zig resources add <file>        Register a file as a global / cwd / per-workflow resource
+zig resources remove <name>     Remove a registered resource
+zig resources show <name>       Print the absolute path and contents of a resource
+zig resources where             Print the directories the collector searches
 zig validate <file>             Validate a .zug workflow file
 zig man [topic]                 Show manual pages for zig topics
 zig describe <prompt>           Generate a .zug file from a prompt (not yet implemented)
@@ -129,6 +134,30 @@ zig workflow pack ./my-workflow/
 zig workflow pack ./my-workflow/ --output custom-name.zug
 ```
 
+### `zig resources`
+
+Manage reference files (CVs, style guides, reference docs, …) that zig advertises to step agents through their system prompt. Resources live in three on-disk tiers — `~/.zig/resources/_shared/`, `~/.zig/resources/<workflow-name>/`, and `<git-root>/.zig/resources/` — and are merged with any inline `resources = [...]` declared in the workflow file.
+
+```bash
+# Drop a CV in a workflow-specific global tier
+zig resources add ./cv.md --workflow cover-letter
+
+# Stage shared style guides for every workflow
+zig resources add ./style-guide.md --global
+
+# Project-local reference docs (walks up to the git root)
+zig resources add ./architecture.md --cwd
+
+# Inspect what the collector will see
+zig resources list
+zig resources where --workflow cover-letter
+
+# Skip resource injection for a single run
+zig run cover-letter --no-resources
+```
+
+Run `zig man resources` for the full collection model and tier ordering.
+
 ### `zig validate`
 
 Validate a `.zug` workflow file for structural correctness without executing it.
@@ -139,7 +168,7 @@ zig validate my-workflow.zug
 
 ### `zig man`
 
-Show built-in manual pages for zig topics (zig, run, listen, workflow, describe, validate, zug, patterns, variables, conditions).
+Show built-in manual pages for zig topics (zig, run, listen, workflow, describe, validate, zug, patterns, variables, conditions, resources).
 
 ```bash
 zig man zug
@@ -156,6 +185,10 @@ zig man patterns
 | `--pattern <name>` | `-p` | `workflow create` | Orchestration pattern (sequential, fan-out, generator-critic, etc.) |
 | `--latest` | | `listen` | Tail the most recently started session |
 | `--active` | | `listen` | Tail the most recently active (still-running) session |
+| `--no-resources` | | `run` | Skip the `<resources>` block injected into each step's system prompt |
+| `--global` | | `resources add/remove/list` | Target the global tier (`~/.zig/resources/_shared/`) |
+| `--cwd` | | `resources add/remove/list` | Target the project tier (`<git-root>/.zig/resources/`) |
+| `--workflow <name>` | | `resources` | Restrict to a specific workflow's global tier |
 
 ## The `.zug` format
 
@@ -167,6 +200,7 @@ A `.zug` file is a TOML workflow definition that describes a DAG of AI agent ste
 - **Agent configuration** — Provider (`claude`, `codex`, `gemini`, `copilot`, `ollama`) and model per step, with workflow-level defaults
 - **Dependencies** — How steps relate to and depend on each other via `depends_on`
 - **Variables & data flow** — Shared state between steps via `${var}` references, `saves` selectors, input bindings (`from = "prompt"`), and variable constraints (required, min/max, patterns, allowed values)
+- **Resources** — Reference files advertised to step agents through the system prompt (paths only — agents read them on demand). Inline `resources = [...]` is merged with global (`~/.zig/resources/`) and project (`<git-root>/.zig/resources/`) tiers at run time
 - **Conditions** — Expressions that control whether steps run (`var < 8`, `status == "done"`)
 - **Step commands** — Steps can invoke different zag commands: `run` (default), `review`, `plan`, `pipe`, `collect`, `summary`
 - **Isolation** — Steps can run in isolated git worktrees or Docker sandboxes

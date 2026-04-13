@@ -29,12 +29,22 @@ pub enum Command {
 
         /// Additional context prompt injected into workflow steps
         prompt: Option<String>,
+
+        /// Disable the `<resources>` block injected into each step's system prompt
+        #[arg(long)]
+        no_resources: bool,
     },
 
     /// Manage workflows (list, show, create, delete)
     Workflow {
         #[command(subcommand)]
         command: WorkflowCommand,
+    },
+
+    /// Manage knowledge / reference files (list, add, remove, show)
+    Resources {
+        #[command(subcommand)]
+        command: ResourcesCommand,
     },
 
     /// Describe a workflow to an agent and generate a .zug file
@@ -162,6 +172,82 @@ pub enum WorkflowCommand {
     },
 }
 
+/// Subcommands for `zig resources`.
+#[derive(Subcommand)]
+pub enum ResourcesCommand {
+    /// List discovered resources from all tiers (or a single tier with a flag)
+    List {
+        /// Restrict the listing to a specific named workflow's global tier
+        #[arg(long)]
+        workflow: Option<String>,
+
+        /// Show only the global tiers (~/.zig/resources)
+        #[arg(long)]
+        global: bool,
+
+        /// Show only the project tier (./.zig/resources, walking up to git root)
+        #[arg(long, conflicts_with = "global")]
+        cwd: bool,
+    },
+
+    /// Add a resource file to one of the tiers
+    Add {
+        /// Path to the file to register as a resource
+        file: String,
+
+        /// Target a specific named workflow's global tier
+        #[arg(long)]
+        workflow: Option<String>,
+
+        /// Place the resource in the global tier (~/.zig/resources)
+        #[arg(long, conflicts_with = "cwd")]
+        global: bool,
+
+        /// Place the resource in the project tier (./.zig/resources)
+        #[arg(long, conflicts_with = "global")]
+        cwd: bool,
+
+        /// Custom name to register the resource under (defaults to the file's basename)
+        #[arg(long)]
+        name: Option<String>,
+    },
+
+    /// Remove a resource by name from one of the tiers
+    Remove {
+        /// Name of the resource to remove (matches the registered file name)
+        name: String,
+
+        /// Target a specific named workflow's global tier
+        #[arg(long)]
+        workflow: Option<String>,
+
+        /// Remove from the global tier (~/.zig/resources)
+        #[arg(long, conflicts_with = "cwd")]
+        global: bool,
+
+        /// Remove from the project tier (./.zig/resources)
+        #[arg(long, conflicts_with = "global")]
+        cwd: bool,
+    },
+
+    /// Print the absolute path and contents of a resource by name
+    Show {
+        /// Name of the resource to show
+        name: String,
+
+        /// Restrict the search to a specific named workflow's global tier
+        #[arg(long)]
+        workflow: Option<String>,
+    },
+
+    /// Print the directories the collector would search for the current cwd
+    Where {
+        /// Print directories for a specific workflow name (affects ~/.zig/resources/<name>)
+        #[arg(long)]
+        workflow: Option<String>,
+    },
+}
+
 /// Orchestration pattern for workflow creation.
 #[derive(Clone, Debug, ValueEnum)]
 pub enum Pattern {
@@ -205,9 +291,14 @@ mod tests {
     fn parse_run_command() {
         let cli = Cli::try_parse_from(["zig", "run", "my-workflow"]).unwrap();
         match cli.command {
-            Command::Run { workflow, prompt } => {
+            Command::Run {
+                workflow,
+                prompt,
+                no_resources,
+            } => {
                 assert_eq!(workflow, "my-workflow");
                 assert!(prompt.is_none());
+                assert!(!no_resources);
             }
             _ => panic!("expected Run command"),
         }
@@ -220,6 +311,77 @@ mod tests {
             Command::Run { prompt, .. } => assert_eq!(prompt.as_deref(), Some("extra context")),
             _ => panic!("expected Run command"),
         }
+    }
+
+    #[test]
+    fn parse_run_with_no_resources() {
+        let cli = Cli::try_parse_from(["zig", "run", "wf", "--no-resources"]).unwrap();
+        match cli.command {
+            Command::Run { no_resources, .. } => assert!(no_resources),
+            _ => panic!("expected Run command"),
+        }
+    }
+
+    #[test]
+    fn parse_resources_list() {
+        let cli = Cli::try_parse_from(["zig", "resources", "list"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Resources {
+                command: ResourcesCommand::List { .. }
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_resources_add_with_workflow_and_global() {
+        let cli = Cli::try_parse_from([
+            "zig",
+            "resources",
+            "add",
+            "./cv.md",
+            "--workflow",
+            "cover-letter",
+            "--global",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Resources {
+                command:
+                    ResourcesCommand::Add {
+                        file,
+                        workflow,
+                        global,
+                        cwd,
+                        name,
+                    },
+            } => {
+                assert_eq!(file, "./cv.md");
+                assert_eq!(workflow.as_deref(), Some("cover-letter"));
+                assert!(global);
+                assert!(!cwd);
+                assert!(name.is_none());
+            }
+            _ => panic!("expected Resources Add command"),
+        }
+    }
+
+    #[test]
+    fn parse_resources_add_global_and_cwd_conflict() {
+        let result =
+            Cli::try_parse_from(["zig", "resources", "add", "./cv.md", "--global", "--cwd"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_resources_where() {
+        let cli = Cli::try_parse_from(["zig", "resources", "where"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Resources {
+                command: ResourcesCommand::Where { .. }
+            }
+        ));
     }
 
     #[test]

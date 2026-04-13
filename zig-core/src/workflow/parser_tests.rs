@@ -805,3 +805,108 @@ prompt = "Hi"
     assert_eq!(wf2.workflow.provider.as_deref(), Some("claude"));
     assert_eq!(wf2.workflow.model.as_deref(), Some("opus"));
 }
+
+// ── resources ───────────────────────────────────────────────────────────────
+
+#[test]
+fn parse_workflow_resources_as_bare_paths() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "with-resources"
+resources = ["./cv.md", "./style.md"]
+
+[[step]]
+name = "draft"
+prompt = "Draft the letter"
+"#,
+    )
+    .unwrap();
+    assert_eq!(wf.workflow.resources.len(), 2);
+    assert_eq!(wf.workflow.resources[0].path(), "./cv.md");
+    assert!(wf.workflow.resources[0].name().is_none());
+    assert!(!wf.workflow.resources[0].required());
+}
+
+#[test]
+fn parse_workflow_resources_as_detailed_table() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "with-resources"
+
+[[workflow.resources]]
+path = "./cv.md"
+name = "cv"
+description = "Candidate CV"
+required = true
+
+[[step]]
+name = "draft"
+prompt = "Draft the letter"
+"#,
+    )
+    .unwrap();
+    assert_eq!(wf.workflow.resources.len(), 1);
+    let r = &wf.workflow.resources[0];
+    assert_eq!(r.path(), "./cv.md");
+    assert_eq!(r.name(), Some("cv"));
+    assert_eq!(r.description(), Some("Candidate CV"));
+    assert!(r.required());
+}
+
+#[test]
+fn parse_step_resources_bare_and_detailed_mix() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "mixed"
+
+[[step]]
+name = "draft"
+prompt = "Draft"
+resources = [
+    "./bare.md",
+    { path = "./detailed.md", name = "d", description = "Detailed", required = false },
+]
+"#,
+    )
+    .unwrap();
+    let step = &wf.steps[0];
+    assert_eq!(step.resources.len(), 2);
+    assert_eq!(step.resources[0].path(), "./bare.md");
+    assert!(step.resources[0].name().is_none());
+    assert_eq!(step.resources[1].path(), "./detailed.md");
+    assert_eq!(step.resources[1].name(), Some("d"));
+    assert_eq!(step.resources[1].description(), Some("Detailed"));
+}
+
+#[test]
+fn parse_workflow_without_resources_defaults_to_empty() {
+    let wf = parse(MINIMAL_WORKFLOW).unwrap();
+    assert!(wf.workflow.resources.is_empty());
+    assert!(wf.steps[0].resources.is_empty());
+}
+
+#[test]
+fn roundtrip_workflow_resources() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "rt"
+resources = ["./cv.md"]
+
+[[step]]
+name = "hello"
+prompt = "Hi"
+resources = ["./job.md"]
+"#,
+    )
+    .unwrap();
+    let toml_str = to_toml(&wf).unwrap();
+    let wf2 = parse(&toml_str).unwrap();
+    assert_eq!(wf2.workflow.resources.len(), 1);
+    assert_eq!(wf2.workflow.resources[0].path(), "./cv.md");
+    assert_eq!(wf2.steps[0].resources.len(), 1);
+    assert_eq!(wf2.steps[0].resources[0].path(), "./job.md");
+}

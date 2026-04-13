@@ -4,15 +4,55 @@ use std::path::Path;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Command, WorkflowCommand};
+use cli::{Cli, Command, ResourcesCommand, WorkflowCommand};
+use zig_core::resources_manage::{ResourceScope, ResourceTarget};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Command::Run { workflow, prompt } => {
-            zig_core::run::run_workflow(&workflow, prompt.as_deref())?;
+        Command::Run {
+            workflow,
+            prompt,
+            no_resources,
+        } => {
+            zig_core::run::run_workflow(&workflow, prompt.as_deref(), no_resources)?;
         }
+        Command::Resources { command } => match command {
+            ResourcesCommand::List {
+                workflow,
+                global,
+                cwd,
+            } => {
+                let scope = ResourceScope::from_flags(global, cwd);
+                zig_core::resources_manage::list_resources(workflow.as_deref(), scope)?;
+            }
+            ResourcesCommand::Add {
+                file,
+                workflow,
+                global,
+                cwd,
+                name,
+            } => {
+                let target = ResourceTarget::from_flags(workflow.as_deref(), global, cwd)?;
+                zig_core::resources_manage::add_resource(&file, target, name.as_deref())?;
+            }
+            ResourcesCommand::Remove {
+                name,
+                workflow,
+                global,
+                cwd,
+            } => {
+                let target = ResourceTarget::from_flags(workflow.as_deref(), global, cwd)?;
+                zig_core::resources_manage::remove_resource(&name, target)?;
+            }
+            ResourcesCommand::Show { name, workflow } => {
+                zig_core::resources_manage::show_resource(&name, workflow.as_deref())?;
+            }
+            ResourcesCommand::Where { workflow } => {
+                zig_core::resources_manage::print_search_paths(workflow.as_deref())?;
+            }
+        },
         Command::Workflow { command } => match command {
             WorkflowCommand::List { json } => {
                 if json {

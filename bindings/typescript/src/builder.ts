@@ -4,6 +4,27 @@ import type {
   ValidationResult,
   WorkflowInfo,
 } from "./types.js";
+
+/** Options accepted by the run / runInteractive / stream methods. */
+export interface RunOptions {
+  /** Additional context prompt injected into every step. */
+  prompt?: string;
+  /** Disable the `<resources>` block injected into each step's system prompt. */
+  noResources?: boolean;
+}
+
+/** Tier scope for `resources list`. */
+export type ResourceScope = "all" | "global" | "cwd";
+
+/** Target tier for `resources add` / `resources remove`. */
+export interface ResourceTargetOptions {
+  /** Place the resource in the global tier (~/.zig/resources/_shared/). */
+  global?: boolean;
+  /** Place the resource in the project tier (./.zig/resources/). */
+  cwd?: boolean;
+  /** Target a specific named workflow's global tier. */
+  workflow?: string;
+}
 import { ZigError } from "./types.js";
 import {
   defaultBin,
@@ -99,7 +120,7 @@ export class ZigBuilder {
    * Execute a workflow by name or path.
    *
    * @param workflow - Workflow name or path to a .zug file
-   * @param prompt - Optional additional context prompt
+   * @param promptOrOptions - Optional additional context prompt or options object
    *
    * @example
    * ```ts
@@ -107,10 +128,15 @@ export class ZigBuilder {
    * console.log(output);
    * ```
    */
-  async run(workflow: string, prompt?: string): Promise<string> {
+  async run(
+    workflow: string,
+    promptOrOptions?: string | RunOptions,
+  ): Promise<string> {
     await this.preflight();
-    const args = [...this.buildGlobalArgs(), "run", workflow];
-    if (prompt) args.push(prompt);
+    const args = [
+      ...this.buildGlobalArgs(),
+      ...this.buildRunArgs(workflow, promptOrOptions),
+    ];
     return execZig(this._bin, args);
   }
 
@@ -118,12 +144,17 @@ export class ZigBuilder {
    * Execute a workflow interactively with inherited stdio.
    *
    * @param workflow - Workflow name or path to a .zug file
-   * @param prompt - Optional additional context prompt
+   * @param promptOrOptions - Optional additional context prompt or options object
    */
-  async runInteractive(workflow: string, prompt?: string): Promise<void> {
+  async runInteractive(
+    workflow: string,
+    promptOrOptions?: string | RunOptions,
+  ): Promise<void> {
     await this.preflight();
-    const args = [...this.buildGlobalArgs(), "run", workflow];
-    if (prompt) args.push(prompt);
+    const args = [
+      ...this.buildGlobalArgs(),
+      ...this.buildRunArgs(workflow, promptOrOptions),
+    ];
     return runZig(this._bin, args);
   }
 
@@ -131,7 +162,7 @@ export class ZigBuilder {
    * Execute a workflow and stream stdout lines as they arrive.
    *
    * @param workflow - Workflow name or path to a .zug file
-   * @param prompt - Optional additional context prompt
+   * @param promptOrOptions - Optional additional context prompt or options object
    *
    * @example
    * ```ts
@@ -140,10 +171,15 @@ export class ZigBuilder {
    * }
    * ```
    */
-  async *stream(workflow: string, prompt?: string): AsyncGenerator<string> {
+  async *stream(
+    workflow: string,
+    promptOrOptions?: string | RunOptions,
+  ): AsyncGenerator<string> {
     await this.preflight();
-    const args = [...this.buildGlobalArgs(), "run", workflow];
-    if (prompt) args.push(prompt);
+    const args = [
+      ...this.buildGlobalArgs(),
+      ...this.buildRunArgs(workflow, promptOrOptions),
+    ];
     yield* streamZig(this._bin, args);
   }
 
@@ -153,7 +189,7 @@ export class ZigBuilder {
    * Returns a `StreamingSession` for sending input and reading output lines.
    *
    * @param workflow - Workflow name or path to a .zug file
-   * @param prompt - Optional additional context prompt
+   * @param promptOrOptions - Optional additional context prompt or options object
    *
    * @example
    * ```ts
@@ -167,12 +203,32 @@ export class ZigBuilder {
    * await session.close({ timeout: "5s" });
    * ```
    */
-  runStreaming(workflow: string, prompt?: string): StreamingSession {
-    const args = [...this.buildGlobalArgs(), "run", workflow];
-    if (prompt) args.push(prompt);
+  runStreaming(
+    workflow: string,
+    promptOrOptions?: string | RunOptions,
+  ): StreamingSession {
+    const args = [
+      ...this.buildGlobalArgs(),
+      ...this.buildRunArgs(workflow, promptOrOptions),
+    ];
     return streamWithInput(this._bin, args, {
       autoCleanup: this._autoCleanup,
     });
+  }
+
+  /** Build the positional and flag arguments for a `zig run` invocation. */
+  private buildRunArgs(
+    workflow: string,
+    promptOrOptions?: string | RunOptions,
+  ): string[] {
+    const opts: RunOptions =
+      typeof promptOrOptions === "string"
+        ? { prompt: promptOrOptions }
+        : promptOrOptions ?? {};
+    const args = ["run", workflow];
+    if (opts.prompt) args.push(opts.prompt);
+    if (opts.noResources) args.push("--no-resources");
+    return args;
   }
 
   /**
@@ -359,6 +415,85 @@ export class ZigBuilder {
     await this.preflight();
     const args = [...this.buildGlobalArgs(), "man"];
     if (topic) args.push(topic);
+    return execZig(this._bin, args);
+  }
+
+  /**
+   * List discovered resources from one or more tiers.
+   *
+   * @param options.scope - "all" (default), "global", or "cwd"
+   * @param options.workflow - Restrict the global tier to a specific workflow name
+   */
+  async resourcesList(
+    options: { scope?: ResourceScope; workflow?: string } = {},
+  ): Promise<string> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "resources", "list"];
+    if (options.scope === "global") args.push("--global");
+    if (options.scope === "cwd") args.push("--cwd");
+    if (options.workflow) args.push("--workflow", options.workflow);
+    return execZig(this._bin, args);
+  }
+
+  /**
+   * Register a file as a resource in one of the tiers.
+   *
+   * @param file - Path to the source file to register
+   * @param options - Target tier and optional rename
+   */
+  async resourcesAdd(
+    file: string,
+    options: ResourceTargetOptions & { name?: string } = {},
+  ): Promise<string> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "resources", "add", file];
+    if (options.global) args.push("--global");
+    if (options.cwd) args.push("--cwd");
+    if (options.workflow) args.push("--workflow", options.workflow);
+    if (options.name) args.push("--name", options.name);
+    return execZig(this._bin, args);
+  }
+
+  /**
+   * Remove a resource by name from one of the tiers.
+   *
+   * @param name - Registered resource name to remove
+   * @param options - Target tier
+   */
+  async resourcesRemove(
+    name: string,
+    options: ResourceTargetOptions = {},
+  ): Promise<string> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "resources", "remove", name];
+    if (options.global) args.push("--global");
+    if (options.cwd) args.push("--cwd");
+    if (options.workflow) args.push("--workflow", options.workflow);
+    return execZig(this._bin, args);
+  }
+
+  /**
+   * Print the absolute path and contents of a resource by name.
+   *
+   * @param name - Resource name to show
+   * @param workflow - Optionally restrict the global tier to a specific workflow
+   */
+  async resourcesShow(name: string, workflow?: string): Promise<string> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "resources", "show", name];
+    if (workflow) args.push("--workflow", workflow);
+    return execZig(this._bin, args);
+  }
+
+  /**
+   * Print the directories the collector would search for the current cwd.
+   *
+   * @param workflow - Optionally print directories for a specific workflow
+   */
+  async resourcesWhere(workflow?: string): Promise<string> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "resources", "where"];
+    if (workflow) args.push("--workflow", workflow);
     return execZig(this._bin, args);
   }
 }
