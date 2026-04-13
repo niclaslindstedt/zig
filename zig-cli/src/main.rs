@@ -14,8 +14,13 @@ fn main() -> Result<()> {
             zig_core::run::run_workflow(&workflow, prompt.as_deref())?;
         }
         Command::Workflow { command } => match command {
-            WorkflowCommand::List => {
-                zig_core::manage::list_workflows()?;
+            WorkflowCommand::List { json } => {
+                if json {
+                    let infos = zig_core::manage::get_workflow_list()?;
+                    println!("{}", serde_json::to_string_pretty(&infos)?);
+                } else {
+                    zig_core::manage::list_workflows()?;
+                }
             }
             WorkflowCommand::Show { workflow } => {
                 zig_core::manage::show_workflow(&workflow)?;

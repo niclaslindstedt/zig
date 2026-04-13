@@ -71,29 +71,44 @@ pub fn list_workflows() -> Result<(), ZigError> {
         return Ok(());
     }
 
+    // Determine terminal width, default to 100 if unavailable.
+    let term_width = terminal_width().unwrap_or(100);
+
     let name_w = infos.iter().map(|r| r.name.len()).max().unwrap_or(0).max(4);
-    let desc_w = infos
-        .iter()
-        .map(|r| r.description.len())
-        .max()
-        .unwrap_or(0)
-        .max(11);
     let steps_w = infos
         .iter()
-        .map(|r| format!("{} steps", r.step_count).len())
+        .map(|r| format_steps(r.step_count).len())
         .max()
         .unwrap_or(0)
         .max(5);
 
+    // Reserve space for name, steps, separators, and a minimum path column,
+    // then give the rest to description.
+    let fixed = name_w + steps_w + 8; // 3 x 2-char gaps + 2 for padding
+    let desc_w = if term_width > fixed + 20 {
+        term_width - fixed - 20
+    } else {
+        30
+    };
+    let desc_w = desc_w.max(11);
+
     println!(
-        "{:<name_w$}  {:<desc_w$}  {:<steps_w$}  PATH",
+        "\x1b[1m{:<name_w$}\x1b[0m  {:<desc_w$}  {:<steps_w$}  PATH",
         "NAME", "DESCRIPTION", "STEPS"
     );
+    println!(
+        "{}  {}  {}  {}",
+        "─".repeat(name_w),
+        "─".repeat(desc_w),
+        "─".repeat(steps_w),
+        "─".repeat(4)
+    );
     for info in &infos {
-        let steps = format!("{} steps", info.step_count);
+        let desc = truncate(&info.description, desc_w);
+        let steps = format_steps(info.step_count);
         println!(
-            "{:<name_w$}  {:<desc_w$}  {:<steps_w$}  {}",
-            info.name, info.description, steps, info.path
+            "\x1b[1m{:<name_w$}\x1b[0m  {:<desc_w$}  {:<steps_w$}  {}",
+            info.name, desc, steps, info.path
         );
     }
 
@@ -178,6 +193,31 @@ pub fn delete_workflow(workflow: &str) -> Result<(), ZigError> {
         .map_err(|e| ZigError::Io(format!("failed to delete {}: {e}", path.display())))?;
     println!("deleted {}", path.display());
     Ok(())
+}
+
+/// Truncate a string to `max` characters, appending "…" if truncated.
+fn truncate(s: &str, max: usize) -> String {
+    if s.len() <= max {
+        s.to_string()
+    } else if max <= 1 {
+        "…".to_string()
+    } else {
+        format!("{}…", &s[..max - 1])
+    }
+}
+
+/// Format step count concisely.
+fn format_steps(count: usize) -> String {
+    if count == 1 {
+        "1 step".to_string()
+    } else {
+        format!("{count} steps")
+    }
+}
+
+/// Try to detect terminal width from the COLUMNS environment variable.
+fn terminal_width() -> Option<usize> {
+    std::env::var("COLUMNS").ok().and_then(|v| v.parse().ok())
 }
 
 /// Discover all `.zug` files in a base directory and its `workflows/` subdirectory.
