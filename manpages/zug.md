@@ -45,6 +45,7 @@ role = "analyst"
 | `version`     | No       | Workflow version string (e.g., "1.0.0")                                 |
 | `provider`    | No       | Default provider for all steps (claude, codex, gemini, copilot, ollama) |
 | `model`       | No       | Default model for all steps (steps can override)                        |
+| `resources`   | No       | Reference files advertised to every step (see Resources below)          |
 
 When `provider` or `model` is set on the workflow, every step inherits it as a
 default. A step can override the workflow-level value by setting its own
@@ -189,6 +190,7 @@ Each step is one zag agent invocation.
 | `add_dirs`       | No       | `[]`    | Additional directories in agent scope    |
 | `env`            | No       | `{}`    | Per-step environment variables           |
 | `files`          | No       | `[]`    | Files to attach to the agent prompt      |
+| `resources`      | No       | `[]`    | Reference files advertised to this step's agent (see Resources below) |
 
 #### Context Injection
 
@@ -217,6 +219,43 @@ Each step is one zag agent invocation.
 | `title`          | No       |         | Review title (`command = "review"`)      |
 | `plan_output`    | No       |         | Output path for plan (`command = "plan"`)|
 | `instructions`   | No       |         | Additional plan instructions (`command = "plan"`) |
+
+## Resources
+
+`resources` is a list of reference files that the workflow tells the agent
+about — paths only, never inlined content. The agent reads them on demand with
+its file tools when the user's request touches them. Use this for things like
+CVs, style guides, and reference docs that you want available *if needed*
+without burning context up front.
+
+Each entry is either a bare path string (relative to the `.zug` file) or a
+detailed table:
+
+```toml
+[workflow]
+name = "cover-letter"
+resources = [
+  "./style-guide.md",                                # bare form
+  { path = "./cv.md", name = "cv", description = "Candidate CV", required = true },
+]
+
+[[step]]
+name = "draft"
+prompt = "Write a cover letter for the attached job posting."
+resources = [{ path = "./templates/cover-letter.md", description = "House template" }]
+```
+
+| Field         | Required | Description                                                                          |
+|---------------|----------|--------------------------------------------------------------------------------------|
+| `path`        | Yes      | Path relative to the `.zug` file                                                     |
+| `name`        | No       | Display name (defaults to the file's basename)                                       |
+| `description` | No       | Description rendered next to the path in the system prompt                           |
+| `required`    | No       | When true, missing files cause the run to fail (instead of being skipped + warning)  |
+
+Inline `resources` are merged with files discovered in the global tiers
+(`~/.zig/resources/_shared/`, `~/.zig/resources/<workflow-name>/`) and the
+project tier (`<git-root>/.zig/resources/`). See `zig man resources` for the
+full collection model and the `zig resources` management commands.
 
 ## Saves Selectors
 

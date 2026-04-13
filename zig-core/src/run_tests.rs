@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::path::Path;
 
+use crate::resources::ResourceCollector;
 use crate::workflow::model::{
     ResourceSpec, Role, Step, StepCommand, VarType, Variable, Workflow, WorkflowMeta,
 };
@@ -7,6 +9,34 @@ use crate::workflow::model::{
 use super::*;
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+/// Build an empty resource collector for tests that don't care about resources
+/// — no inline specs and every tier directory disabled.
+fn empty_collector<'a>(workflow_dir: &'a Path) -> ResourceCollector<'a> {
+    ResourceCollector {
+        workflow_resources: &[],
+        workflow_dir,
+        global_shared_dir: None,
+        global_workflow_dir: None,
+        cwd_resources_dir: None,
+        disabled: false,
+    }
+}
+
+/// Build a resource collector for tests that exercise inline workflow resources.
+fn inline_collector<'a>(
+    workflow_resources: &'a [ResourceSpec],
+    workflow_dir: &'a Path,
+) -> ResourceCollector<'a> {
+    ResourceCollector {
+        workflow_resources,
+        workflow_dir,
+        global_shared_dir: None,
+        global_workflow_dir: None,
+        cwd_resources_dir: None,
+        disabled: false,
+    }
+}
 
 fn step(name: &str) -> Step {
     Step {
@@ -1228,7 +1258,8 @@ fn resolve_direct_system_prompt() {
     let vars = HashMap::new();
     let dir = std::path::Path::new(".");
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, dir).unwrap();
+    let result =
+        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
     assert_eq!(result, Some("You are a doctor.".to_string()));
 }
 
@@ -1244,7 +1275,8 @@ fn resolve_direct_system_prompt_with_var_substitution() {
     let vars = HashMap::from([("specialty".into(), "cardiology".into())]);
     let dir = std::path::Path::new(".");
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, dir).unwrap();
+    let result =
+        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
     assert_eq!(result, Some("You are a cardiology specialist.".to_string()));
 }
 
@@ -1266,7 +1298,8 @@ fn resolve_static_role_reference() {
     let vars = HashMap::new();
     let dir = std::path::Path::new(".");
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, dir).unwrap();
+    let result =
+        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
     assert_eq!(result, Some("You are a doctor.".to_string()));
 }
 
@@ -1288,7 +1321,8 @@ fn resolve_dynamic_role_reference() {
     let vars = HashMap::from([("specialist_type".into(), "cardiologist".into())]);
     let dir = std::path::Path::new(".");
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, dir).unwrap();
+    let result =
+        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
     assert_eq!(result, Some("You are a cardiologist.".to_string()));
 }
 
@@ -1310,7 +1344,8 @@ fn resolve_role_with_var_in_prompt() {
     let vars = HashMap::from([("specialty".into(), "cardiology".into())]);
     let dir = std::path::Path::new(".");
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, dir).unwrap();
+    let result =
+        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
     assert_eq!(result, Some("You are a cardiology specialist.".to_string()));
 }
 
@@ -1326,7 +1361,7 @@ fn resolve_unknown_role_returns_error() {
     let vars = HashMap::new();
     let dir = std::path::Path::new(".");
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, dir);
+    let result = resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("does not exist"));
 }
@@ -1342,7 +1377,8 @@ fn resolve_no_system_prompt_or_role() {
     let vars = HashMap::new();
     let dir = std::path::Path::new(".");
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, dir).unwrap();
+    let result =
+        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
     assert_eq!(result, None);
 }
 
@@ -1367,7 +1403,14 @@ fn resolve_role_with_system_prompt_file() {
     )]);
     let vars = HashMap::new();
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, tmp.path()).unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(tmp.path()),
+        &vars,
+        tmp.path(),
+    )
+    .unwrap();
     assert_eq!(result, Some("You are a doctor from a file.".to_string()));
 }
 
@@ -1392,7 +1435,14 @@ fn resolve_role_file_with_var_substitution() {
     )]);
     let vars = HashMap::from([("specialty".into(), "neurology".into())]);
 
-    let result = resolve_role_system_prompt(&step, &roles, &[], &vars, tmp.path()).unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(tmp.path()),
+        &vars,
+        tmp.path(),
+    )
+    .unwrap();
     assert_eq!(result, Some("You are a neurology specialist.".to_string()));
 }
 
@@ -1411,9 +1461,15 @@ fn resolve_prepends_resources_block_to_direct_system_prompt() {
     let vars = HashMap::new();
     let workflow_resources = vec![ResourceSpec::Path("cv.md".into())];
 
-    let result = resolve_role_system_prompt(&step, &roles, &workflow_resources, &vars, tmp.path())
-        .unwrap()
-        .unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &inline_collector(&workflow_resources, tmp.path()),
+        &vars,
+        tmp.path(),
+    )
+    .unwrap()
+    .unwrap();
 
     assert!(result.starts_with("<resources>"));
     assert!(result.contains("cv.md"));
@@ -1434,9 +1490,15 @@ fn resolve_returns_only_resources_block_when_no_base_prompt() {
     let vars = HashMap::new();
     let workflow_resources = vec![ResourceSpec::Path("cv.md".into())];
 
-    let result = resolve_role_system_prompt(&step, &roles, &workflow_resources, &vars, tmp.path())
-        .unwrap()
-        .unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &inline_collector(&workflow_resources, tmp.path()),
+        &vars,
+        tmp.path(),
+    )
+    .unwrap()
+    .unwrap();
 
     assert!(result.starts_with("<resources>"));
     assert!(result.trim_end().ends_with("</resources>"));
@@ -1459,12 +1521,50 @@ fn resolve_merges_step_resources_with_workflow_resources() {
     let vars = HashMap::new();
     let workflow_resources = vec![ResourceSpec::Path("cv.md".into())];
 
-    let result = resolve_role_system_prompt(&step, &roles, &workflow_resources, &vars, tmp.path())
-        .unwrap()
-        .unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &inline_collector(&workflow_resources, tmp.path()),
+        &vars,
+        tmp.path(),
+    )
+    .unwrap()
+    .unwrap();
 
     assert!(result.contains("cv.md"));
     assert!(result.contains("job.md"));
+}
+
+#[test]
+fn resolve_disabled_collector_does_not_emit_resources_block() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    std::fs::write(tmp.path().join("cv.md"), "CV").unwrap();
+
+    let step = Step {
+        name: "draft".into(),
+        prompt: "Write".into(),
+        system_prompt: Some("Writer".into()),
+        resources: vec![ResourceSpec::Path("cv.md".into())],
+        ..Default::default()
+    };
+    let roles = HashMap::new();
+    let vars = HashMap::new();
+    let workflow_resources = vec![ResourceSpec::Path("cv.md".into())];
+    let collector = ResourceCollector {
+        workflow_resources: &workflow_resources,
+        workflow_dir: tmp.path(),
+        global_shared_dir: None,
+        global_workflow_dir: None,
+        cwd_resources_dir: None,
+        disabled: true,
+    };
+
+    let result = resolve_role_system_prompt(&step, &roles, &collector, &vars, tmp.path())
+        .unwrap()
+        .unwrap();
+
+    assert!(!result.contains("<resources>"));
+    assert_eq!(result, "Writer");
 }
 
 // ── load_file_defaults ─────────────────��───────────────────────���──────────

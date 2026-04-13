@@ -9,9 +9,9 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::error::ZigError;
-use crate::resources::{collect_resources, render_system_block};
+use crate::resources::{ResourceCollector, render_system_block};
 use crate::session::{OutputStream, SessionCoordinator, SessionStatus, SessionWriter};
-use crate::workflow::model::{FailurePolicy, ResourceSpec, Role, Step, StepCommand, Workflow};
+use crate::workflow::model::{FailurePolicy, Role, Step, StepCommand, Workflow};
 use crate::workflow::{parser, validate};
 
 /// Maximum number of loop iterations to prevent infinite loops from `next` fields.
@@ -22,7 +22,15 @@ const MAX_LOOP_ITERATIONS: usize = 100;
 /// Parses the workflow, validates it, resolves the step DAG, and executes
 /// each step by delegating to `zag`. The optional `user_prompt` is injected
 /// as additional context into every step's prompt.
-pub fn run_workflow(workflow_path: &str, user_prompt: Option<&str>) -> Result<(), ZigError> {
+///
+/// Resource advertisement (the `<resources>` block prepended to each step's
+/// system prompt) is enabled by default; pass `disable_resources = true` to
+/// opt out, e.g. via `zig run --no-resources`.
+pub fn run_workflow(
+    workflow_path: &str,
+    user_prompt: Option<&str>,
+    disable_resources: bool,
+) -> Result<(), ZigError> {
     check_zag()?;
 
     let path = resolve_workflow_path(workflow_path)?;
@@ -33,7 +41,13 @@ pub fn run_workflow(workflow_path: &str, user_prompt: Option<&str>) -> Result<()
         return Err(ZigError::Validation(msgs.join("; ")));
     }
 
-    execute(&workflow, &path, user_prompt, source.dir())
+    execute(
+        &workflow,
+        &path,
+        user_prompt,
+        source.dir(),
+        disable_resources,
+    )
 }
 
 /// Verify that `zag` is installed and available on PATH.
@@ -218,14 +232,16 @@ fn json_path_lookup(value: &serde_json::Value, path: &str) -> String {
 ///    (loaded from file if `system_prompt_file` is set).
 /// 3. Otherwise the base prompt is empty.
 ///
-/// Workflow- and step-level `resources` are then collected and rendered into
-/// a `<resources>` block that is prepended to the base prompt. If both are
-/// empty, returns `None` — keeping the current behavior when no system prompt
-/// or resources are configured.
+/// Resources from all configured tiers (global shared, global per-workflow,
+/// project cwd, inline workflow, inline step) are then collected by the
+/// supplied [`ResourceCollector`] and rendered into a `<resources>` block
+/// that is prepended to the base prompt. If both the resources set and the
+/// base prompt are empty, returns `None` — keeping the current behavior when
+/// nothing is configured.
 fn resolve_role_system_prompt(
     step: &Step,
     roles: &HashMap<String, Role>,
-    workflow_resources: &[ResourceSpec],
+    resources: &ResourceCollector,
     vars: &HashMap<String, String>,
     workflow_dir: &Path,
 ) -> Result<Option<String>, ZigError> {
@@ -260,7 +276,7 @@ fn resolve_role_system_prompt(
     };
 
     // Collect and render resources.
-    let set = collect_resources(workflow_resources, &step.resources, workflow_dir)?;
+    let set = resources.collect_for_step(&step.resources)?;
     let resource_block = render_system_block(&set);
 
     match (resource_block.is_empty(), base_prompt) {
@@ -951,7 +967,7 @@ fn execute_sequential_step(
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
-    workflow_resources: &[ResourceSpec],
+    resources: &ResourceCollector,
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
@@ -972,8 +988,7 @@ fn execute_sequential_step(
     eprintln!("  running step '{}'...", step.name);
 
     let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
-    let rendered_sp =
-        resolve_role_system_prompt(step, roles, workflow_resources, vars, workflow_dir)?;
+    let rendered_sp = resolve_role_system_prompt(step, roles, resources, vars, workflow_dir)?;
     if let Some(w) = session {
         let zag_session_id = format!("zig-{workflow_name}-{}", step.name);
         let _ = w.step_started(
@@ -1057,7 +1072,7 @@ fn execute_parallel_tier(
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
-    workflow_resources: &[ResourceSpec],
+    resources: &ResourceCollector,
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
@@ -1082,9 +1097,7 @@ fn execute_parallel_tier(
         }
         let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
         prompts.insert(step.name.clone(), prompt);
-        if let Some(sp) =
-            resolve_role_system_prompt(step, roles, workflow_resources, vars, workflow_dir)?
-        {
+        if let Some(sp) = resolve_role_system_prompt(step, roles, resources, vars, workflow_dir)? {
             rendered_sps.insert(step.name.clone(), sp);
         }
         active.push(*step);
@@ -1223,8 +1236,16 @@ fn execute(
     workflow_path: &std::path::Path,
     user_prompt: Option<&str>,
     workflow_dir: &Path,
+    disable_resources: bool,
 ) -> Result<(), ZigError> {
     let mut vars = init_vars(workflow);
+
+    let resource_collector = ResourceCollector::from_env(
+        &workflow.workflow.name,
+        &workflow.workflow.resources,
+        workflow_dir,
+        disable_resources,
+    );
 
     // Load file-backed variable defaults before prompt binding.
     load_file_defaults(&mut vars, &workflow.vars, workflow_dir)?;
@@ -1338,7 +1359,7 @@ fn execute(
                         tier_index,
                         session_ref,
                         &workflow.roles,
-                        &workflow.workflow.resources,
+                        &resource_collector,
                         workflow_dir,
                         wf_provider,
                         wf_model,
@@ -1355,7 +1376,7 @@ fn execute(
                     tier_index,
                     session_ref,
                     &workflow.roles,
-                    &workflow.workflow.resources,
+                    &resource_collector,
                     workflow_dir,
                     wf_provider,
                     wf_model,
@@ -1386,7 +1407,7 @@ fn execute(
                     if let Some(sp) = resolve_role_system_prompt(
                         step,
                         &workflow.roles,
-                        &workflow.workflow.resources,
+                        &resource_collector,
                         &vars,
                         workflow_dir,
                     )? {

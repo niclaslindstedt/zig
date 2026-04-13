@@ -11,6 +11,7 @@ mod pages {
     pub const PATTERNS: &str = include_str!("../manpages/patterns.md");
     pub const VARIABLES: &str = include_str!("../manpages/variables.md");
     pub const CONDITIONS: &str = include_str!("../manpages/conditions.md");
+    pub const RESOURCES: &str = include_str!("../manpages/resources.md");
 }
 
 /// All available manpage topics in display order.
@@ -29,6 +30,7 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("patterns", "Orchestration patterns"),
     ("variables", "Variable system and data flow"),
     ("conditions", "Condition expressions"),
+    ("resources", "Reference files advertised to step agents"),
 ];
 
 /// Look up a manpage by topic name.
@@ -47,6 +49,7 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "patterns" => Some(pages::PATTERNS),
         "variables" => Some(pages::VARIABLES),
         "conditions" => Some(pages::CONDITIONS),
+        "resources" => Some(pages::RESOURCES),
         _ => None,
     }
 }

@@ -75,7 +75,7 @@ export function parseWorkflow(content: string): Workflow {
   // We parse the TOML structure manually to avoid external dependencies.
   // .zug files use a predictable subset: [workflow], [vars.*], [[step]].
   const workflow: Workflow = {
-    workflow: { name: "", description: "", tags: [] },
+    workflow: { name: "", description: "", tags: [], resources: [] },
     roles: {},
     vars: {},
     steps: [],
@@ -152,6 +152,7 @@ export function parseWorkflow(content: string): Workflow {
         else if (key === "version") workflow.workflow.version = String(value);
         else if (key === "provider") workflow.workflow.provider = String(value);
         else if (key === "model") workflow.workflow.model = String(value);
+        else if (key === "resources") workflow.workflow.resources = toStringArray(value);
         break;
 
       case "roles":
@@ -231,6 +232,7 @@ function createDefaultStep(): Partial<Step> {
     add_dirs: [],
     env: {},
     files: [],
+    resources: [],
     context: [],
     worktree: false,
     uncommitted: false,
@@ -263,6 +265,7 @@ function assignStepField(step: Partial<Step>, key: string, value: unknown): void
     case "root": step.root = String(value); break;
     case "add_dirs": step.add_dirs = toStringArray(value); break;
     case "files": step.files = toStringArray(value); break;
+    case "resources": step.resources = toStringArray(value); break;
     case "context": step.context = toStringArray(value); break;
     case "plan": step.plan = String(value); break;
     case "mcp_config": step.mcp_config = String(value); break;

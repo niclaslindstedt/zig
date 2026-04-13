@@ -30,7 +30,33 @@ export interface WorkflowMeta {
   provider?: string;
   /** Default model for all steps (small, medium, large, or specific name). Steps can override. */
   model?: string;
+  /**
+   * Reference files advertised to every step's agent through its system
+   * prompt. The agent reads them on demand with its file tools. Supports a
+   * bare path string or a detailed `{ path, name?, description?, required? }`
+   * form.
+   */
+  resources: ResourceSpec[];
 }
+
+/**
+ * Inline resource specification.
+ *
+ * Strings are interpreted as bare paths relative to the `.zug` file. Use the
+ * detailed form to attach a name, description, or required flag.
+ */
+export type ResourceSpec =
+  | string
+  | {
+      /** Path relative to the workflow file. */
+      path: string;
+      /** Display name (defaults to the file's basename). */
+      name?: string;
+      /** Description rendered alongside the path in the system prompt. */
+      description?: string;
+      /** When true, missing files cause the run to fail. */
+      required?: boolean;
+    };
 
 /** A workflow variable — shared state between steps. */
 export interface Variable {
@@ -129,6 +155,13 @@ export interface Step {
   env: Record<string, string>;
   /** Files to attach to the agent prompt. */
   files: string[];
+
+  /**
+   * Step-level reference files advertised to the agent's system prompt. These
+   * are merged with workflow-level resources and global / cwd tiers at run
+   * time. See [WorkflowMeta.resources] for the spec shape.
+   */
+  resources: ResourceSpec[];
 
   // --- Context injection ---
   /** Session IDs to inject as context (beyond depends_on). */
