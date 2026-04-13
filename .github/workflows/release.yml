@@ -155,6 +155,9 @@ jobs:
     needs: [update-repo, build]
     runs-on: ubuntu-latest
     environment: npm-registry
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -162,8 +165,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: upgrade npm for trusted publishing
+        run: npm install -g npm@latest
 
       - name: install dependencies
         working-directory: bindings/typescript
@@ -172,5 +178,3 @@ jobs:
       - name: publish zig-workflow
         working-directory: bindings/typescript
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
