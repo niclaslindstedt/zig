@@ -2439,6 +2439,7 @@ version = "0.4.3"
 dependencies = [
  "anyhow",
  "clap",
+ "serde_json",
  "tokio",
  "uuid",
  "zig-core",

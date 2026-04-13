@@ -119,7 +119,11 @@ pub enum Command {
 #[derive(Subcommand)]
 pub enum WorkflowCommand {
     /// List available workflows
-    List,
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
 
     /// Show details of a workflow
     Show {
@@ -266,7 +270,18 @@ mod tests {
         assert!(matches!(
             cli.command,
             Command::Workflow {
-                command: WorkflowCommand::List
+                command: WorkflowCommand::List { json: false }
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_workflow_list_json() {
+        let cli = Cli::try_parse_from(["zig", "workflow", "list", "--json"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Workflow {
+                command: WorkflowCommand::List { json: true }
             }
         ));
     }
