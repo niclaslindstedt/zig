@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@nlindstedt/zig-api-client": "file:../clients/typescript",
     "@nlindstedt/zig-workflow": "^0.5.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

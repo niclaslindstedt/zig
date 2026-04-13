@@ -67,6 +67,7 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 9. **Prompt templates** → `zig-core/src/prompt.rs` + `prompts/`
 10. **Manpages** → `manpages/*.md` + `zig-core/src/man.rs`
 11. **TypeScript bindings** → `bindings/typescript/` (types, builder, workflow parser)
+12. **TypeScript API client** → `clients/typescript/` (`@nlindstedt/zig-api-client` — HTTP client for `zig-serve`)
 
 ## Documentation sync points
 
