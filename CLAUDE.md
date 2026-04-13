@@ -76,6 +76,7 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 | New CLI flag | `zig-cli/src/cli.rs`, relevant `manpages/*.md`, `README.md` |
 | New pattern | `zig-cli/src/cli.rs` (Pattern enum), `manpages/patterns.md`, `manpages/workflow.md` |
 | Workflow format change | `zig-core/src/workflow/`, `manpages/zug.md`, `docs/zug-vs-zag-gap-analysis.md` |
+| New crate or binding | `scripts/update-versions.sh` (version bumps), `.github/workflows/release.yml` (publish steps) |
 | CLI or model change | Run `update-bindings` skill — syncs TypeScript binding with Rust source |
 | README staleness | Run `update-readme` skill — tracks last update via `.claude/skills/update-readme/.last-updated` |
 | Manpage staleness | Run `update-manpages` skill — tracks last update via `.claude/skills/update-manpages/.last-updated` |
