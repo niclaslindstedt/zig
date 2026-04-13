@@ -9,8 +9,9 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::error::ZigError;
+use crate::resources::{collect_resources, render_system_block};
 use crate::session::{OutputStream, SessionCoordinator, SessionStatus, SessionWriter};
-use crate::workflow::model::{FailurePolicy, Role, Step, StepCommand, Workflow};
+use crate::workflow::model::{FailurePolicy, ResourceSpec, Role, Step, StepCommand, Workflow};
 use crate::workflow::{parser, validate};
 
 /// Maximum number of loop iterations to prevent infinite loops from `next` fields.
@@ -207,27 +208,31 @@ fn json_path_lookup(value: &serde_json::Value, path: &str) -> String {
     }
 }
 
-/// Resolve the effective system prompt for a step.
+/// Resolve the effective system prompt for a step, with any advertised
+/// resources prepended as a `<resources>` block.
 ///
 /// Resolution order:
 /// 1. If `step.system_prompt` is set, use it (with variable substitution).
 /// 2. If `step.role` is set, resolve the role name (may contain `${var}`),
-///    look it up in the roles table, and return the role's system prompt
+///    look it up in the roles table, and use the role's system prompt
 ///    (loaded from file if `system_prompt_file` is set).
-/// 3. Otherwise, return `None`.
+/// 3. Otherwise the base prompt is empty.
+///
+/// Workflow- and step-level `resources` are then collected and rendered into
+/// a `<resources>` block that is prepended to the base prompt. If both are
+/// empty, returns `None` — keeping the current behavior when no system prompt
+/// or resources are configured.
 fn resolve_role_system_prompt(
     step: &Step,
     roles: &HashMap<String, Role>,
+    workflow_resources: &[ResourceSpec],
     vars: &HashMap<String, String>,
     workflow_dir: &Path,
 ) -> Result<Option<String>, ZigError> {
-    // Direct system_prompt on step takes priority
-    if let Some(ref sp) = step.system_prompt {
-        return Ok(Some(substitute_vars(sp, vars)));
-    }
-
-    // Role reference
-    if let Some(ref role_ref) = step.role {
+    // Resolve the base system prompt (may be empty if neither is set).
+    let base_prompt: Option<String> = if let Some(ref sp) = step.system_prompt {
+        Some(substitute_vars(sp, vars))
+    } else if let Some(ref role_ref) = step.role {
         let resolved_name = substitute_vars(role_ref, vars);
         let role = roles.get(&resolved_name).ok_or_else(|| {
             ZigError::Execution(format!(
@@ -236,26 +241,34 @@ fn resolve_role_system_prompt(
             ))
         })?;
 
-        // Load from file or use inline prompt
         let raw_prompt = if let Some(ref file_path) = role.system_prompt_file {
             let full_path = workflow_dir.join(file_path);
-            std::fs::read_to_string(&full_path).map_err(|e| {
+            Some(std::fs::read_to_string(&full_path).map_err(|e| {
                 ZigError::Execution(format!(
                     "failed to read system_prompt_file '{}' for role '{}': {e}",
                     full_path.display(),
                     resolved_name
                 ))
-            })?
-        } else if let Some(ref sp) = role.system_prompt {
-            sp.clone()
+            })?)
         } else {
-            return Ok(None);
+            role.system_prompt.clone()
         };
 
-        return Ok(Some(substitute_vars(&raw_prompt, vars)));
-    }
+        raw_prompt.map(|p| substitute_vars(&p, vars))
+    } else {
+        None
+    };
 
-    Ok(None)
+    // Collect and render resources.
+    let set = collect_resources(workflow_resources, &step.resources, workflow_dir)?;
+    let resource_block = render_system_block(&set);
+
+    match (resource_block.is_empty(), base_prompt) {
+        (true, None) => Ok(None),
+        (true, Some(p)) => Ok(Some(p)),
+        (false, None) => Ok(Some(resource_block.trim_end().to_string())),
+        (false, Some(p)) => Ok(Some(format!("{resource_block}{p}"))),
+    }
 }
 
 /// Load file-backed default values for variables.
@@ -938,6 +951,7 @@ fn execute_sequential_step(
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
+    workflow_resources: &[ResourceSpec],
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
@@ -958,7 +972,8 @@ fn execute_sequential_step(
     eprintln!("  running step '{}'...", step.name);
 
     let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
-    let rendered_sp = resolve_role_system_prompt(step, roles, vars, workflow_dir)?;
+    let rendered_sp =
+        resolve_role_system_prompt(step, roles, workflow_resources, vars, workflow_dir)?;
     if let Some(w) = session {
         let zag_session_id = format!("zig-{workflow_name}-{}", step.name);
         let _ = w.step_started(
@@ -1042,6 +1057,7 @@ fn execute_parallel_tier(
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
+    workflow_resources: &[ResourceSpec],
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
@@ -1066,7 +1082,9 @@ fn execute_parallel_tier(
         }
         let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
         prompts.insert(step.name.clone(), prompt);
-        if let Some(sp) = resolve_role_system_prompt(step, roles, vars, workflow_dir)? {
+        if let Some(sp) =
+            resolve_role_system_prompt(step, roles, workflow_resources, vars, workflow_dir)?
+        {
             rendered_sps.insert(step.name.clone(), sp);
         }
         active.push(*step);
@@ -1320,6 +1338,7 @@ fn execute(
                         tier_index,
                         session_ref,
                         &workflow.roles,
+                        &workflow.workflow.resources,
                         workflow_dir,
                         wf_provider,
                         wf_model,
@@ -1336,6 +1355,7 @@ fn execute(
                     tier_index,
                     session_ref,
                     &workflow.roles,
+                    &workflow.workflow.resources,
                     workflow_dir,
                     wf_provider,
                     wf_model,
@@ -1363,9 +1383,13 @@ fn execute(
                     let prompt =
                         render_step_prompt(step, &vars, effective_user_prompt, &step_outputs);
                     prompts.insert(step.name.clone(), prompt);
-                    if let Some(sp) =
-                        resolve_role_system_prompt(step, &workflow.roles, &vars, workflow_dir)?
-                    {
+                    if let Some(sp) = resolve_role_system_prompt(
+                        step,
+                        &workflow.roles,
+                        &workflow.workflow.resources,
+                        &vars,
+                        workflow_dir,
+                    )? {
                         race_sps.insert(step.name.clone(), sp);
                     }
                     active_steps.push(step);

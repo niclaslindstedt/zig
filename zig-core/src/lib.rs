@@ -11,6 +11,7 @@ pub mod manage;
 pub mod pack;
 pub mod paths;
 pub mod prompt;
+pub mod resources;
 pub mod run;
 pub mod session;
 pub mod workflow;
