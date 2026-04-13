@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::config::ServeConfig;
+use crate::handlers::chat::WebChatSession;
 use crate::session_token::TokenStore;
 use crate::user::UserStore;
 
@@ -14,4 +16,7 @@ pub struct AppState {
     pub user_store: Option<Arc<UserStore>>,
     /// Session token store (Some when user-account mode is active).
     pub token_store: Option<Arc<RwLock<TokenStore>>>,
+    /// Active web-chat sessions (used by the `--web` UI). Shared across handlers
+    /// so follow-up messages can locate the spawned zag subprocess by id.
+    pub web_chats: Arc<Mutex<HashMap<String, Arc<WebChatSession>>>>,
 }

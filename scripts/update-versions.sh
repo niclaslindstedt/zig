@@ -29,11 +29,12 @@ sed -i.bak "s/zig-serve = { version = \"[^\"]*\"/zig-serve = { version = \"$NEW_
 rm -f zig-cli/Cargo.toml.bak
 echo "  updated zig-serve dependency in zig-cli/Cargo.toml"
 
-# --- update npm package version ---
-NPM_PKG="bindings/typescript/package.json"
-sed -i.bak "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$NPM_PKG"
-rm -f "$NPM_PKG.bak"
-echo "  updated $NPM_PKG"
+# --- update npm package versions ---
+for NPM_PKG in bindings/typescript/package.json clients/typescript/package.json; do
+    sed -i.bak "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$NPM_PKG"
+    rm -f "$NPM_PKG.bak"
+    echo "  updated $NPM_PKG"
+done
 
 # --- regenerate lockfile ---
 cargo generate-lockfile 2>/dev/null || cargo check 2>/dev/null || true

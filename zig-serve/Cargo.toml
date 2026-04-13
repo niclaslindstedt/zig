@@ -37,8 +37,12 @@ hex = "0.4"
 governor = "0.8"
 
 # SSE streaming
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
 async-stream = "0.3"
+
+# Embedded web UI (rust-embed bakes web/dist/ into the binary)
+rust-embed = { version = "8", features = ["include-exclude"] }
+mime_guess = "2"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

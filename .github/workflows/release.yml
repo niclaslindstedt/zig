@@ -183,10 +183,26 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
-      - name: install dependencies
+      - name: install zig-workflow dependencies
         working-directory: bindings/typescript
         run: npm install
 
       - name: publish zig-workflow
         working-directory: bindings/typescript
+        run: npm publish --access public
+
+      - name: install zig-api-client dependencies
+        working-directory: clients/typescript
+        run: npm install
+
+      - name: build zig-api-client
+        working-directory: clients/typescript
+        run: npm run build
+
+      - name: test zig-api-client
+        working-directory: clients/typescript
+        run: npm test
+
+      - name: publish zig-api-client
+        working-directory: clients/typescript
         run: npm publish --access public

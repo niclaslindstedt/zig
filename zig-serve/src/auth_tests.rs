@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::routing::get;
+use tokio::sync::Mutex;
 use tower::ServiceExt;
 
 use crate::config::ServeConfig;
@@ -21,9 +23,11 @@ fn test_state(token: &str) -> AppState {
             tls_cert: None,
             tls_key: None,
             rate_limit: None,
+            web: false,
         }),
         user_store: None,
         token_store: None,
+        web_chats: Arc::new(Mutex::new(HashMap::new())),
     }
 }
 
@@ -150,9 +154,11 @@ async fn user_account_mode_validates_session_token() {
             tls_cert: None,
             tls_key: None,
             rate_limit: None,
+            web: false,
         }),
         user_store: Some(Arc::new(user_store)),
         token_store: Some(Arc::new(RwLock::new(token_store))),
+        web_chats: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let app = test_router(state);

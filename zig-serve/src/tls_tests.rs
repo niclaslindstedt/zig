@@ -35,6 +35,7 @@ fn resolve_tls_returns_none_when_disabled() {
         tls_cert: None,
         tls_key: None,
         rate_limit: None,
+        web: false,
     };
     assert!(super::resolve_tls(&config).unwrap().is_none());
 }
@@ -50,6 +51,7 @@ fn resolve_tls_uses_custom_cert_paths() {
         tls_cert: Some("/path/to/cert.pem".into()),
         tls_key: Some("/path/to/key.pem".into()),
         rate_limit: None,
+        web: false,
     };
     let result = super::resolve_tls(&config).unwrap().unwrap();
     assert_eq!(result.0, "/path/to/cert.pem");

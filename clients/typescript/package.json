@@ -1,0 +1,47 @@
+{
+  "name": "@nlindstedt/zig-api-client",
+  "version": "0.5.7",
+  "description": "TypeScript HTTP client for the zig-serve REST API — chat, workflows, sessions, manpages, users",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "tsc --outDir dist-test && node --test dist-test/tests/*.test.js",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/niclaslindstedt/zig",
+    "directory": "clients/typescript"
+  },
+  "keywords": [
+    "zig",
+    "zag",
+    "ai",
+    "agent",
+    "orchestration",
+    "workflow",
+    "api",
+    "client",
+    "rest",
+    "sse"
+  ]
+}
