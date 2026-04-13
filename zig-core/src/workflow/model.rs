@@ -63,6 +63,35 @@ pub struct WorkflowMeta {
     /// shapes.
     #[serde(default)]
     pub resources: Vec<ResourceSpec>,
+
+    /// Memory injection mode for this workflow: `"all"` (default), `"global"`,
+    /// or `"none"`. Controls which memory tiers are injected into step system
+    /// prompts. Individual steps can override this with their own `memory` field.
+    #[serde(default)]
+    pub memory: Option<String>,
+}
+
+/// Memory injection mode parsed from the `memory` field on workflows/steps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MemoryMode {
+    /// Inject memory from all tiers (global shared + global workflow + project-local).
+    #[default]
+    All,
+    /// Only inject global tiers, skip project-local.
+    Global,
+    /// Disable memory injection entirely.
+    None,
+}
+
+impl MemoryMode {
+    /// Parse from an optional string value. Unknown values fall back to `All`.
+    pub fn from_str_opt(s: Option<&str>) -> Self {
+        match s {
+            Some("none") => MemoryMode::None,
+            Some("global") => MemoryMode::Global,
+            _ => MemoryMode::All,
+        }
+    }
 }
 
 /// A resource entry — a knowledge file the agent is *told about* (not inlined)
@@ -354,6 +383,11 @@ pub struct Step {
     /// See [`ResourceSpec`] for the accepted shapes.
     #[serde(default)]
     pub resources: Vec<ResourceSpec>,
+
+    /// Per-step memory override: `"all"`, `"global"`, or `"none"`.
+    /// If absent, inherits the workflow-level `memory` setting.
+    #[serde(default)]
+    pub memory: Option<String>,
 
     // --- Context injection ---
     /// Session IDs to inject as context (beyond depends_on).

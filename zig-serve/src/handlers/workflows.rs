@@ -118,7 +118,7 @@ pub async fn run(Json(req): Json<RunRequest>) -> Result<Json<RunResponse>, Serve
 
     // Spawn the workflow execution on a blocking thread (fire-and-forget)
     tokio::task::spawn_blocking(move || {
-        if let Err(e) = zig_core::run::run_workflow(&workflow, prompt.as_deref(), false) {
+        if let Err(e) = zig_core::run::run_workflow(&workflow, prompt.as_deref(), false, false) {
             tracing::error!("workflow execution failed: {e}");
         }
     });

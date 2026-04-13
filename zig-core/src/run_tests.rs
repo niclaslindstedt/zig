@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use crate::memory::MemoryCollector;
 use crate::resources::ResourceCollector;
 use crate::workflow::model::{
-    ResourceSpec, Role, Step, StepCommand, VarType, Variable, Workflow, WorkflowMeta,
+    MemoryMode, ResourceSpec, Role, Step, StepCommand, VarType, Variable, Workflow, WorkflowMeta,
 };
 
 use super::*;
@@ -34,6 +35,18 @@ fn inline_collector<'a>(
         global_shared_dir: None,
         global_workflow_dir: None,
         cwd_resources_dir: None,
+        disabled: false,
+    }
+}
+
+/// Build an empty memory collector for tests that don't care about memory.
+fn empty_memory_collector() -> MemoryCollector {
+    MemoryCollector {
+        global_shared_dir: None,
+        global_workflow_dir: None,
+        cwd_memory_dir: None,
+        workflow_mode: MemoryMode::All,
+        local_enabled: true,
         disabled: false,
     }
 }
@@ -1258,8 +1271,16 @@ fn resolve_direct_system_prompt() {
     let vars = HashMap::new();
     let dir = std::path::Path::new(".");
 
-    let result =
-        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(dir),
+        &empty_memory_collector(),
+        &vars,
+        dir,
+        "test-wf",
+    )
+    .unwrap();
     assert_eq!(result, Some("You are a doctor.".to_string()));
 }
 
@@ -1275,8 +1296,16 @@ fn resolve_direct_system_prompt_with_var_substitution() {
     let vars = HashMap::from([("specialty".into(), "cardiology".into())]);
     let dir = std::path::Path::new(".");
 
-    let result =
-        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(dir),
+        &empty_memory_collector(),
+        &vars,
+        dir,
+        "test-wf",
+    )
+    .unwrap();
     assert_eq!(result, Some("You are a cardiology specialist.".to_string()));
 }
 
@@ -1298,8 +1327,16 @@ fn resolve_static_role_reference() {
     let vars = HashMap::new();
     let dir = std::path::Path::new(".");
 
-    let result =
-        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(dir),
+        &empty_memory_collector(),
+        &vars,
+        dir,
+        "test-wf",
+    )
+    .unwrap();
     assert_eq!(result, Some("You are a doctor.".to_string()));
 }
 
@@ -1321,8 +1358,16 @@ fn resolve_dynamic_role_reference() {
     let vars = HashMap::from([("specialist_type".into(), "cardiologist".into())]);
     let dir = std::path::Path::new(".");
 
-    let result =
-        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(dir),
+        &empty_memory_collector(),
+        &vars,
+        dir,
+        "test-wf",
+    )
+    .unwrap();
     assert_eq!(result, Some("You are a cardiologist.".to_string()));
 }
 
@@ -1344,8 +1389,16 @@ fn resolve_role_with_var_in_prompt() {
     let vars = HashMap::from([("specialty".into(), "cardiology".into())]);
     let dir = std::path::Path::new(".");
 
-    let result =
-        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(dir),
+        &empty_memory_collector(),
+        &vars,
+        dir,
+        "test-wf",
+    )
+    .unwrap();
     assert_eq!(result, Some("You are a cardiology specialist.".to_string()));
 }
 
@@ -1361,7 +1414,15 @@ fn resolve_unknown_role_returns_error() {
     let vars = HashMap::new();
     let dir = std::path::Path::new(".");
 
-    let result = resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir);
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(dir),
+        &empty_memory_collector(),
+        &vars,
+        dir,
+        "test-wf",
+    );
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("does not exist"));
 }
@@ -1377,8 +1438,16 @@ fn resolve_no_system_prompt_or_role() {
     let vars = HashMap::new();
     let dir = std::path::Path::new(".");
 
-    let result =
-        resolve_role_system_prompt(&step, &roles, &empty_collector(dir), &vars, dir).unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &empty_collector(dir),
+        &empty_memory_collector(),
+        &vars,
+        dir,
+        "test-wf",
+    )
+    .unwrap();
     assert_eq!(result, None);
 }
 
@@ -1407,8 +1476,10 @@ fn resolve_role_with_system_prompt_file() {
         &step,
         &roles,
         &empty_collector(tmp.path()),
+        &empty_memory_collector(),
         &vars,
         tmp.path(),
+        "test-wf",
     )
     .unwrap();
     assert_eq!(result, Some("You are a doctor from a file.".to_string()));
@@ -1439,8 +1510,10 @@ fn resolve_role_file_with_var_substitution() {
         &step,
         &roles,
         &empty_collector(tmp.path()),
+        &empty_memory_collector(),
         &vars,
         tmp.path(),
+        "test-wf",
     )
     .unwrap();
     assert_eq!(result, Some("You are a neurology specialist.".to_string()));
@@ -1465,8 +1538,10 @@ fn resolve_prepends_resources_block_to_direct_system_prompt() {
         &step,
         &roles,
         &inline_collector(&workflow_resources, tmp.path()),
+        &empty_memory_collector(),
         &vars,
         tmp.path(),
+        "test-wf",
     )
     .unwrap()
     .unwrap();
@@ -1494,8 +1569,10 @@ fn resolve_returns_only_resources_block_when_no_base_prompt() {
         &step,
         &roles,
         &inline_collector(&workflow_resources, tmp.path()),
+        &empty_memory_collector(),
         &vars,
         tmp.path(),
+        "test-wf",
     )
     .unwrap()
     .unwrap();
@@ -1525,8 +1602,10 @@ fn resolve_merges_step_resources_with_workflow_resources() {
         &step,
         &roles,
         &inline_collector(&workflow_resources, tmp.path()),
+        &empty_memory_collector(),
         &vars,
         tmp.path(),
+        "test-wf",
     )
     .unwrap()
     .unwrap();
@@ -1559,9 +1638,17 @@ fn resolve_disabled_collector_does_not_emit_resources_block() {
         disabled: true,
     };
 
-    let result = resolve_role_system_prompt(&step, &roles, &collector, &vars, tmp.path())
-        .unwrap()
-        .unwrap();
+    let result = resolve_role_system_prompt(
+        &step,
+        &roles,
+        &collector,
+        &empty_memory_collector(),
+        &vars,
+        tmp.path(),
+        "test-wf",
+    )
+    .unwrap()
+    .unwrap();
 
     assert!(!result.contains("<resources>"));
     assert_eq!(result, "Writer");

@@ -115,6 +115,72 @@ pub fn cwd_resources_dir() -> Option<PathBuf> {
 }
 
 // =====================================================================
+// Memory directories — same tiered layout as resources, under `memory/`.
+// =====================================================================
+
+/// Return the global memory directory: `~/.zig/memory/`.
+pub fn global_memory_dir() -> Option<PathBuf> {
+    std::env::var("HOME")
+        .ok()
+        .map(|h| Path::new(&h).join(".zig").join("memory"))
+}
+
+/// Return the per-workflow global memory directory: `~/.zig/memory/<name>/`.
+pub fn global_memory_for(workflow: &str) -> Option<PathBuf> {
+    global_memory_dir().map(|d| d.join(workflow))
+}
+
+/// Return the shared global memory directory: `~/.zig/memory/_shared/`.
+pub fn global_shared_memory_dir() -> Option<PathBuf> {
+    global_memory_dir().map(|d| d.join("_shared"))
+}
+
+/// Ensure the global memory directory (or a child of it) exists.
+pub fn ensure_global_memory_dir(child: Option<&str>) -> Result<PathBuf, ZigError> {
+    let mut dir = global_memory_dir()
+        .ok_or_else(|| ZigError::Io("HOME environment variable not set".into()))?;
+    if let Some(c) = child {
+        dir = dir.join(c);
+    }
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| ZigError::Io(format!("failed to create {}: {e}", dir.display())))?;
+    }
+    Ok(dir)
+}
+
+/// Walk up from `start` looking for a `.zig/memory` directory. Stops at the
+/// containing git repository root, or returns the directory in `start` itself
+/// if it exists.
+pub fn cwd_memory_dir_from(start: &Path) -> Option<PathBuf> {
+    let mut current = start;
+    let stop = find_git_root(start);
+
+    loop {
+        let candidate = current.join(".zig").join("memory");
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+        if let Some(ref root) = stop {
+            if current == root.as_path() {
+                return None;
+            }
+        }
+        match current.parent() {
+            Some(p) => current = p,
+            None => return None,
+        }
+    }
+}
+
+/// Walk up from the process's current working directory looking for a
+/// `.zig/memory` directory. See [`cwd_memory_dir_from`].
+pub fn cwd_memory_dir() -> Option<PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    cwd_memory_dir_from(&cwd)
+}
+
+// =====================================================================
 // Session storage paths.
 //
 // Layout mirrors zag (`zag-agent/src/config.rs:183` `resolve_project_dir`):

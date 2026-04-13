@@ -4,7 +4,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Command, ResourcesCommand, WorkflowCommand};
+use cli::{Cli, Command, MemoryCommand, ResourcesCommand, WorkflowCommand};
 use zig_core::resources_manage::{ResourceScope, ResourceTarget};
 
 fn main() -> Result<()> {
@@ -15,8 +15,9 @@ fn main() -> Result<()> {
             workflow,
             prompt,
             no_resources,
+            no_memory,
         } => {
-            zig_core::run::run_workflow(&workflow, prompt.as_deref(), no_resources)?;
+            zig_core::run::run_workflow(&workflow, prompt.as_deref(), no_resources, no_memory)?;
         }
         Command::Resources { command } => match command {
             ResourcesCommand::List {
@@ -51,6 +52,70 @@ fn main() -> Result<()> {
             }
             ResourcesCommand::Where { workflow } => {
                 zig_core::resources_manage::print_search_paths(workflow.as_deref())?;
+            }
+        },
+        Command::Memory { command } => match command {
+            MemoryCommand::Add {
+                path,
+                workflow,
+                step,
+                name,
+                description,
+                tags,
+            } => {
+                let target = zig_core::memory::MemoryTarget::from_flags(
+                    workflow.as_deref(),
+                    false,
+                    workflow.is_none(),
+                )?;
+                zig_core::memory::add(
+                    &path,
+                    target,
+                    step.as_deref(),
+                    name.as_deref(),
+                    description.as_deref(),
+                    &tags,
+                )?;
+            }
+            MemoryCommand::Update {
+                id,
+                workflow,
+                name,
+                description,
+                tags,
+            } => {
+                zig_core::memory::update(
+                    id,
+                    workflow.as_deref(),
+                    name.as_deref(),
+                    description.as_deref(),
+                    tags.as_deref(),
+                )?;
+            }
+            MemoryCommand::Delete { id, workflow } => {
+                zig_core::memory::delete(id, workflow.as_deref())?;
+            }
+            MemoryCommand::Show { id, workflow } => {
+                zig_core::memory::show(id, workflow.as_deref())?;
+            }
+            MemoryCommand::List { workflow } => {
+                zig_core::memory::list(workflow.as_deref())?;
+            }
+            MemoryCommand::Search {
+                query,
+                scope,
+                workflow,
+            } => {
+                let scope = match scope.as_str() {
+                    "sentence" => zig_core::memory::SearchScope::Sentence,
+                    "paragraph" => zig_core::memory::SearchScope::Paragraph,
+                    "section" => zig_core::memory::SearchScope::Section,
+                    "file" => zig_core::memory::SearchScope::File,
+                    other => anyhow::bail!(
+                        "unknown search scope: '{other}' (expected: sentence, paragraph, section, file)"
+                    ),
+                };
+                zig_core::memory::search(&query, scope, workflow.as_deref())?;
             }
         },
         Command::Workflow { command } => match command {
