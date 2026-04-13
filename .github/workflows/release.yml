@@ -1,10 +1,9 @@
 name: release
 
 on:
-  workflow_run:
-    workflows: ["version-bump"]
-    types:
-      - completed
+  push:
+    tags:
+      - 'v*'
 
 permissions:
   contents: write
@@ -13,14 +12,15 @@ jobs:
   update-repo:
     name: update changelog
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     outputs:
       release_notes: ${{ steps.notes.outputs.release_notes }}
       tag: ${{ steps.version.outputs.tag }}
+      commit_sha: ${{ steps.push.outputs.commit_sha }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: main
       - name: configure git
         run: |
           git config user.name "github-actions[bot]"
@@ -28,12 +28,9 @@ jobs:
       - name: extract version
         id: version
         run: |
-          git fetch --tags
-          TAG=$(git describe --tags --abbrev=0 --match 'v*')
+          TAG="${GITHUB_REF_NAME}"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-      - name: checkout tag
-        run: git checkout "${{ steps.version.outputs.tag }}"
       - name: generate changelog
         run: scripts/generate-changelog.sh "${{ steps.version.outputs.version }}"
       - name: extract release notes
@@ -44,6 +41,7 @@ jobs:
           sed -n "/^## \[${{ steps.version.outputs.version }}\]/,/^## \[/{ /^## \[.*\]/!p; }" CHANGELOG.md >> "$GITHUB_OUTPUT"
           echo "$EOF" >> "$GITHUB_OUTPUT"
       - name: commit changelog and retag
+        id: push
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           git add -A
@@ -55,6 +53,7 @@ jobs:
           # Move the tag to the new commit so build/publish use the updated sources.
           git tag -f -a "${TAG}" -m "Release ${TAG}"
           git push origin -f "refs/tags/${TAG}"
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
     name: build (${{ matrix.target }})
@@ -78,7 +77,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.update-repo.outputs.tag }}
+          ref: ${{ needs.update-repo.outputs.commit_sha }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -144,7 +143,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.update-repo.outputs.tag }}
+          ref: ${{ needs.update-repo.outputs.commit_sha }}
       - uses: dtolnay/rust-toolchain@stable
       - name: mint crates.io token via trusted publishing
         id: crates-auth
@@ -171,7 +170,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.update-repo.outputs.tag }}
+          ref: ${{ needs.update-repo.outputs.commit_sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -179,7 +178,10 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
 
       - name: upgrade npm for trusted publishing
-        run: npm install -g npm@latest
+        # `--force` works around a self-upgrade bug where the bundled npm
+        # fails with "Cannot find module 'promise-retry'". Trusted publishing
+        # requires npm >= 11.5.1, newer than what ships with Node 22.
+        run: npm install -g npm@latest --force
 
       - name: install dependencies
         working-directory: bindings/typescript
