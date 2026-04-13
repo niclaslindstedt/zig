@@ -25,6 +25,12 @@ for toml in zig-cli/Cargo.toml zig-serve/Cargo.toml; do
     echo "  updated zig-core dependency in $toml"
 done
 
+# --- update npm package version ---
+NPM_PKG="bindings/typescript/package.json"
+sed -i.bak "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" "$NPM_PKG"
+rm -f "$NPM_PKG.bak"
+echo "  updated $NPM_PKG"
+
 # --- regenerate lockfile ---
 cargo generate-lockfile 2>/dev/null || cargo check 2>/dev/null || true
 echo "  regenerated Cargo.lock"
