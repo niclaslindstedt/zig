@@ -138,23 +138,36 @@ jobs:
     needs: [update-repo, release]
     runs-on: ubuntu-latest
     environment: crates-io
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.update-repo.outputs.tag }}
       - uses: dtolnay/rust-toolchain@stable
+      - name: mint crates.io token via trusted publishing
+        id: crates-auth
+        uses: rust-lang/crates-io-auth-action@v1
       - name: publish zig-core
-        run: cargo publish -p zig-core --token "${{ secrets.CRATES_TOKEN }}"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+        run: cargo publish -p zig-core
       - name: wait for crates.io
         run: sleep 30
       - name: publish zig-cli
-        run: cargo publish -p zig-cli --token "${{ secrets.CRATES_TOKEN }}"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
+        run: cargo publish -p zig-cli
 
   publish-npm:
     name: publish npm
     needs: [update-repo, build]
     runs-on: ubuntu-latest
     environment: npm-registry
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -162,8 +175,11 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: upgrade npm for trusted publishing
+        run: npm install -g npm@latest
 
       - name: install dependencies
         working-directory: bindings/typescript
@@ -172,5 +188,3 @@ jobs:
       - name: publish zig-workflow
         working-directory: bindings/typescript
         run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
