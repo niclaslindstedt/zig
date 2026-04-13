@@ -3,11 +3,11 @@ use std::collections::HashMap;
 /// Prompt templates are embedded at compile time from `prompts/`.
 pub mod templates {
     /// System prompt for `zig create` — the interactive workflow design agent.
-    pub const CREATE: &str = include_str!("../prompts/create/1_0.md");
+    pub const CREATE: &str = include_str!("../prompts/create/1_1.md");
 
     /// .zug format specification — injected as a reference sidecar into prompts
     /// that need to produce or reason about `.zug` files.
-    pub const CONFIG_SIDECAR: &str = include_str!("../prompts/config-sidecar/1_0.md");
+    pub const CONFIG_SIDECAR: &str = include_str!("../prompts/config-sidecar/1_1.md");
 }
 
 /// Render a prompt template by replacing `{{variable}}` placeholders with

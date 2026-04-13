@@ -64,7 +64,7 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 6. **Workflow execution** → `zig-core/src/run.rs`
 7. **Workflow creation** → `zig-core/src/create.rs`
 8. **Workflow management** → `zig-core/src/manage.rs` (list, show, delete)
-9. **Prompt templates** → `zig-core/src/prompt.rs` + `prompts/`
+9. **Prompt templates** → `zig-core/src/prompt.rs` + `prompts/` — see **Prompt versioning** below
 10. **Manpages** → `manpages/*.md` + `zig-core/src/man.rs`
 11. **TypeScript bindings** → `bindings/typescript/` (types, builder, workflow parser)
 12. **TypeScript API client** → `clients/typescript/` (`@nlindstedt/zig-api-client` — HTTP client for `zig-serve`)
@@ -82,3 +82,12 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 | README staleness | Run `update-readme` skill — tracks last update via `.claude/skills/update-readme/.last-updated` |
 | Manpage staleness | Run `update-manpages` skill — tracks last update via `.claude/skills/update-manpages/.last-updated` |
 | Docs staleness | Run `update-docs` skill — tracks last update via `.claude/skills/update-docs/.last-updated` |
+
+## Prompt versioning
+
+Prompt templates live in `prompts/<name>/<major>_<minor>.md` and are embedded via `include_str!` in `zig-core/src/prompt.rs`.
+
+**Rules:**
+- **Never edit an existing version file.** Always create a new file and update the `include_str!` path in `prompt.rs`.
+- Version using SemVer-style major/minor: bump **minor** (`1_1` → `1_2`) for small adjustments (wording tweaks, adding a guideline). Bump **major** (`1_2` → `2_0`) for rewrites or structural changes that fundamentally alter the prompt.
+- Every prompt file must have YAML front matter with `name`, `description`, `version`, and `references` (files that use it). Keep front matter up to date when creating a new version — update the description to reflect what changed and list current references.
