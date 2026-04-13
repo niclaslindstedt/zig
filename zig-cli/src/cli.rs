@@ -108,6 +108,10 @@ pub enum Command {
         /// Rate limit in requests per second (e.g., 100)
         #[arg(long)]
         rate_limit: Option<u64>,
+
+        /// Serve the built-in React web UI from `/` alongside the API
+        #[arg(long)]
+        web: bool,
     },
 
     /// Tail a running or completed zig session
@@ -542,6 +546,24 @@ mod tests {
         let cli = Cli::try_parse_from(["zig", "--debug", "--quiet", "workflow", "list"]).unwrap();
         assert!(cli.debug);
         assert!(cli.quiet);
+    }
+
+    #[test]
+    fn parse_serve_with_web_flag() {
+        let cli = Cli::try_parse_from(["zig", "serve", "--web"]).unwrap();
+        match cli.command {
+            Command::Serve { web, .. } => assert!(web),
+            _ => panic!("expected Serve command"),
+        }
+    }
+
+    #[test]
+    fn parse_serve_without_web_flag_defaults_false() {
+        let cli = Cli::try_parse_from(["zig", "serve"]).unwrap();
+        match cli.command {
+            Command::Serve { web, .. } => assert!(!web),
+            _ => panic!("expected Serve command"),
+        }
     }
 
     #[test]

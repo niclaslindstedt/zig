@@ -5,7 +5,7 @@ Start an HTTP API server that exposes zig's workflow orchestration as a REST API
 ## Synopsis
 
 ```
-zig serve [--port <PORT>] [--host <HOST>] [--token <TOKEN>]
+zig serve [--port <PORT>] [--host <HOST>] [--token <TOKEN>] [--web]
 ```
 
 ## Description
@@ -28,6 +28,11 @@ the `zag_session_id` values returned by zig's API.
 - `--token <TOKEN>` — Bearer token for authentication. Can also be set via the
   `ZIG_SERVE_TOKEN` environment variable. If neither is provided, a random token
   is generated and printed to stderr on startup.
+- `--web` — Serve the built-in React chat web UI from `/` alongside the API.
+  The UI is embedded in the binary at compile time. When enabled, the server
+  prints a `Web UI:` URL with the token pre-filled — open it in a browser to
+  start a workflow creation chat. Also settable via `ZIG_SERVE_WEB=1` or
+  `web = true` in the `[server]` section of `~/.zig/serve.toml`.
 
 ## Authentication
 
@@ -57,6 +62,18 @@ Authorization: Bearer <token>
 | POST | `/api/v1/workflows/run` | Run a workflow (returns session ID) |
 | POST | `/api/v1/workflows/create` | Prepare workflow creation prompts |
 
+### Web chat (only when `--web` is set)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/web/chat` | Start a workflow creation chat session |
+| POST | `/api/v1/web/chat/{id}` | Send a follow-up message to the session |
+| GET | `/api/v1/web/chat/{id}/stream` | Server-Sent Events stream of agent replies |
+
+The `stream` endpoint also accepts `?token=<bearer>` as a query parameter so
+the browser `EventSource` API — which cannot set request headers — can
+authenticate.
+
 ### Sessions
 
 | Method | Path | Description |
@@ -79,6 +96,17 @@ Start with default settings (auto-generated token):
 ```
 zig serve
 ```
+
+Start with the built-in React web chat UI:
+
+```
+zig serve --web
+```
+
+The printed `Web UI:` URL contains the token as a query parameter — open it
+in a browser to start a workflow creation chat. Entering a description and
+pressing Create spawns an interactive zag session; the UI streams the agent's
+replies and lets you send follow-up messages.
 
 Start on a specific port with a fixed token:
 

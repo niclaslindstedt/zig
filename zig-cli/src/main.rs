@@ -126,6 +126,7 @@ fn main() -> Result<()> {
             tls_cert,
             tls_key,
             rate_limit,
+            web,
         } => {
             // Precedence: CLI flag > env var > ~/.zig/serve.toml > default.
             let file = zig_serve::config::FileConfig::load();
@@ -144,6 +145,9 @@ fn main() -> Result<()> {
             let tls_key = tls_key.or_else(|| s.tls_key.clone());
             let tls = tls || s.tls || tls_cert.is_some();
             let rate_limit = rate_limit.or(s.rate_limit);
+            let web = web
+                || s.web
+                || matches!(std::env::var("ZIG_SERVE_WEB").as_deref(), Ok("1" | "true"));
 
             let config = zig_serve::config::ServeConfig {
                 host,
@@ -154,6 +158,7 @@ fn main() -> Result<()> {
                 tls_cert,
                 tls_key,
                 rate_limit,
+                web,
             };
             let rt = tokio::runtime::Runtime::new()?;
             rt.block_on(zig_serve::start_server(config))

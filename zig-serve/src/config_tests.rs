@@ -11,6 +11,7 @@ fn file_config_default_is_empty() {
     assert!(c.server.tls_cert.is_none());
     assert!(c.server.tls_key.is_none());
     assert!(c.server.rate_limit.is_none());
+    assert!(!c.server.web);
 }
 
 #[test]
@@ -74,6 +75,7 @@ fn file_config_serializes_to_toml_roundtrip() {
             tls_cert: Some("/tmp/cert.pem".into()),
             tls_key: Some("/tmp/key.pem".into()),
             rate_limit: Some(42),
+            web: true,
         },
     };
     let serialized = toml::to_string_pretty(&original).unwrap();
@@ -90,6 +92,7 @@ fn file_config_serializes_to_toml_roundtrip() {
     assert_eq!(parsed.server.tls_cert, original.server.tls_cert);
     assert_eq!(parsed.server.tls_key, original.server.tls_key);
     assert_eq!(parsed.server.rate_limit, original.server.rate_limit);
+    assert_eq!(parsed.server.web, original.server.web);
 }
 
 #[test]

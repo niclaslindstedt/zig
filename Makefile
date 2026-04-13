@@ -1,9 +1,12 @@
-.PHONY: build release release-tag install run clean test check fmt clippy coverage coverage-report
+.PHONY: build release release-tag install run clean test check fmt clippy coverage coverage-report web-build
 
-build:
+web-build:
+	cd web && npm ci && npm run build
+
+build: web-build
 	cargo build
 
-release:
+release: web-build
 	cargo build --release
 
 release-tag:

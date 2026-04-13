@@ -8,6 +8,33 @@ use axum::response::{IntoResponse, Response};
 
 use crate::state::AppState;
 
+/// Decode a percent-encoded query value. Returns `None` if any escape is
+/// malformed so we don't silently accept a corrupted token.
+fn urlencoding_decode(input: &str) -> Option<String> {
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            b'%' if i + 2 < bytes.len() => {
+                let hi = (bytes[i + 1] as char).to_digit(16)?;
+                let lo = (bytes[i + 2] as char).to_digit(16)?;
+                out.push((hi * 16 + lo) as u8);
+                i += 3;
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 /// User context attached to requests when user-account mode is active.
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -38,11 +65,33 @@ pub async fn auth_middleware(
         return next.run(request).await;
     }
 
+    // SSE endpoints (web-chat streaming) can't set the Authorization header
+    // from the browser's EventSource API, so we also accept the token as a
+    // query parameter on those paths.
+    let query_token = if path.starts_with("/api/v1/web/chat/") && path.ends_with("/stream") {
+        request
+            .uri()
+            .query()
+            .and_then(|q| {
+                q.split('&').find_map(|kv| {
+                    let mut parts = kv.splitn(2, '=');
+                    match (parts.next(), parts.next()) {
+                        (Some("token"), Some(val)) => Some(val.to_string()),
+                        _ => None,
+                    }
+                })
+            })
+            .and_then(|encoded| urlencoding_decode(&encoded))
+    } else {
+        None
+    };
+
     let auth_header = request
         .headers()
         .get("authorization")
         .and_then(|v| v.to_str().ok())
-        .map(String::from);
+        .map(String::from)
+        .or_else(|| query_token.map(|t| format!("Bearer {t}")));
 
     match auth_header {
         Some(header) if header.starts_with("Bearer ") => {

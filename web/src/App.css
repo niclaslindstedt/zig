@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --color-accent: #0ea5e9;
+  --color-accent-light: #38bdf8;
+  --color-accent-dim: #0284c7;
+  --color-surface: #0a0c12;
+  --color-surface-alt: #121520;
+  --color-surface-hover: #1a1e2c;
+  --color-border: #232838;
+  --color-text-primary: #e7e9f3;
+  --color-text-secondary: #9195ad;
+  --color-text-dim: #5c6078;
+  --color-user: #38bdf8;
+  --color-agent: #8b7add;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 800px at 80% -10%, rgba(139, 122, 221, 0.18), transparent 60%),
+    radial-gradient(900px 600px at -10% 110%, rgba(14, 165, 233, 0.14), transparent 60%),
+    var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+textarea,
+input,
+button {
+  font-family: inherit;
+}
+
+@keyframes typing-dot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+  40% { transform: translateY(-4px); opacity: 1; }
+}
+
+.typing-dot {
+  animation: typing-dot 1.1s infinite ease-in-out both;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Thin scrollbar in message list */
+.chat-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 999px;
+}
+.chat-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

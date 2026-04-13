@@ -26,6 +26,8 @@ pub struct ServeConfig {
     pub tls_key: Option<String>,
     /// Rate limit in requests per second (None = no limit).
     pub rate_limit: Option<u64>,
+    /// Serve the embedded React web UI from `/`.
+    pub web: bool,
 }
 
 /// Global config file backing `~/.zig/serve.toml`.
@@ -51,6 +53,9 @@ pub struct ServerSection {
     pub tls_cert: Option<String>,
     pub tls_key: Option<String>,
     pub rate_limit: Option<u64>,
+    /// Serve the embedded React web UI from `/`.
+    #[serde(default)]
+    pub web: bool,
 }
 
 impl FileConfig {

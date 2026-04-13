@@ -36,7 +36,22 @@ zig run code-review
 
 # Initialize a new zig project
 zig init
+
+# Start the HTTP API
+zig serve
+
+# Start the HTTP API with the built-in React chat web UI
+zig serve --web
 ```
+
+### Web UI
+
+`zig serve --web` embeds a single-page React chat interface inside the
+`zig` binary (no filesystem or Node runtime required). When the server
+starts it prints a `Web UI:` URL with an authentication token baked in —
+open it in a browser to start a workflow creation chat. Submit the first
+message to spawn an interactive zag session, then send follow-up messages
+to collaborate with the agent until your `.zug` file is ready.
 
 ## Prerequisites
 

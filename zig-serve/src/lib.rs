@@ -10,12 +10,14 @@ mod state;
 mod tls;
 pub mod types;
 pub mod user;
+mod web;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use config::ServeConfig;
 use state::AppState;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 /// Start the zig API server.
 pub async fn start_server(
@@ -40,17 +42,36 @@ pub async fn start_server(
     // Resolve TLS configuration.
     let tls_params = tls::resolve_tls(&config)?;
 
+    let web_enabled = config.web;
     let state = AppState {
         config: Arc::new(config),
         user_store,
         token_store,
+        web_chats: Arc::new(Mutex::new(HashMap::new())),
     };
 
     let router = router::build_router(state);
 
+    let scheme = if tls_params.is_some() {
+        "https"
+    } else {
+        "http"
+    };
+    let print_web_url = || {
+        if web_enabled {
+            eprintln!(
+                "Web UI:  {scheme}://{addr}/?token={token}",
+                scheme = scheme,
+                addr = addr,
+                token = token,
+            );
+        }
+    };
+
     if let Some((cert, key)) = tls_params {
         eprintln!("zig serve listening on https://{addr}");
         eprintln!("Token: {token}");
+        print_web_url();
 
         let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert, &key).await?;
 
@@ -69,6 +90,7 @@ pub async fn start_server(
     } else {
         eprintln!("zig serve listening on http://{addr}");
         eprintln!("Token: {token}");
+        print_web_url();
 
         let listener = tokio::net::TcpListener::bind(&addr).await?;
         axum::serve(listener, router)
