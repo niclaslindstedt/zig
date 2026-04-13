@@ -2435,7 +2435,7 @@ dependencies = [
 
 [[package]]
 name = "zig-cli"
-version = "0.5.6"
+version = "0.5.7"
 dependencies = [
  "anyhow",
  "clap",
@@ -2448,7 +2448,7 @@ dependencies = [
 
 [[package]]
 name = "zig-core"
-version = "0.5.6"
+version = "0.5.7"
 dependencies = [
  "chrono",
  "regex",
@@ -2463,7 +2463,7 @@ dependencies = [
 
 [[package]]
 name = "zig-serve"
-version = "0.5.6"
+version = "0.5.7"
 dependencies = [
  "async-stream",
  "axum",
