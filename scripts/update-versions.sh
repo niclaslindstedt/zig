@@ -12,16 +12,18 @@ cd "$(git rev-parse --show-toplevel)"
 echo "Updating versions to $NEW_VERSION..."
 
 # --- update Cargo.toml package versions ---
-for toml in zig-cli/Cargo.toml zig-core/Cargo.toml; do
+for toml in zig-cli/Cargo.toml zig-core/Cargo.toml zig-serve/Cargo.toml; do
     sed -i.bak "s/^version = \".*\"/version = \"$NEW_VERSION\"/" "$toml"
     rm -f "$toml.bak"
     echo "  updated $toml"
 done
 
 # --- update internal dependency versions ---
-sed -i.bak "s/zig-core = { version = \"[^\"]*\"/zig-core = { version = \"$NEW_VERSION\"/" zig-cli/Cargo.toml
-rm -f zig-cli/Cargo.toml.bak
-echo "  updated zig-core dependency in zig-cli/Cargo.toml"
+for toml in zig-cli/Cargo.toml zig-serve/Cargo.toml; do
+    sed -i.bak "s/zig-core = { version = \"[^\"]*\"/zig-core = { version = \"$NEW_VERSION\"/" "$toml"
+    rm -f "$toml.bak"
+    echo "  updated zig-core dependency in $toml"
+done
 
 # --- regenerate lockfile ---
 cargo generate-lockfile 2>/dev/null || cargo check 2>/dev/null || true
