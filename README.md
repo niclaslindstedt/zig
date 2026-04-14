@@ -79,11 +79,13 @@ cargo install --path zig-cli
 ## Commands
 
 ```
-zig run <workflow>              Execute a .zwf workflow file
+zig run <workflow>              Execute a .zwf/.zwfz workflow file
 zig listen [session_id]         Tail a running or completed zig session
+zig serve                       Start the HTTP API server (optionally with --web UI)
 zig workflow list               List available workflows
 zig workflow show <workflow>    Show details of a workflow
 zig workflow create [name]      Create a new workflow interactively with an AI agent
+zig workflow update <workflow>  Revise an existing workflow interactively with an AI agent
 zig workflow delete <workflow>  Delete a workflow file
 zig workflow pack <path>        Pack a workflow directory into a .zwfz zip archive
 zig resources list              List discovered resource files (global + cwd tiers)
@@ -91,19 +93,27 @@ zig resources add <file>        Register a file as a global / cwd / per-workflow
 zig resources delete <name>     Delete a registered resource
 zig resources show <name>       Print the absolute path and contents of a resource
 zig resources where             Print the directories the collector searches
-zig validate <file>             Validate a .zwf workflow file
+zig memory list                 List memory scratch-pad entries
+zig memory add <file>           Add a file to the memory scratch pad
+zig memory update <id>          Update metadata for a memory entry
+zig memory delete <id>          Delete a memory entry and its file
+zig memory show <id>            Show metadata and contents of a memory entry
+zig memory search <query>       Search across memory files
+zig validate <file>             Validate a .zwf/.zwfz workflow file
 zig man [topic]                 Show manual pages for zig topics
 zig docs [topic]                Show conceptual documentation topics
 ```
 
 ### `zig run`
 
-Execute a `.zwf` workflow. Zig resolves the workflow by name or file path, parses the orchestration steps, and delegates execution to zag.
+Execute a `.zwf` or `.zwfz` workflow. Zig resolves the workflow by name or file path, parses the orchestration steps, and delegates execution to zag.
 
 ```bash
 zig run code-review
 zig run ./workflows/deploy.zwf
 zig run code-review "focus on the authentication module"
+zig run code-review --no-resources   # skip injecting the <resources> block
+zig run code-review --no-memory      # skip injecting the <memory> block
 ```
 
 ### `zig listen`
@@ -127,6 +137,31 @@ zig workflow create deploy --pattern sequential
 zig workflow create --output workflows/ci.zwf
 ```
 
+Supported `--pattern` values: `sequential`, `fan-out`, `generator-critic`,
+`coordinator-dispatcher`, `hierarchical-decomposition`, `human-in-the-loop`,
+`inter-agent-communication`.
+
+### `zig workflow update`
+
+Revise an existing workflow interactively with an AI agent. The agent loads
+the current definition, walks through your requested changes, and writes the
+updated file back in place.
+
+```bash
+zig workflow update my-workflow
+zig workflow update ./workflows/deploy.zwf
+```
+
+### `zig workflow list`
+
+List all `.zwf` / `.zwfz` workflows discoverable from the current directory
+(`./`, `./workflows/`, and `.zig/workflows/` walking up to the git root).
+
+```bash
+zig workflow list
+zig workflow list --json    # machine-readable output
+```
+
 ### `zig workflow delete`
 
 Delete a `.zwf` workflow file by name or path.
@@ -138,11 +173,11 @@ zig workflow delete workflows/old-pipeline.zwf
 
 ### `zig workflow pack`
 
-Pack a workflow directory into a `.zwf` zip archive. The directory must contain a workflow TOML file and can include prompt files referenced via `system_prompt_file` or `default_file`. The resulting archive works with `zig run` and `zig validate`.
+Pack a workflow directory into a `.zwfz` zip archive. The directory must contain a workflow TOML file and can include prompt files referenced via `system_prompt_file` or `default_file`. The resulting archive works with `zig run` and `zig validate`.
 
 ```bash
 zig workflow pack ./my-workflow/
-zig workflow pack ./my-workflow/ --output custom-name.zwf
+zig workflow pack ./my-workflow/ --output custom-name.zwfz
 ```
 
 ### `zig resources`
@@ -169,17 +204,68 @@ zig run cover-letter --no-resources
 
 Run `zig man resources` for the full collection model and tier ordering.
 
+### `zig memory`
+
+Manage a memory scratch pad — durable notes, summaries, and artifacts that
+zig advertises to step agents through a `<memory>` block in the system prompt.
+Entries are tracked by numeric ID with metadata (name, description, tags, and
+optional workflow/step association) and live under `~/.zig/memory/` (global
+and per-workflow tiers) plus `<git-root>/.zig/memory/` (project tier).
+
+```bash
+# Add a note for a specific workflow
+zig memory add ./architecture-notes.md \
+  --workflow cover-letter \
+  --description "Team architecture overview" \
+  --tags arch,design
+
+# Update metadata on an existing entry
+zig memory update 42 --description "Updated overview" --tags arch
+
+# Inspect, search, or remove entries
+zig memory list --workflow cover-letter
+zig memory show 42
+zig memory search "authentication" --scope section
+zig memory delete 42
+
+# Skip the <memory> block on a single run
+zig run cover-letter --no-memory
+```
+
+Run `zig docs memory` for the full memory model and search semantics.
+
+### `zig serve`
+
+Start the zig HTTP API server (`zig-serve`) for orchestrating workflows
+remotely. Supports TLS, bearer-token authentication, rate limiting, SSE
+streaming, and graceful shutdown. Settings can also be stored in
+`~/.zig/serve.toml` under a `[server]` section — precedence is
+CLI flag > env var > config file > default.
+
+```bash
+zig serve                                       # bind 127.0.0.1:3000
+zig serve --port 8080 --host 0.0.0.0
+zig serve --token "$ZIG_SERVE_TOKEN"            # or set ZIG_SERVE_TOKEN env var
+zig serve --tls                                 # auto-generated self-signed cert
+zig serve --tls-cert cert.pem --tls-key key.pem # explicit cert/key
+zig serve --rate-limit 100                      # 100 req/s
+zig serve --web                                 # also serve the embedded React UI
+```
+
+Run `zig man serve` for the complete flag reference and API routes.
+
 ### `zig validate`
 
-Validate a `.zwf` workflow file for structural correctness without executing it.
+Validate a `.zwf` or `.zwfz` workflow file for structural correctness without executing it.
 
 ```bash
 zig validate my-workflow.zwf
+zig validate my-workflow.zwfz
 ```
 
 ### `zig man`
 
-Show built-in manual pages for zig commands (zig, run, listen, workflow, resources, validate, serve).
+Show built-in manual pages for zig commands (zig, run, listen, serve, workflow, validate, resources).
 
 ```bash
 zig man run
@@ -202,13 +288,29 @@ zig docs patterns
 | `--debug` | `-d` | global | Enable debug logging |
 | `--quiet` | `-q` | global | Suppress all output except errors |
 | `--output <path>` | `-o` | `workflow create`, `workflow pack` | Output file path |
-| `--pattern <name>` | `-p` | `workflow create` | Orchestration pattern (sequential, fan-out, generator-critic, etc.) |
+| `--pattern <name>` | `-p` | `workflow create` | Orchestration pattern (sequential, fan-out, generator-critic, coordinator-dispatcher, hierarchical-decomposition, human-in-the-loop, inter-agent-communication) |
+| `--json` | | `workflow list` | Emit the workflow listing as JSON |
 | `--latest` | | `listen` | Tail the most recently started session |
 | `--active` | | `listen` | Tail the most recently active (still-running) session |
 | `--no-resources` | | `run` | Skip the `<resources>` block injected into each step's system prompt |
+| `--no-memory` | | `run` | Skip the `<memory>` block injected into each step's system prompt |
 | `--global` | | `resources add/delete/list` | Target the global tier (`~/.zig/resources/_shared/`) |
 | `--cwd` | | `resources add/delete/list` | Target the project tier (`<git-root>/.zig/resources/`) |
-| `--workflow <name>` | | `resources` | Restrict to a specific workflow's global tier |
+| `--workflow <name>` | | `resources`, `memory` | Restrict to a specific workflow's tier |
+| `--step <name>` | | `memory add` | Tag a memory entry with an originating step (metadata only) |
+| `--name <name>` | | `resources add`, `memory add/update` | Custom display name for the entry |
+| `--description <text>` | | `memory add/update` | Description attached to a memory entry |
+| `--tags <list>` | | `memory add/update` | Comma-separated tags for a memory entry |
+| `--scope <granularity>` | | `memory search` | Search granularity (`sentence`, `paragraph`, `section`, `file`) |
+| `--port <n>` | `-p` | `serve` | Port to listen on (default: 3000) |
+| `--host <addr>` | | `serve` | Host/IP to bind to (default: 127.0.0.1) |
+| `--token <value>` | | `serve` | Bearer token for authentication (or `ZIG_SERVE_TOKEN`) |
+| `--shutdown-timeout <s>` | | `serve` | Graceful shutdown timeout in seconds (default: 30) |
+| `--tls` | | `serve` | Enable TLS with auto-generated self-signed certificates |
+| `--tls-cert <path>` | | `serve` | Path to a TLS certificate PEM file (implies `--tls`) |
+| `--tls-key <path>` | | `serve` | Path to a TLS private key PEM file (implies `--tls`) |
+| `--rate-limit <rps>` | | `serve` | Rate limit in requests per second |
+| `--web` | | `serve` | Serve the built-in React web UI from `/` alongside the API |
 
 ## The `.zwf` / `.zwfz` format
 
@@ -221,6 +323,7 @@ A `.zwf` file is a TOML workflow definition that describes a DAG of AI agent ste
 - **Dependencies** — How steps relate to and depend on each other via `depends_on`
 - **Variables & data flow** — Shared state between steps via `${var}` references, `saves` selectors, input bindings (`from = "prompt"`), and variable constraints (required, min/max, patterns, allowed values)
 - **Resources** — Reference files advertised to step agents through the system prompt (paths only — agents read them on demand). Inline `resources = [...]` is merged with global (`~/.zig/resources/`) and project (`<git-root>/.zig/resources/`) tiers at run time
+- **Memory** — A managed scratch pad of prior notes, summaries, and artifacts exposed to steps via a `<memory>` block in the system prompt. Entries live under `~/.zig/memory/` (global / per-workflow) and `<git-root>/.zig/memory/` (project), and can be injected, searched, or skipped per run with `--no-memory`
 - **Conditions** — Expressions that control whether steps run (`var < 8`, `status == "done"`)
 - **Step commands** — Steps can invoke different zag commands: `run` (default), `review`, `plan`, `pipe`, `collect`, `summary`
 - **Isolation** — Steps can run in isolated git worktrees or Docker sandboxes
@@ -244,17 +347,23 @@ zig-cli (binary crate)
 
 `zig` is built as a Rust workspace with two crates:
 
-- **zig-core** — Core library that handles `.zwf` file parsing, workflow validation, execution engine, session tracking, and archive packing. Key modules:
+- **zig-core** — Core library that handles `.zwf`/`.zwfz` file parsing, workflow validation, execution engine, session tracking, and archive packing. Key modules:
   - `workflow/` — Model, parser, and validator for the `.zwf`/`.zwfz` format
   - `run` — Workflow execution (DAG resolution, step parallelization, streaming output)
   - `listen` — Real-time session tailing
   - `session` — Session lifecycle and log coordination
   - `pack` — Zip archive creation for workflow directories
   - `create` — Interactive workflow creation via zag
-  - `manage` — Workflow listing, display, and deletion
-  - `prompt` — Prompt templates for workflow generation
+  - `update` — Interactive workflow revision via zag
+  - `manage` — Workflow listing, display, and deletion (with `.zig/workflows/` discovery)
+  - `resources` / `resources_manage` — Reference-file discovery and tier management
+  - `memory` — Memory scratch pad (metadata store, search, and `<memory>` injection)
+  - `prompt` — Versioned prompt templates for workflow generation
+  - `config` — Shared configuration (e.g. `~/.zig/serve.toml`)
   - `man` — Built-in manpage system
+  - `docs` — Built-in conceptual documentation
 - **zig-cli** — Thin CLI wrapper that handles argument parsing (via clap) and dispatches commands to `zig-core`.
+- **zig-serve** — Companion HTTP API server crate (invoked via `zig serve`) with optional embedded React web UI.
 
 Under the hood, `zig-core` delegates to zag's orchestration primitives (`spawn`, `wait`, `collect`, `pipe`, etc.) to execute workflows.
 
