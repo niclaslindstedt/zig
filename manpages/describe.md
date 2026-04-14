@@ -42,4 +42,4 @@ zig describe "lint, test, and deploy" --output ci-pipeline.zug
 ## See Also
 
 - `zig man workflow` — interactive workflow creation and management
-- `zig man zug` — the `.zug` file format
+- `zig docs zug` — the `.zug` file format

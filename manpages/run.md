@@ -87,7 +87,7 @@ zig run code-review --no-resources
 
 ## See Also
 
-- `zig man zug` — the `.zug` file format
-- `zig man variables` — variable substitution and data flow
-- `zig man conditions` — condition expressions
+- `zig docs zug` — the `.zug` file format
+- `zig docs variables` — variable substitution and data flow
+- `zig docs conditions` — condition expressions
 - `zig man resources` — managing reference files for agents

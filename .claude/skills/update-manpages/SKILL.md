@@ -4,21 +4,27 @@ description: "Use when manpages may be stale. Discovers commits since the last m
 
 # Updating the Manpages
 
-The `manpages/` directory contains markdown manpages embedded at compile time via `include_str!()` in `zig-core/src/man.rs` and accessed via `zig man <topic>`. They are the authoritative command-level reference documentation. They get stale when CLI flags, commands, workflow format, or patterns change without updating the corresponding manpage.
+The `manpages/` directory contains markdown manpages embedded at compile time
+via `include_str!()` in `zig-core/src/man.rs` and accessed via
+`zig man <topic>`. They are the authoritative **command-level** reference
+documentation — one manpage per CLI command. Conceptual documentation (the
+`.zug` format, patterns, variables, conditions, memory) lives in `docs/` and
+is updated via the `update-docs` skill. Manpages get stale when CLI flags,
+commands, or command behavior change without updating the corresponding
+manpage.
 
 ## Current Manpages
 
 | File | Covers |
 |------|--------|
 | `zig.md` | Overview of the zig CLI |
-| `run.md` | Execute a .zug workflow file |
-| `create.md` | Create a new workflow interactively |
-| `describe.md` | Generate a .zug file from a prompt |
-| `validate.md` | Validate a .zug workflow file |
-| `zug.md` | The .zug workflow format |
-| `patterns.md` | Orchestration patterns |
-| `variables.md` | Variable system and data flow |
-| `conditions.md` | Condition expressions |
+| `run.md` | Execute a `.zug` workflow file |
+| `listen.md` | Tail a running or completed zig session |
+| `workflow.md` | Manage workflows (list, show, create, delete, pack) |
+| `resources.md` | Manage reference files advertised to agents |
+| `describe.md` | Generate a `.zug` file from a prompt |
+| `validate.md` | Validate a `.zug` workflow file |
+| `serve.md` | Start the HTTP API server |
 
 ## Tracking Mechanism
 
@@ -51,23 +57,24 @@ The file `.claude/skills/update-manpages/.last-updated` contains the git commit 
 |------------------------------|---------------------|
 | `zig-cli/src/cli.rs` (global flags: debug, quiet) | `zig.md` (Flags section) |
 | `zig-cli/src/cli.rs` (Command::Run) | `run.md` |
-| `zig-cli/src/cli.rs` (Command::Create) | `create.md` |
+| `zig-cli/src/cli.rs` (Command::Listen) | `listen.md` |
+| `zig-cli/src/cli.rs` (Command::Workflow) | `workflow.md` |
+| `zig-cli/src/cli.rs` (Command::Resources) | `resources.md` |
 | `zig-cli/src/cli.rs` (Command::Describe) | `describe.md` |
 | `zig-cli/src/cli.rs` (Command::Validate) | `validate.md` |
-| `zig-cli/src/cli.rs` (Pattern enum) | `patterns.md`, `create.md` |
+| `zig-cli/src/cli.rs` (Command::Serve) | `serve.md` |
 | `zig-cli/src/cli.rs` (new Command variant) | New `manpages/<cmd>.md` + `zig.md` + `man.rs` |
-| `zig-core/src/workflow/model.rs` | `zug.md`, `variables.md`, `conditions.md` |
-| `zig-core/src/workflow/parser.rs` | `zug.md` |
-| `zig-core/src/workflow/validate.rs` | `validate.md`, `zug.md` |
 | `zig-core/src/run.rs` | `run.md` |
-| `zig-core/src/create.rs` | `create.md` |
-| `zig-core/src/prompt.rs` | `describe.md`, `create.md` |
+| `zig-core/src/listen.rs` | `listen.md` |
+| `zig-core/src/manage.rs` / `create.rs` / `pack.rs` | `workflow.md` |
+| `zig-core/src/resources_manage.rs` | `resources.md` |
+| `zig-serve/**` | `serve.md` |
 
 ## Implementation Files
 
 ### Primary
 
-- `manpages/*.md` — the 9 manpage files being updated
+- `manpages/*.md` — the command manpage files being updated
 - `zig-core/src/man.rs` — must be updated when adding new manpages (const, match arm, TOPICS entry)
 
 ### Secondary (read-only, sources of truth)
@@ -75,12 +82,14 @@ The file `.claude/skills/update-manpages/.last-updated` contains the git commit 
 | Source of truth | What it tells you |
 |----------------|-------------------|
 | `zig-cli/src/cli.rs` | All CLI commands, flags, subcommands, patterns |
-| `zig-core/src/workflow/model.rs` | Workflow data model (steps, fields, types) |
-| `zig-core/src/workflow/parser.rs` | .zug format parsing rules |
-| `zig-core/src/workflow/validate.rs` | Validation rules and constraints |
 | `zig-core/src/run.rs` | Workflow execution behavior |
+| `zig-core/src/listen.rs` | Session tailing behavior |
+| `zig-core/src/manage.rs` | Workflow list/show/delete behavior |
 | `zig-core/src/create.rs` | Interactive creation behavior |
-| `zig-core/src/prompt.rs` | Prompt templates |
+| `zig-core/src/pack.rs` | Workflow packing behavior |
+| `zig-core/src/resources_manage.rs` | Resource management command behavior |
+| `zig-serve/**` | HTTP API server behavior |
+| `docs/*.md` | Conceptual documentation (cross-reference via `zig docs <topic>`) |
 | `README.md` | High-level docs (should be consistent with manpages) |
 
 ## Implementation Patterns
@@ -92,24 +101,16 @@ When a new variant is added to the `Command` enum in `cli.rs`:
 1. Create `manpages/<cmd>.md` following the existing format
 2. Update `zig.md` with the new command in the commands list
 3. Update `zig-core/src/man.rs`:
-   - Add `pub const <CMD>: &str = include_str!("../../manpages/<cmd>.md");` in `mod pages`
+   - Add `pub const <CMD>: &str = include_str!("../manpages/<cmd>.md");` in `mod pages`
    - Add `("<cmd>", "Description")` to `TOPICS`
    - Add `"<cmd>" => Some(pages::<CMD>),` to the `get()` match
 
-### Adding a new orchestration pattern
+### Command vs. concept
 
-When a new variant is added to the `Pattern` enum:
-
-1. Update `patterns.md` with the new pattern description and examples
-2. Update `create.md` if the `--pattern` flag documentation lists patterns
-
-### Updating the .zug format
-
-When `workflow/model.rs` or `workflow/parser.rs` changes:
-
-1. Update `zug.md` with new fields, types, or format changes
-2. Update `variables.md` if variable handling changed
-3. Update `conditions.md` if condition expressions changed
+Anything that describes a concept (e.g., a new `.zug` field, a new orchestration
+pattern, the memory tier layout) belongs in `docs/`, not `manpages/`. Use the
+`update-docs` skill for those changes. Manpages should cross-reference concept
+docs via `` `zig docs <topic>` ``.
 
 ## Update Checklist
 
@@ -118,15 +119,11 @@ When `workflow/model.rs` or `workflow/parser.rs` changes:
 - [ ] Read all affected manpages and source-of-truth files
 - [ ] Update `zig.md` if commands or global flags changed
 - [ ] Update command-specific manpages for changed flags or behavior
-- [ ] Update `zug.md` if the workflow format changed
-- [ ] Update `patterns.md` if orchestration patterns changed
-- [ ] Update `variables.md` if variable system changed
-- [ ] Update `conditions.md` if condition expressions changed
 - [ ] Create new `manpages/<cmd>.md` for any new commands
 - [ ] Update `zig-core/src/man.rs` if manpages were added (const, match, TOPICS)
 - [ ] Verify flag names and descriptions match `cli.rs` exactly
 - [ ] Verify all examples use correct current syntax
-- [ ] Consider whether `update-readme` skill should also be run
+- [ ] Consider whether `update-readme` or `update-docs` skills should also be run
 - [ ] Update `.claude/skills/update-manpages/.last-updated` with current HEAD commit hash:
   ```sh
   git rev-parse HEAD > .claude/skills/update-manpages/.last-updated

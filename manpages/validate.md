@@ -64,5 +64,5 @@ zig validate workflows/deploy.zug && echo "Valid!"
 
 ## See Also
 
-- `zig man zug` — the `.zug` file format
-- `zig man variables` — variable declarations and references
+- `zig docs zug` — the `.zug` file format
+- `zig docs variables` — variable declarations and references

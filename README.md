@@ -183,11 +183,20 @@ zig validate my-workflow.zug
 
 ### `zig man`
 
-Show built-in manual pages for zig topics (zig, run, listen, workflow, describe, validate, zug, patterns, variables, conditions, resources).
+Show built-in manual pages for zig commands (zig, run, listen, workflow, resources, describe, validate, serve).
 
 ```bash
-zig man zug
-zig man patterns
+zig man run
+zig man workflow
+```
+
+### `zig docs`
+
+Show conceptual documentation (zug, patterns, variables, conditions, memory, resources).
+
+```bash
+zig docs zug
+zig docs patterns
 ```
 
 ## Flags
@@ -223,7 +232,7 @@ A `.zug` file is a TOML workflow definition that describes a DAG of AI agent ste
 
 Workflows can also be packaged as zip archives (via `zig workflow pack`) that bundle the TOML definition with external prompt files.
 
-Run `zig man zug` for the full format specification, or see `zig man patterns` for common orchestration patterns.
+Run `zig docs zug` for the full format specification, or see `zig docs patterns` for common orchestration patterns.
 
 ## Architecture
 

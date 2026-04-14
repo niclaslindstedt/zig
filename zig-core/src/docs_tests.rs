@@ -2,12 +2,11 @@ use super::*;
 
 #[test]
 fn get_existing_topic() {
-    assert!(get("zig").is_some());
-    assert!(get("run").is_some());
-    assert!(get("workflow").is_some());
-    assert!(get("describe").is_some());
-    assert!(get("validate").is_some());
-    assert!(get("resources").is_some());
+    assert!(get("zug").is_some());
+    assert!(get("patterns").is_some());
+    assert!(get("variables").is_some());
+    assert!(get("conditions").is_some());
+    assert!(get("memory").is_some());
 }
 
 #[test]
@@ -17,12 +16,12 @@ fn get_unknown_topic_returns_none() {
 }
 
 #[test]
-fn concept_topics_are_not_manpages() {
-    // Concept topics live under `zig docs`, not `zig man`.
-    for topic in ["zug", "patterns", "variables", "conditions"] {
+fn command_topics_are_not_docs() {
+    // Command topics live under `zig man`, not `zig docs`.
+    for topic in ["zig", "run", "listen", "workflow", "describe", "validate"] {
         assert!(
             get(topic).is_none(),
-            "'{topic}' should be a docs topic, not a manpage"
+            "'{topic}' should be a manpage, not a docs topic"
         );
     }
 }
@@ -30,8 +29,8 @@ fn concept_topics_are_not_manpages() {
 #[test]
 fn all_pages_are_nonempty() {
     for (topic, _) in TOPICS {
-        let content = get(topic).unwrap_or_else(|| panic!("missing manpage for '{topic}'"));
-        assert!(!content.is_empty(), "manpage for '{topic}' is empty");
+        let content = get(topic).unwrap_or_else(|| panic!("missing docs page for '{topic}'"));
+        assert!(!content.is_empty(), "docs page for '{topic}' is empty");
     }
 }
 
@@ -41,7 +40,7 @@ fn all_pages_start_with_heading() {
         let content = get(topic).unwrap();
         assert!(
             content.starts_with('#'),
-            "manpage for '{topic}' should start with a markdown heading"
+            "docs page for '{topic}' should start with a markdown heading"
         );
     }
 }
@@ -64,7 +63,7 @@ fn list_topics_contains_all_entries() {
 #[test]
 fn list_topics_shows_usage() {
     let listing = list_topics();
-    assert!(listing.contains("zig man <topic>"));
+    assert!(listing.contains("zig docs <topic>"));
 }
 
 #[test]

@@ -147,5 +147,5 @@ zig run cover-letter --no-resources
 
 ## See Also
 
-- `zig man zug` — the inline `resources` field in the `.zug` format
+- `zig docs zug` — the inline `resources` field in the `.zug` format
 - `zig man run` — `--no-resources` and the run model

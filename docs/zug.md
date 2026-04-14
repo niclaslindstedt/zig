@@ -374,7 +374,7 @@ TOML file — this works identically for both plain files and zip archives.
 
 ## See Also
 
-- `zig man variables` — variable references and data flow
-- `zig man conditions` — condition expression syntax
-- `zig man patterns` — common orchestration patterns
+- `zig docs variables` — variable references and data flow
+- `zig docs conditions` — condition expression syntax
+- `zig docs patterns` — common orchestration patterns
 - `zig man run` — executing workflows

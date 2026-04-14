@@ -192,6 +192,6 @@ Default values are also validated at parse time (`zig validate`).
 
 ## See Also
 
-- `zig man zug` — full `.zug` format reference
-- `zig man conditions` — condition expressions using variables
+- `zig docs zug` — full `.zug` format reference
+- `zig docs conditions` — condition expressions using variables
 - `zig man run` — workflow execution model

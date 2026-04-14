@@ -287,7 +287,7 @@ npm run build && npm test
 
 - [Zag TypeScript SDK (`@nlindstedt/zag-agent`)](https://github.com/niclaslindstedt/zag/tree/main/bindings/typescript) — Lower-level agent control
 - [Zig CLI](../../README.md) — The zig command-line tool
-- [.zug Format Reference](../../manpages/zug.md) — Full .zug file specification
+- [.zug Format Reference](../../docs/zug.md) — Full .zug file specification
 
 ## License
 

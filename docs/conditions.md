@@ -111,6 +111,6 @@ condition = "complexity == \"complex\""
 
 ## See Also
 
-- `zig man variables` — variable declarations and data flow
-- `zig man patterns` — orchestration patterns using conditions
-- `zig man zug` — full `.zug` format reference
+- `zig docs variables` — variable declarations and data flow
+- `zig docs patterns` — orchestration patterns using conditions
+- `zig docs zug` — full `.zug` format reference

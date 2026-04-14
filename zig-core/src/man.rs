@@ -7,10 +7,6 @@ mod pages {
     pub const WORKFLOW: &str = include_str!("../manpages/workflow.md");
     pub const DESCRIBE: &str = include_str!("../manpages/describe.md");
     pub const VALIDATE: &str = include_str!("../manpages/validate.md");
-    pub const ZUG: &str = include_str!("../manpages/zug.md");
-    pub const PATTERNS: &str = include_str!("../manpages/patterns.md");
-    pub const VARIABLES: &str = include_str!("../manpages/variables.md");
-    pub const CONDITIONS: &str = include_str!("../manpages/conditions.md");
     pub const RESOURCES: &str = include_str!("../manpages/resources.md");
 }
 
@@ -26,11 +22,10 @@ pub const TOPICS: &[(&str, &str)] = &[
     ),
     ("describe", "Generate a .zug file from a prompt"),
     ("validate", "Validate a .zug workflow file"),
-    ("zug", "The .zug workflow format"),
-    ("patterns", "Orchestration patterns"),
-    ("variables", "Variable system and data flow"),
-    ("conditions", "Condition expressions"),
-    ("resources", "Reference files advertised to step agents"),
+    (
+        "resources",
+        "Manage reference files advertised to step agents",
+    ),
 ];
 
 /// Look up a manpage by topic name.
@@ -45,10 +40,6 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "workflow" => Some(pages::WORKFLOW),
         "describe" => Some(pages::DESCRIBE),
         "validate" => Some(pages::VALIDATE),
-        "zug" => Some(pages::ZUG),
-        "patterns" => Some(pages::PATTERNS),
-        "variables" => Some(pages::VARIABLES),
-        "conditions" => Some(pages::CONDITIONS),
         "resources" => Some(pages::RESOURCES),
         _ => None,
     }

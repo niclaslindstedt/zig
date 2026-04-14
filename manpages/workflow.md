@@ -153,5 +153,5 @@ zig workflow delete old-workflow
 
 ## See Also
 
-- `zig man zug` — the `.zug` file format
-- `zig man patterns` — orchestration patterns
+- `zig docs zug` — the `.zug` file format
+- `zig docs patterns` — orchestration patterns
