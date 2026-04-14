@@ -77,15 +77,20 @@ pub(crate) fn check_zag() -> Result<(), ZigError> {
 /// Tries in order:
 /// 1. Literal path as given
 /// 2. With `.zug` extension appended
-/// 3. Under `./workflows/` directory
-/// 4. Under `./workflows/` with `.zug` appended
+/// 3. Under local project `.zig/workflows/` directory
+/// 4. Under local project `.zig/workflows/` with `.zug` appended
+/// 5. Under global `~/.zig/workflows/` directory
+/// 6. Under global `~/.zig/workflows/` with `.zug` appended
 pub fn resolve_workflow_path(workflow: &str) -> Result<PathBuf, ZigError> {
     let mut candidates = vec![
         PathBuf::from(workflow),
         PathBuf::from(format!("{workflow}.zug")),
-        PathBuf::from(format!("workflows/{workflow}")),
-        PathBuf::from(format!("workflows/{workflow}.zug")),
     ];
+
+    if let Some(local_dir) = crate::paths::cwd_workflows_dir() {
+        candidates.push(local_dir.join(workflow));
+        candidates.push(local_dir.join(format!("{workflow}.zug")));
+    }
 
     if let Some(global_dir) = crate::paths::global_workflows_dir() {
         candidates.push(global_dir.join(workflow));
