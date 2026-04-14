@@ -1,6 +1,6 @@
 {
   "name": "@nlindstedt/zig-api-client",
-  "version": "0.5.7",
+  "version": "0.6.0",
   "description": "TypeScript HTTP client for the zig-serve REST API — chat, workflows, sessions, manpages, users",
   "license": "MIT",
   "type": "module",
