@@ -50,22 +50,20 @@ fn templates_are_embedded() {
 
 #[test]
 fn templates_have_front_matter_stripped() {
-    // Front matter delimiters and metadata fields must not leak into agent input.
+    // Front matter delimiters and metadata fields must not leak into agent
+    // input. The substring checks below are line-ending agnostic so the test
+    // catches regressions on both Unix (LF) and Windows (CRLF) checkouts.
     let create = templates::create();
     assert!(
         !create.starts_with("---"),
         "create prompt still begins with front matter delimiter"
     );
     assert!(
-        !create.contains("\nname: create\n"),
+        !create.contains("name: create"),
         "create prompt still contains front matter `name` field"
     );
     assert!(
-        !create.contains("\nversion:"),
-        "create prompt still contains front matter `version` field"
-    );
-    assert!(
-        !create.contains("\nreferences:\n"),
+        !create.contains("references:"),
         "create prompt still contains front matter `references` field"
     );
 
@@ -75,7 +73,7 @@ fn templates_have_front_matter_stripped() {
         "config sidecar still begins with front matter delimiter"
     );
     assert!(
-        !sidecar.contains("\nname: config-sidecar\n"),
+        !sidecar.contains("name: config-sidecar"),
         "config sidecar still contains front matter `name` field"
     );
 }
@@ -111,6 +109,23 @@ fn strip_front_matter_handles_unterminated_block() {
     // the whole file.
     let input = "---\nname: foo\nversion: 1.0\nbody without close\n";
     assert_eq!(strip_front_matter(input), input);
+}
+
+#[test]
+fn strip_front_matter_handles_crlf_line_endings() {
+    // Windows checkouts embed CRLF line endings via `include_str!`.
+    let input =
+        "---\r\nname: foo\r\nversion: \"1.0\"\r\n---\r\n\r\nbody line one\r\nbody line two\r\n";
+    assert_eq!(
+        strip_front_matter(input),
+        "body line one\r\nbody line two\r\n"
+    );
+}
+
+#[test]
+fn strip_front_matter_crlf_without_trailing_blank_line() {
+    let input = "---\r\nname: foo\r\n---\r\nbody\r\n";
+    assert_eq!(strip_front_matter(input), "body\r\n");
 }
 
 #[test]

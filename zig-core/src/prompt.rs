@@ -101,18 +101,47 @@ pub fn all_examples() -> Vec<(&'static str, &'static str)> {
 /// present, the input is returned unchanged. A single blank line immediately
 /// following the closing delimiter is also consumed so the returned content
 /// starts with the prompt body.
+///
+/// Both LF and CRLF line endings are supported so the helper behaves the same
+/// on Unix and Windows checkouts.
 pub fn strip_front_matter(content: &str) -> &str {
-    let Some(rest) = content.strip_prefix("---\n") else {
+    // Match the opening delimiter line (`---` followed by LF or CRLF).
+    let rest = if let Some(r) = content.strip_prefix("---\n") {
+        r
+    } else if let Some(r) = content.strip_prefix("---\r\n") {
+        r
+    } else {
         return content;
     };
-    if let Some(end) = rest.find("\n---\n") {
-        let after = &rest[end + "\n---\n".len()..];
-        return after.strip_prefix('\n').unwrap_or(after);
+
+    // Scan line-by-line for the closing `---` delimiter so we tolerate either
+    // line ending and a missing trailing newline.
+    let mut offset = 0;
+    while offset <= rest.len() {
+        let remainder = &rest[offset..];
+        let (line, advance) = match remainder.find('\n') {
+            Some(nl) => (&remainder[..nl], nl + 1),
+            None => (remainder, remainder.len()),
+        };
+        let trimmed = line.strip_suffix('\r').unwrap_or(line);
+        if trimmed == "---" {
+            let body_start = offset + advance;
+            let body = &rest[body_start..];
+            // Consume one optional blank line after the closing delimiter so
+            // the returned content starts at the prompt body.
+            return body
+                .strip_prefix("\r\n")
+                .or_else(|| body.strip_prefix('\n'))
+                .unwrap_or(body);
+        }
+        if advance == 0 {
+            break;
+        }
+        offset += advance;
     }
-    if rest.ends_with("\n---") {
-        // Front matter that ends at EOF with no trailing newline.
-        return "";
-    }
+
+    // No closing delimiter found — treat as no front matter rather than
+    // swallowing the whole file.
     content
 }
 
