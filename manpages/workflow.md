@@ -22,14 +22,28 @@ zig workflow <command> [options]
 
 ## zig workflow list
 
-List all `.zwf` and `.zwfz` workflow files found in the current directory and
-`./workflows/`.
+List all `.zwf` and `.zwfz` workflow files discovered in the project-local
+`.zig/workflows/` directory (walking up from the current directory to the git
+root) and the global `~/.zig/workflows/` directory.
 
-Displays a table with the workflow name, description, step count, and file path.
+Displays a table with the workflow name, description, step count, and file
+path. When a project-local workflow has the same filename as a global
+workflow, the local copy takes precedence and is marked in the output with a
+trailing `*`; the global version it shadows is hidden from the listing.
 
 ```bash
 zig workflow list
 ```
+
+### Options
+
+| Option   | Description                                            |
+|----------|--------------------------------------------------------|
+| `--json` | Output the workflow list as JSON instead of a table    |
+
+The JSON form is intended for scripts and external tooling: it emits an array
+of objects with `name`, `description`, `step_count`, `path`, and (when a
+local override is in effect) `is_local = true`.
 
 ## zig workflow show
 
@@ -164,20 +178,31 @@ zig workflow delete workflows/old-workflow.zwf
 
 Workflows are discovered in these locations:
 
-1. Current directory — any file with a `.zwf` or `.zwfz` extension
-2. `./workflows/` subdirectory — any file with a `.zwf` or `.zwfz` extension
-3. `~/.zig/workflows/` global directory — any file with a `.zwf` or `.zwfz` extension
+1. The project-local `.zig/workflows/` directory — located by walking up from
+   the current working directory to the surrounding git root
+2. The global `~/.zig/workflows/` directory
 
 When referencing a workflow by name (e.g., `my-workflow`), zig tries these
 extensions in order: `my-workflow`, `my-workflow.zwf`, `my-workflow.zwfz`,
-first in the current directory, then `./workflows/`, then
-`~/.zig/workflows/`.
+first as a literal path (including under the project-local
+`.zig/workflows/`), then under `~/.zig/workflows/`.
+
+### Local Overrides
+
+When a project-local workflow and a global workflow share the same filename,
+the local copy wins for both `zig workflow list` and `zig run`. The
+overridden global workflow is hidden from the listing. In `zig workflow list`
+output, local overrides are marked with a trailing `*` next to the workflow
+name and a `* local override` legend is printed at the bottom of the table.
 
 ## Examples
 
 ```bash
 # List all workflows
 zig workflow list
+
+# List all workflows as JSON
+zig workflow list --json
 
 # Show details of a workflow
 zig workflow show code-review

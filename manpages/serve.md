@@ -5,7 +5,10 @@ Start an HTTP API server that exposes zig's workflow orchestration as a REST API
 ## Synopsis
 
 ```
-zig serve [--port <PORT>] [--host <HOST>] [--token <TOKEN>] [--web]
+zig serve [--port <PORT>] [--host <HOST>] [--token <TOKEN>]
+          [--shutdown-timeout <SECS>] [--rate-limit <RPS>]
+          [--tls] [--tls-cert <PATH>] [--tls-key <PATH>]
+          [--web]
 ```
 
 ## Description
@@ -28,11 +31,25 @@ the `zag_session_id` values returned by zig's API.
 - `--token <TOKEN>` — Bearer token for authentication. Can also be set via the
   `ZIG_SERVE_TOKEN` environment variable. If neither is provided, a random token
   is generated and printed to stderr on startup.
+- `--shutdown-timeout <SECS>` — Graceful shutdown timeout in seconds (default:
+  `30`). In-flight requests are allowed to finish within this window before the
+  server terminates.
+- `--rate-limit <RPS>` — Global rate limit in requests per second. When set,
+  clients exceeding the limit receive `429 Too Many Requests`.
+- `--tls` — Enable TLS with auto-generated self-signed certificates. The server
+  listens for HTTPS on the bound `--port`.
+- `--tls-cert <PATH>` — Path to a TLS certificate PEM file. Implies `--tls`.
+  Must be used together with `--tls-key`.
+- `--tls-key <PATH>` — Path to a TLS private key PEM file. Implies `--tls`.
+  Must be used together with `--tls-cert`.
 - `--web` — Serve the built-in React chat web UI from `/` alongside the API.
   The UI is embedded in the binary at compile time. When enabled, the server
   prints a `Web UI:` URL with the token pre-filled — open it in a browser to
   start a workflow creation chat. Also settable via `ZIG_SERVE_WEB=1` or
   `web = true` in the `[server]` section of `~/.zig/serve.toml`.
+
+Settings can also be stored in `~/.zig/serve.toml` under a `[server]` section.
+Precedence: CLI flag > environment variable > config file > default.
 
 ## Authentication
 
