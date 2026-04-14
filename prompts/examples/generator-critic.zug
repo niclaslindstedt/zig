@@ -1,0 +1,91 @@
+# Landing Page Copy
+#
+# Generator / critic pattern: generate marketing copy, score it against
+# quality criteria, and loop back for refinement until the score meets
+# the threshold.
+#
+# Usage:
+#   zig run landing-page-copy "An AI-powered code review tool for engineering teams"
+
+[workflow]
+name = "landing-page-copy"
+description = "Generate and iteratively refine landing page copy with quality scoring"
+tags = ["marketing", "copywriting", "generator-critic"]
+version = "1.0.0"
+
+[vars.product]
+type = "string"
+from = "prompt"
+required = true
+description = "Product or feature to write landing page copy for"
+
+[vars.score]
+type = "number"
+default = 0
+description = "Current quality score from the critic (1-10)"
+
+[vars.threshold]
+type = "number"
+default = 8
+description = "Minimum quality score to accept the copy"
+
+[vars.feedback]
+type = "string"
+default = ""
+description = "Critic's improvement suggestions from the last round"
+
+# ── Steps ────────────────────────────────────────────────────────────────────
+
+[[step]]
+name = "generate"
+prompt = """Write landing page copy for: ${product}
+
+${feedback}
+
+The copy must include:
+- A headline (max 10 words) that communicates the core value
+- A subheadline (1-2 sentences) expanding on the benefit
+- 3 feature sections each with a title and 2-sentence description
+- A social proof section (quote format)
+- A call-to-action with button text and supporting line
+
+Write in a confident, direct tone. Avoid buzzwords and superlatives.
+Lead with outcomes, not features."""
+system_prompt = "You are a senior conversion copywriter who writes crisp, benefit-driven landing pages."
+description = "Generate or refine landing page copy"
+
+[[step]]
+name = "critique"
+prompt = """Score the following landing page copy on a scale of 1-10 and provide feedback.
+
+Evaluate against these criteria (each weighted equally):
+1. **Clarity** — Is the value proposition immediately obvious?
+2. **Specificity** — Are benefits concrete rather than vague?
+3. **Voice** — Is the tone consistent and appropriate?
+4. **Structure** — Does the page flow logically toward the CTA?
+5. **Persuasion** — Would this motivate the target audience to act?
+
+Respond in JSON with:
+- "score": overall score (1-10)
+- "breakdown": object with per-criterion scores
+- "strengths": list of what works well
+- "suggestions": specific, actionable improvements for the next draft"""
+depends_on = ["generate"]
+inject_context = true
+system_prompt = "You are a conversion rate optimization specialist who evaluates marketing copy with rigorous, data-informed criteria."
+json = true
+saves = { score = "$.score", feedback = "$.suggestions" }
+description = "Score the copy and provide improvement feedback"
+
+[[step]]
+name = "refine"
+prompt = """The copy scored ${score}/10 (threshold: ${threshold}).
+
+Revise the copy to address this feedback: ${feedback}
+
+Maintain what already works. Focus changes on the weakest criteria."""
+depends_on = ["critique"]
+condition = "score < threshold"
+next = "critique"
+system_prompt = "You are a senior conversion copywriter who writes crisp, benefit-driven landing pages."
+description = "Refine the copy based on critic feedback and loop back"

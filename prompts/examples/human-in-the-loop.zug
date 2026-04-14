@@ -1,0 +1,91 @@
+# Database Migration Review
+#
+# Human-in-the-loop pattern: an agent generates a migration plan, a human
+# reviews and approves it interactively, then a final agent prepares the
+# execution checklist. The approval gate prevents unsafe migrations from
+# being applied without human oversight.
+#
+# Usage:
+#   zig run migration-review "Add a full-text search index to the articles table"
+
+[workflow]
+name = "migration-review"
+description = "Generate a database migration plan with human approval before execution"
+tags = ["database", "migration", "human-in-the-loop"]
+version = "1.0.0"
+
+[vars.change]
+type = "string"
+from = "prompt"
+required = true
+description = "The database change to implement"
+
+[vars.approved]
+type = "bool"
+default = false
+description = "Whether the human reviewer approved the migration"
+
+[vars.review_notes]
+type = "string"
+default = ""
+description = "Reviewer notes or requested modifications"
+
+# ── Steps ────────────────────────────────────────────────────────────────────
+
+[[step]]
+name = "generate-migration"
+prompt = """Generate a database migration plan for:
+
+${change}
+
+Produce:
+1. **Impact Analysis** — which tables, indexes, and queries are affected
+2. **Migration SQL** — the forward migration (UP) with exact DDL statements
+3. **Rollback SQL** — the reverse migration (DOWN)
+4. **Risk Assessment**:
+   - Will this lock tables? For how long?
+   - Does it require backfilling data?
+   - Is it backwards-compatible with the current application code?
+   - Estimated execution time on a 10M-row table
+5. **Deployment Notes** — ordering constraints (deploy code first? migrate first?)
+
+Use PostgreSQL syntax. Prefer non-blocking operations (CREATE INDEX CONCURRENTLY, etc.)."""
+system_prompt = "You are a database reliability engineer who writes safe, reversible migrations. Always prefer online DDL operations that avoid table locks."
+auto_approve = true
+description = "Generate the migration plan and SQL"
+
+[[step]]
+name = "human-review"
+prompt = """Present the migration plan for human review.
+
+Ask the reviewer to:
+1. Verify the SQL is correct
+2. Confirm the risk assessment is accurate
+3. Approve or request changes
+
+If approved, set approved = true.
+If changes are requested, capture the feedback in review_notes."""
+depends_on = ["generate-migration"]
+inject_context = true
+interactive = true
+json = true
+saves = { approved = "$.approved", review_notes = "$.review_notes" }
+description = "Human reviews and approves or rejects the migration"
+
+[[step]]
+name = "prepare-execution"
+prompt = """The migration has been approved. Prepare the execution checklist.
+
+Migration context: ${change}
+Reviewer notes: ${review_notes}
+
+Generate:
+1. **Pre-flight Checks** — what to verify before running
+2. **Execution Steps** — exact commands in order
+3. **Monitoring** — what metrics to watch during and after
+4. **Rollback Trigger** — conditions that should trigger an immediate rollback
+5. **Post-migration Validation** — queries to confirm the migration succeeded"""
+depends_on = ["human-review"]
+condition = "approved"
+system_prompt = "You are a database reliability engineer preparing a runbook for a production migration."
+description = "Prepare the execution checklist (only runs if approved)"

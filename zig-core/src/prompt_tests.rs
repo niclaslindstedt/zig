@@ -49,6 +49,47 @@ fn templates_are_embedded() {
 }
 
 #[test]
+fn example_templates_are_embedded() {
+    let examples = all_examples();
+    assert_eq!(examples.len(), 7);
+    for (filename, content) in &examples {
+        assert!(
+            !content.is_empty(),
+            "example {filename} should not be empty"
+        );
+        assert!(
+            content.contains("[workflow]"),
+            "example {filename} should contain [workflow] section"
+        );
+    }
+}
+
+#[test]
+fn example_for_pattern_returns_some_for_all_known() {
+    let patterns = [
+        "sequential",
+        "fan-out",
+        "generator-critic",
+        "coordinator-dispatcher",
+        "hierarchical-decomposition",
+        "human-in-the-loop",
+        "inter-agent-communication",
+    ];
+    for p in &patterns {
+        assert!(
+            example_for_pattern(p).is_some(),
+            "example_for_pattern('{p}') should return Some"
+        );
+    }
+}
+
+#[test]
+fn example_for_pattern_returns_none_for_unknown() {
+    assert!(example_for_pattern("nonexistent").is_none());
+    assert!(example_for_pattern("").is_none());
+}
+
+#[test]
 fn create_prompt_renders_with_sidecar() {
     let vars = HashMap::from([
         ("zug_format_spec", templates::CONFIG_SIDECAR),

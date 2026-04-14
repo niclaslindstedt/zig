@@ -181,6 +181,26 @@ pub fn cwd_memory_dir() -> Option<PathBuf> {
 }
 
 // =====================================================================
+// Example files directory.
+// =====================================================================
+
+/// Return the global examples directory: `~/.zig/examples/`.
+pub fn global_examples_dir() -> Option<PathBuf> {
+    global_base_dir().map(|d| d.join("examples"))
+}
+
+/// Ensure the global examples directory exists, creating it if necessary.
+pub fn ensure_global_examples_dir() -> Result<PathBuf, ZigError> {
+    let dir = global_examples_dir()
+        .ok_or_else(|| ZigError::Io("HOME environment variable not set".into()))?;
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| ZigError::Io(format!("failed to create {}: {e}", dir.display())))?;
+    }
+    Ok(dir)
+}
+
+// =====================================================================
 // Session storage paths.
 //
 // Layout mirrors zag (`zag-agent/src/config.rs:183` `resolve_project_dir`):

@@ -1,0 +1,89 @@
+# Blog Post Pipeline
+#
+# Sequential pattern: research a topic, draft an article, edit for clarity
+# and tone, then generate SEO metadata. Each step feeds its output to the next.
+#
+# Usage:
+#   zig run blog-post-pipeline "The future of WebAssembly in server-side applications"
+
+[workflow]
+name = "blog-post-pipeline"
+description = "Research, draft, edit, and optimize a blog post end-to-end"
+tags = ["content", "writing", "sequential"]
+version = "1.0.0"
+
+[vars.topic]
+type = "string"
+from = "prompt"
+required = true
+description = "The blog post topic or title"
+
+[vars.audience]
+type = "string"
+default = "software engineers"
+description = "Target audience for tone and depth calibration"
+
+# ── Steps ────────────────────────────────────────────────────────────────────
+
+[[step]]
+name = "research"
+prompt = """Research the topic: ${topic}
+
+Target audience: ${audience}
+
+Gather key facts, recent developments, expert opinions, and statistics.
+Organize findings into a structured research brief with sections:
+- Key themes and trends
+- Supporting data points
+- Counterarguments or nuances
+- Suggested angle for the article"""
+description = "Gather background research and key talking points"
+
+[[step]]
+name = "draft"
+prompt = """Using the research provided, write a 1000-word blog post about: ${topic}
+
+Target audience: ${audience}
+
+Structure the post with:
+- An engaging hook that poses a question or presents a surprising fact
+- 3-4 clearly defined sections with subheadings
+- Concrete examples or code snippets where appropriate
+- A conclusion with a clear takeaway"""
+depends_on = ["research"]
+inject_context = true
+description = "Write the first draft based on research"
+
+[[step]]
+name = "edit"
+prompt = """Edit the following blog post draft for clarity, flow, and tone.
+
+Target audience: ${audience}
+
+Focus on:
+- Removing jargon that doesn't serve the audience
+- Tightening sentences — cut filler words
+- Ensuring smooth transitions between sections
+- Strengthening the opening and closing
+- Fixing any factual inconsistencies
+
+Return the complete edited post."""
+depends_on = ["draft"]
+inject_context = true
+description = "Polish the draft for clarity and readability"
+
+[[step]]
+name = "seo"
+prompt = """Generate SEO metadata for the following blog post about: ${topic}
+
+Provide:
+- A meta title (under 60 characters)
+- A meta description (under 155 characters)
+- 5-8 target keywords
+- 3 suggested internal linking topics
+- Open Graph title and description
+- A suggested URL slug"""
+depends_on = ["edit"]
+inject_context = true
+json = true
+description = "Generate SEO metadata and optimization suggestions"

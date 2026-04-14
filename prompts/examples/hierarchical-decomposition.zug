@@ -1,0 +1,112 @@
+# Feature Spec to Implementation Plan
+#
+# Hierarchical decomposition pattern: a planner breaks a feature request into
+# independent sub-tasks, parallel workers analyze each, and a synthesizer
+# combines the results into a complete implementation plan.
+#
+# Usage:
+#   zig run feature-planner "Add real-time collaborative editing to the document editor"
+
+[workflow]
+name = "feature-planner"
+description = "Decompose a feature request into sub-tasks, analyze each, and produce an implementation plan"
+tags = ["planning", "architecture", "hierarchical-decomposition"]
+version = "1.0.0"
+
+[vars.feature]
+type = "string"
+from = "prompt"
+required = true
+description = "The feature request or spec to decompose"
+
+# ── Steps ────────────────────────────────────────────────────────────────────
+
+[[step]]
+name = "decompose"
+prompt = """Analyze this feature request and break it into exactly 3 independent sub-tasks:
+
+${feature}
+
+For each sub-task provide:
+- A clear title
+- What it covers (scope)
+- What it explicitly does NOT cover (boundaries)
+- Key technical questions to answer
+
+The sub-tasks should be:
+1. **Data & Storage** — schema changes, migrations, data flow
+2. **Backend Logic** — APIs, business logic, integrations
+3. **Frontend & UX** — UI components, user interactions, state management
+
+Format each sub-task clearly so a separate engineer could work on it independently."""
+system_prompt = "You are a staff engineer who excels at decomposing complex features into well-scoped, parallelizable work streams."
+description = "Break the feature into independent sub-tasks"
+
+[[step]]
+name = "analyze-data"
+prompt = """Analyze the data and storage requirements for this feature.
+
+Focus on:
+- Schema design (new tables, columns, indexes)
+- Data migration strategy if existing data is affected
+- Storage estimates and scaling considerations
+- Data consistency and integrity constraints
+- Caching strategy
+
+Produce a concrete technical plan with specific recommendations."""
+depends_on = ["decompose"]
+inject_context = true
+system_prompt = "You are a database engineer specializing in schema design, migrations, and data architecture."
+description = "Analyze data layer requirements"
+
+[[step]]
+name = "analyze-backend"
+prompt = """Analyze the backend implementation requirements for this feature.
+
+Focus on:
+- API endpoint design (routes, request/response shapes)
+- Business logic and validation rules
+- Integration points with existing services
+- Error handling and edge cases
+- Testing strategy (unit, integration)
+
+Produce a concrete technical plan with specific recommendations."""
+depends_on = ["decompose"]
+inject_context = true
+system_prompt = "You are a backend engineer specializing in API design, service architecture, and system integration."
+description = "Analyze backend requirements"
+
+[[step]]
+name = "analyze-frontend"
+prompt = """Analyze the frontend and UX requirements for this feature.
+
+Focus on:
+- Component hierarchy and state management
+- User interaction flows and edge cases
+- Accessibility requirements (WCAG 2.1 AA)
+- Loading states, error states, and empty states
+- Responsive design considerations
+
+Produce a concrete technical plan with specific recommendations."""
+depends_on = ["decompose"]
+inject_context = true
+system_prompt = "You are a frontend engineer specializing in UI architecture, interaction design, and accessibility."
+description = "Analyze frontend and UX requirements"
+
+[[step]]
+name = "synthesize"
+prompt = """Combine the three sub-task analyses into a unified implementation plan for:
+
+${feature}
+
+Produce:
+1. **Overview** — one paragraph summarizing the approach
+2. **Implementation Order** — recommended sequence with dependencies between the three tracks
+3. **Combined Technical Plan** — merged plan organized by implementation phase
+4. **Risk Assessment** — top 3 risks with mitigation strategies
+5. **Effort Estimate** — T-shirt size (S/M/L/XL) for each track and overall
+6. **Open Questions** — unresolved decisions that need stakeholder input"""
+depends_on = ["analyze-data", "analyze-backend", "analyze-frontend"]
+inject_context = true
+system_prompt = "You are a technical program manager who synthesizes engineering analyses into actionable implementation plans."
+description = "Combine all analyses into a unified implementation plan"

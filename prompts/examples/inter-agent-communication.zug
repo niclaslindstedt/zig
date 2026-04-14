@@ -1,0 +1,107 @@
+# RFC Review and Decision
+#
+# Inter-agent communication pattern: two reviewers independently assess an
+# RFC from different perspectives, writing their assessments to shared
+# variables. A moderator then reads both assessments and produces a balanced
+# final recommendation.
+#
+# Usage:
+#   zig run rfc-review "Migrate from REST to GraphQL for the public API"
+
+[workflow]
+name = "rfc-review"
+description = "Two independent reviewers assess an RFC, then a moderator synthesizes a decision"
+tags = ["architecture", "decision-making", "inter-agent-communication"]
+version = "1.0.0"
+
+[vars.proposal]
+type = "string"
+from = "prompt"
+required = true
+description = "The RFC or architectural proposal to review"
+
+[vars.advocate_assessment]
+type = "string"
+default = ""
+description = "Assessment from the advocate reviewer"
+
+[vars.skeptic_assessment]
+type = "string"
+default = ""
+description = "Assessment from the skeptic reviewer"
+
+[vars.decision]
+type = "string"
+default = ""
+description = "Final decision and rationale from the moderator"
+
+# ── Steps ────────────────────────────────────────────────────────────────────
+
+[[step]]
+name = "advocate-review"
+prompt = """Review this proposal from an advocate's perspective:
+
+${proposal}
+
+Your role is to make the strongest possible case FOR this proposal.
+
+Analyze:
+1. **Strategic Alignment** — how this serves long-term goals
+2. **Technical Benefits** — concrete improvements it enables
+3. **Opportunity Cost of Inaction** — what we lose by not doing this
+4. **Success Conditions** — what would make this a clear win
+5. **Risk Mitigation** — how identified risks can be managed
+
+Be rigorous, not cheerful. Advocacy means finding genuine strengths, not ignoring weaknesses."""
+system_prompt = "You are a senior architect who evaluates proposals by steelmanning their benefits. You are honest about tradeoffs but focus on what the proposal gets right."
+json = true
+saves = { advocate_assessment = "$" }
+description = "Assess the proposal from an advocate's perspective"
+
+[[step]]
+name = "skeptic-review"
+prompt = """Review this proposal from a skeptic's perspective:
+
+${proposal}
+
+Your role is to stress-test this proposal by finding weaknesses.
+
+Analyze:
+1. **Hidden Complexity** — what is this proposal underestimating?
+2. **Alternative Approaches** — what else could achieve the same goals with less risk?
+3. **Failure Modes** — what happens when things go wrong?
+4. **Migration Cost** — realistic effort and disruption assessment
+5. **Reversibility** — how hard is it to undo if it doesn't work out?
+
+Be rigorous, not cynical. Skepticism means finding genuine risks, not refusing to see value."""
+system_prompt = "You are a senior architect who evaluates proposals by finding their weakest points. You are honest about benefits but focus on risks and alternatives."
+json = true
+saves = { skeptic_assessment = "$" }
+description = "Assess the proposal from a skeptic's perspective"
+
+[[step]]
+name = "moderate"
+prompt = """You have two independent assessments of this proposal:
+
+**Proposal:** ${proposal}
+
+**Advocate Assessment:**
+${advocate_assessment}
+
+**Skeptic Assessment:**
+${skeptic_assessment}
+
+Synthesize both perspectives into a final recommendation:
+
+1. **Summary** — one paragraph capturing the core tension
+2. **Points of Agreement** — where both reviewers align
+3. **Key Disagreements** — where they diverge and why
+4. **Decision** — APPROVE, APPROVE_WITH_CONDITIONS, DEFER, or REJECT
+5. **Rationale** — why this decision, addressing the strongest counter-argument
+6. **Conditions** (if applicable) — specific requirements before proceeding
+7. **Next Steps** — concrete actions regardless of decision"""
+depends_on = ["advocate-review", "skeptic-review"]
+system_prompt = "You are a VP of Engineering making a final call on an architectural proposal. You weigh both perspectives fairly and make a clear, well-reasoned decision."
+json = true
+saves = { decision = "$.decision" }
+description = "Synthesize both perspectives into a final recommendation"

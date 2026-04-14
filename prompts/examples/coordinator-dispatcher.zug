@@ -1,0 +1,108 @@
+# Support Ticket Router
+#
+# Coordinator / dispatcher pattern: classify an incoming support ticket,
+# then route it to the appropriate specialist handler based on the category.
+#
+# Usage:
+#   zig run support-ticket-router "I was charged twice for my subscription last month"
+
+[workflow]
+name = "support-ticket-router"
+description = "Classify support tickets and route to specialized handlers"
+tags = ["support", "routing", "coordinator-dispatcher"]
+version = "1.0.0"
+
+[vars.ticket]
+type = "string"
+from = "prompt"
+required = true
+description = "The customer support ticket content"
+
+[vars.category]
+type = "string"
+default = ""
+description = "Ticket category determined by the classifier"
+
+[vars.priority]
+type = "string"
+default = "medium"
+description = "Ticket priority: low, medium, high, urgent"
+
+[vars.customer_context]
+type = "string"
+default = ""
+description = "Extracted customer context and relevant details"
+
+# ── Steps ────────────────────────────────────────────────────────────────────
+
+[[step]]
+name = "classify"
+prompt = """Analyze this support ticket and classify it:
+
+${ticket}
+
+Determine:
+1. **category**: one of "billing", "technical", "account"
+2. **priority**: one of "low", "medium", "high", "urgent"
+3. **customer_context**: extract key details (account references, dates, amounts, error messages)
+4. **summary**: one-sentence summary of the issue
+
+Respond in JSON."""
+system_prompt = "You are a support ticket triage specialist. Classify accurately based on the primary issue, not secondary mentions."
+json = true
+saves = { category = "$.category", priority = "$.priority", customer_context = "$.customer_context" }
+description = "Classify the ticket category and priority"
+
+[[step]]
+name = "billing-handler"
+prompt = """Handle this billing support ticket:
+
+**Ticket:** ${ticket}
+**Priority:** ${priority}
+**Context:** ${customer_context}
+
+Provide:
+1. A root cause analysis of the billing issue
+2. Recommended resolution steps (refund, credit, adjustment, escalation)
+3. A draft customer response that is empathetic and specific
+4. Any process improvements to prevent recurrence"""
+depends_on = ["classify"]
+condition = "category == \"billing\""
+system_prompt = "You are a billing support specialist. You have access to refund policies: full refund within 30 days, prorated after 30 days, credits for service disruptions."
+description = "Handle billing-related tickets"
+
+[[step]]
+name = "technical-handler"
+prompt = """Handle this technical support ticket:
+
+**Ticket:** ${ticket}
+**Priority:** ${priority}
+**Context:** ${customer_context}
+
+Provide:
+1. Probable root cause based on the symptoms described
+2. Step-by-step troubleshooting instructions for the customer
+3. A draft customer response with clear next steps
+4. Whether engineering escalation is needed (and why)"""
+depends_on = ["classify"]
+condition = "category == \"technical\""
+system_prompt = "You are a senior technical support engineer. Diagnose issues methodically and provide clear, jargon-free instructions."
+description = "Handle technical support tickets"
+
+[[step]]
+name = "account-handler"
+prompt = """Handle this account management ticket:
+
+**Ticket:** ${ticket}
+**Priority:** ${priority}
+**Context:** ${customer_context}
+
+Provide:
+1. What account action is being requested
+2. Verification requirements before making changes
+3. A draft customer response outlining next steps
+4. Any retention considerations if the request involves cancellation"""
+depends_on = ["classify"]
+condition = "category == \"account\""
+system_prompt = "You are an account management specialist. Balance customer satisfaction with security and policy compliance."
+description = "Handle account-related tickets"

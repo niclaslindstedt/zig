@@ -22,8 +22,32 @@ fn pattern_guidance_returns_nonempty_for_all_known_patterns() {
 
 #[test]
 fn pattern_guidance_unknown_returns_empty() {
-    assert_eq!(pattern_guidance("nonexistent"), "");
-    assert_eq!(pattern_guidance(""), "");
+    assert!(pattern_guidance("nonexistent").is_empty());
+    assert!(pattern_guidance("").is_empty());
+}
+
+#[test]
+fn pattern_guidance_includes_example_content() {
+    let patterns = [
+        "sequential",
+        "fan-out",
+        "generator-critic",
+        "coordinator-dispatcher",
+        "hierarchical-decomposition",
+        "human-in-the-loop",
+        "inter-agent-communication",
+    ];
+    for p in &patterns {
+        let g = pattern_guidance(p);
+        assert!(
+            g.contains("[workflow]"),
+            "pattern_guidance for '{p}' should include example with [workflow] section"
+        );
+        assert!(
+            g.contains("```toml"),
+            "pattern_guidance for '{p}' should wrap example in toml code block"
+        );
+    }
 }
 
 #[test]

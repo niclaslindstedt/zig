@@ -30,6 +30,16 @@ fn global_resources_dir_from_returns_correct_path() {
 }
 
 #[test]
+fn global_examples_dir_uses_base() {
+    // global_examples_dir() returns ~/.zig/examples/ — we can't easily
+    // assert the full path (HOME-dependent), but we can check the suffix.
+    if let Some(dir) = global_examples_dir() {
+        assert!(dir.ends_with("examples"));
+        assert_eq!(dir.parent().unwrap().file_name().unwrap(), ".zig");
+    }
+}
+
+#[test]
 fn cwd_resources_dir_from_finds_directory_in_start() {
     let tmp = tempfile::tempdir().unwrap();
     // Make this look like a git root so the walk-up has a stop boundary.
