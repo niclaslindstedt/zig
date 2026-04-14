@@ -40,8 +40,12 @@ governor = "0.8"
 tokio-stream = { version = "0.1", features = ["sync"] }
 async-stream = "0.3"
 
-# Embedded web UI (rust-embed bakes web/dist/ into the binary)
-rust-embed = { version = "8", features = ["include-exclude"] }
+# Embedded web UI (rust-embed bakes web/dist/ into the binary).
+# `interpolate-folder-path` lets us point the embed at `$OUT_DIR/web-dist/`,
+# which build.rs populates from `../web/dist/`. Using OUT_DIR keeps the embed
+# working after `cargo package`/`cargo publish` extracts the crate, where
+# relative paths outside the crate root no longer resolve.
+rust-embed = { version = "8", features = ["include-exclude", "interpolate-folder-path"] }
 mime_guess = "2"
 
 [dev-dependencies]

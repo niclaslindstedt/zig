@@ -60,3 +60,22 @@ jobs:
         with:
           components: rustfmt
       - run: cargo fmt --all -- --check
+
+  publish-verify:
+    name: publish verify
+    runs-on: ubuntu-latest
+    # Simulates `cargo publish` for each workspace crate without
+    # hitting crates.io. Catches bugs like relative-path references
+    # (e.g. `#[folder = "../web/dist/"]`) that compile fine under
+    # `cargo check` but break at publish time because the tarball is
+    # extracted in isolation. See scripts/verify-publish.sh.
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - run: scripts/verify-publish.sh

@@ -1,12 +1,18 @@
 //! Static file handler for the embedded React web UI.
 //!
-//! The React app lives in `../web/` and is compiled to `../web/dist/` by
-//! `npm run build`. `rust-embed` walks that directory at compile time and
-//! bakes every file into the `zig-serve` crate so the web UI ships as part
-//! of the binary — no filesystem required at runtime.
+//! The React app lives in `../web/` and is compiled to `../web/dist/`
+//! by `npm run build`. Our `build.rs` stages that output into
+//! `$OUT_DIR/web-dist/` and `rust-embed` walks that staging directory
+//! at compile time, baking every file into the `zig-serve` crate so
+//! the web UI ships as part of the binary — no filesystem required at
+//! runtime. We go through `OUT_DIR` (rather than pointing `rust-embed`
+//! directly at `../web/dist/`) so that the embed still resolves after
+//! `cargo package`/`cargo publish` extract the crate into
+//! `target/package/zig-serve-<ver>/`, where relative paths outside the
+//! crate root no longer exist.
 //!
-//! Routes are only mounted when `ServeConfig.web` is true. Unknown paths
-//! fall back to `index.html` so client-side routing works.
+//! Routes are only mounted when `ServeConfig.web` is true. Unknown
+//! paths fall back to `index.html` so client-side routing works.
 
 use axum::body::Body;
 use axum::extract::Path;
@@ -15,7 +21,7 @@ use axum::response::{IntoResponse, Response};
 use rust_embed::RustEmbed;
 
 #[derive(RustEmbed)]
-#[folder = "../web/dist/"]
+#[folder = "$OUT_DIR/web-dist/"]
 #[exclude = ".gitkeep"]
 struct WebAssets;
 
