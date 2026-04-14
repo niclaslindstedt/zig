@@ -28,20 +28,28 @@
 #     the registry during packaging, and [patch.crates-io] does not
 #     apply there) which is a lot of machinery for no real coverage.
 #
-# Note: this script assumes the previous workspace crate is already
-# available on crates.io at the current version, which is the common
-# case on PRs between releases. On a version-bump PR that bumps all
-# three crates at once, `cargo package -p zig-serve` will fail at
-# dep resolution because the new zig-core version isn't published
-# yet — in that case treat the failure as expected for the window
-# between bumping the version and the first successful release.
+# Note: on a version-bump PR that bumps all three crates at once,
+# the new zig-core version isn't on crates.io yet, so a plain
+# `cargo package -p zig-serve` would fail at dep resolution. We
+# work around this by temporarily injecting a `[patch.crates-io]`
+# into the workspace `Cargo.toml` that points zig-core at the
+# extracted packaged copy from the previous step — same trick the
+# verify step already uses for the extracted tarball.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+WORKSPACE_TOML="$ROOT/Cargo.toml"
+WORKSPACE_TOML_BAK="$WORK/Cargo.toml.bak"
+cp "$WORKSPACE_TOML" "$WORKSPACE_TOML_BAK"
+restore_workspace_toml() {
+    if [[ -f "$WORKSPACE_TOML_BAK" ]]; then
+        cp "$WORKSPACE_TOML_BAK" "$WORKSPACE_TOML"
+    fi
+}
+trap 'restore_workspace_toml; rm -rf "$WORK"' EXIT
 
 echo "==> building web UI"
 make web-build
@@ -85,10 +93,21 @@ verify_extracted() {
 package_and_extract zig-core
 CORE_DIR="$EXTRACTED_DIR"
 
+# Patch the workspace so packaging zig-serve resolves zig-core
+# against our just-packaged copy instead of crates.io. Without this,
+# version-bump PRs fail because the new zig-core version isn't
+# published yet. The patch is reverted by the EXIT trap.
+{
+    echo
+    echo "[patch.crates-io]"
+    echo "zig-core = { path = \"$CORE_DIR\" }"
+} >> "$WORKSPACE_TOML"
+
 # zig-serve: package without verify, then manually check against
 # the extracted zig-core.
 package_and_extract zig-serve --no-verify
 SERVE_DIR="$EXTRACTED_DIR"
+restore_workspace_toml
 verify_extracted "$SERVE_DIR" \
     "zig-core = { path = \"$CORE_DIR\" }"
 
