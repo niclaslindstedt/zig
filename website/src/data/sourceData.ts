@@ -27,7 +27,7 @@ export interface StepField {
 
 // --- Data ---
 
-export const version = "0.5.7";
+export const version = "0.6.0";
 
 export const commands: CommandData[] = [
   {
@@ -60,7 +60,7 @@ export const commands: CommandData[] = [
   },
   {
     "name": "serve",
-    "description": "section. Precedence: CLI flag > env var > config file > default."
+    "description": "Start an HTTP API server"
   },
   {
     "name": "listen",
@@ -186,7 +186,7 @@ export const stepFields: StepField[] = [
   },
   {
     "name": "saves",
-    "type": "HashMap<String",
+    "type": "map",
     "description": "Map of variable names to save from this step's output. Values are JSONPath-like selectors (e.g., `\"$.score\"`). If the output is plain text, use `\"$\"` to capture the full output."
   },
   {
@@ -256,7 +256,7 @@ export const stepFields: StepField[] = [
   },
   {
     "name": "env",
-    "type": "HashMap<String",
+    "type": "map",
     "description": "Per-step environment variables."
   },
   {
@@ -267,7 +267,7 @@ export const stepFields: StepField[] = [
   {
     "name": "resources",
     "type": "Vec<ResourceSpec>",
-    "description": "Step-level reference files advertised in the system prompt. /// These are appended to the workflow-level `resources` for this specific step. Paths are resolved relative to the `.zwf` file's directory. See [`ResourceSpec`] for the accepted shapes."
+    "description": "Step-level reference files advertised in the system prompt. These are appended to the workflow-level `resources` for this specific step. Paths are resolved relative to the `.zwf` file's directory. See [`ResourceSpec`] for the accepted shapes."
   },
   {
     "name": "memory",
