@@ -5,7 +5,7 @@ Execute a `.zwf` or `.zwfz` workflow file.
 ## Synopsis
 
 ```
-zig run <workflow> [prompt] [--no-resources]
+zig run <workflow> [prompt] [--no-resources] [--no-memory]
 ```
 
 ## Description
@@ -27,6 +27,7 @@ run concurrently when their dependencies are satisfied.
 | Flag             | Description                                                                                  |
 |------------------|----------------------------------------------------------------------------------------------|
 | `--no-resources` | Disable the `<resources>` block normally injected into each step's system prompt. Useful when you want a workflow to run with no global / cwd / inline resource advertisements at all. See `zig man resources`. |
+| `--no-memory`    | Disable the `<memory>` block normally injected into each step's system prompt. Suppresses all tiers of the memory scratch pad for this invocation. See `zig man memory`. |
 
 ## Workflow Resolution
 
@@ -35,7 +36,8 @@ The `workflow` argument is resolved in this order:
 1. Literal path as given (e.g., `./my-workflow.zwf`)
 2. With `.zwf` extension appended (e.g., `my-workflow` → `my-workflow.zwf`)
 3. With `.zwfz` extension appended (e.g., `my-workflow` → `my-workflow.zwfz`)
-4. Under `./workflows/` with those three forms
+4. Under the project-local `.zig/workflows/` directory (walking up from the
+   current directory to the git root) with those three forms
 5. Under `~/.zig/workflows/` (the global workflows dir) with those three forms
 
 ## Execution Model
@@ -81,6 +83,9 @@ zig run code-review "focus on the authentication module"
 
 # Run without injecting any resource advertisements
 zig run code-review --no-resources
+
+# Run without injecting memory scratch pad entries
+zig run code-review --no-memory
 ```
 
 ## Prerequisites
@@ -93,3 +98,4 @@ zig run code-review --no-resources
 - `zig docs variables` — variable substitution and data flow
 - `zig docs conditions` — condition expressions
 - `zig man resources` — managing reference files for agents
+- `zig man memory` — managing the memory scratch pad for workflows

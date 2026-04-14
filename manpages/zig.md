@@ -57,8 +57,10 @@ Use `zig man` to learn more about a specific command:
 ```bash
 zig man run          # The run command
 zig man listen       # Tail a running or completed zig session
-zig man workflow     # Manage workflows (list, show, create, delete, pack)
+zig man workflow     # Manage workflows (list, show, create, update, delete, pack)
 zig man resources    # Manage reference files advertised to agents
+zig man memory       # Manage the memory scratch pad for workflows
+zig man validate     # Validate a .zwf/.zwfz workflow file
 zig man serve        # Start the HTTP API server
 ```
 
@@ -71,6 +73,7 @@ zig docs zwf         # The .zwf/.zwfz file format
 zig docs patterns    # Orchestration patterns
 zig docs variables   # Variable system and data flow
 zig docs conditions  # Condition expressions
+zig docs memory      # Memory scratch pad and the <memory> block
 ```
 
 ## See Also

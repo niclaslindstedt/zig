@@ -7,6 +7,7 @@ mod pages {
     pub const WORKFLOW: &str = include_str!("../manpages/workflow.md");
     pub const VALIDATE: &str = include_str!("../manpages/validate.md");
     pub const RESOURCES: &str = include_str!("../manpages/resources.md");
+    pub const MEMORY: &str = include_str!("../manpages/memory.md");
 }
 
 /// All available manpage topics in display order.
@@ -24,6 +25,10 @@ pub const TOPICS: &[(&str, &str)] = &[
         "resources",
         "Manage reference files advertised to step agents",
     ),
+    (
+        "memory",
+        "Manage the memory scratch pad for workflows and steps",
+    ),
 ];
 
 /// Look up a manpage by topic name.
@@ -38,6 +43,7 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "workflow" => Some(pages::WORKFLOW),
         "validate" => Some(pages::VALIDATE),
         "resources" => Some(pages::RESOURCES),
+        "memory" => Some(pages::MEMORY),
         _ => None,
     }
 }
