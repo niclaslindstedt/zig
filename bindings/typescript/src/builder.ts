@@ -326,21 +326,6 @@ export class ZigBuilder {
   }
 
   /**
-   * Generate a .zwf workflow file from a natural language description.
-   *
-   * Runs with inherited stdio since the describe process is interactive.
-   *
-   * @param prompt - Natural language description of the workflow
-   * @param output - Output file path (defaults to workflow.zwf)
-   */
-  async describe(prompt: string, output?: string): Promise<void> {
-    await this.preflight();
-    const args = [...this.buildGlobalArgs(), "describe", prompt];
-    if (output) args.push("--output", output);
-    return runZig(this._bin, args);
-  }
-
-  /**
    * Tail a running or completed zig session.
    *
    * Runs with inherited stdio to display session output live.

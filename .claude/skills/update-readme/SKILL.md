@@ -36,10 +36,10 @@ The file `.claude/skills/update-readme/.last-updated` contains the git commit ha
 | Changed files / commit scope | README section(s) to update |
 |------------------------------|----------------------------|
 | `zig-cli/src/cli.rs` (Command enum) | **Commands** list, **Flags** table |
-| `zig-cli/src/cli.rs` (Pattern enum) | **Commands** (describe/create sections) |
+| `zig-cli/src/cli.rs` (Pattern enum) | **Commands** (workflow create section) |
 | `zig-core/src/workflow/` | **The `.zwf` format** section |
 | `zig-core/src/run.rs` | **`zig run`** section, architecture notes |
-| `zig-core/src/create.rs` | **`zig describe`** section |
+| `zig-core/src/create.rs` | **`zig workflow create`** section |
 | `zig-core/src/prompt.rs` | Prompt templates, workflow generation |
 | Architecture changes | **Architecture** section |
 | Install method changes | **Install** section |
@@ -73,7 +73,7 @@ The file `.claude/skills/update-readme/.last-updated` contains the git commit ha
 - [ ] Update **Commands** list if commands were added/removed/renamed
 - [ ] Update **Flags** table if CLI flags changed
 - [ ] Update **`zig run`** section if run behavior changed
-- [ ] Update **`zig describe`** section if describe behavior changed
+- [ ] Update **`zig workflow create`** section if creation behavior changed
 - [ ] Update **The `.zwf` format** section if workflow model changed
 - [ ] Update **Architecture** section if crate structure changed
 - [ ] Update **Install** section if installation methods changed

@@ -151,12 +151,6 @@ fn main() -> Result<()> {
                 zig_core::update::run_update(&workflow)?;
             }
         },
-        Command::Describe { prompt, output } => {
-            let dest = output.unwrap_or_else(|| "workflow.zwf".to_string());
-            println!(
-                "zig describe: generating '{dest}' from prompt '{prompt}' (not yet implemented)"
-            );
-        }
         Command::Validate { workflow } => {
             let path = Path::new(&workflow);
             let (wf, _source) = zig_core::workflow::parser::parse_workflow(path)?;

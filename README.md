@@ -25,8 +25,8 @@ Describe workflows. Share them. Run them.
 3. **Run** — Execute the workflow with `zig run <workflow>`. Zig parses the `.zwf` file and delegates to zag's orchestration engine to carry out each step.
 
 ```bash
-# Describe a workflow — an agent helps you create a .zwf file
-zig describe "review all PRs, run tests, and generate a summary report"
+# Create a workflow interactively — an agent helps you design a .zwf file
+zig workflow create code-review
 
 # See what workflows are available
 zig workflow list
@@ -96,7 +96,6 @@ zig resources show <name>       Print the absolute path and contents of a resour
 zig resources where             Print the directories the collector searches
 zig validate <file>             Validate a .zwf workflow file
 zig man [topic]                 Show manual pages for zig topics
-zig describe <prompt>           Generate a .zwf file from a prompt (not yet implemented)
 zig init                        Initialize a new zig project (not yet implemented)
 ```
 

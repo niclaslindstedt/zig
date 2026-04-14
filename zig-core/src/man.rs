@@ -5,7 +5,6 @@ mod pages {
     pub const LISTEN: &str = include_str!("../manpages/listen.md");
     pub const SERVE: &str = include_str!("../manpages/serve.md");
     pub const WORKFLOW: &str = include_str!("../manpages/workflow.md");
-    pub const DESCRIBE: &str = include_str!("../manpages/describe.md");
     pub const VALIDATE: &str = include_str!("../manpages/validate.md");
     pub const RESOURCES: &str = include_str!("../manpages/resources.md");
 }
@@ -20,7 +19,6 @@ pub const TOPICS: &[(&str, &str)] = &[
         "workflow",
         "Manage workflows (list, show, create, update, delete, pack)",
     ),
-    ("describe", "Generate a .zwf file from a prompt"),
     ("validate", "Validate a .zwf or .zwfz workflow file"),
     (
         "resources",
@@ -38,7 +36,6 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "listen" => Some(pages::LISTEN),
         "serve" => Some(pages::SERVE),
         "workflow" => Some(pages::WORKFLOW),
-        "describe" => Some(pages::DESCRIBE),
         "validate" => Some(pages::VALIDATE),
         "resources" => Some(pages::RESOURCES),
         _ => None,

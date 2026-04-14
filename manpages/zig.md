@@ -1,6 +1,6 @@
 # zig
 
-Orchestration CLI for AI coding agents — describe, share, and run workflows powered by zag.
+Orchestration CLI for AI coding agents — create, share, and run workflows powered by zag.
 
 ## Synopsis
 
@@ -10,8 +10,8 @@ zig <command> [options]
 
 ## Description
 
-`zig` lets you describe a workflow in natural language, capture it as a
-shareable `.zwf` file, and replay it anywhere with a single command. It uses
+`zig` lets you create a workflow interactively with an AI agent, capture it as
+a shareable `.zwf` file, and replay it anywhere with a single command. It uses
 zag behind the scenes for agent orchestration.
 
 ## Commands
@@ -23,7 +23,6 @@ zag behind the scenes for agent orchestration.
 | `workflow <command>` | Manage workflows (list, show, create, delete, pack)      |
 | `resources <command>`| Manage reference files advertised to step agents         |
 | `memory <command>`   | Manage the memory scratch pad for workflows              |
-| `describe <prompt>`  | Generate a `.zwf` file from a natural language prompt    |
 | `validate <file>`    | Validate a `.zwf`/`.zwfz` workflow file                  |
 | `serve`              | Start an HTTP API server                                 |
 | `init`               | Initialize a new zig project                             |
@@ -44,9 +43,6 @@ zag behind the scenes for agent orchestration.
 ```bash
 # Create a workflow interactively
 zig workflow create my-workflow
-
-# Or describe one in natural language
-zig describe "review code, run tests, and generate a report"
 
 # Run a workflow
 zig run my-workflow

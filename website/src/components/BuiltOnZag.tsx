@@ -21,7 +21,7 @@ export default function BuiltOnZag() {
                 Workflow CLI &mdash; .zwf files, patterns, validation, execution
               </div>
               <div className="mt-3 flex flex-wrap justify-center gap-2">
-                {["run", "workflow create", "validate", "describe", "man"].map((cmd) => (
+                {["run", "workflow create", "validate", "listen", "man"].map((cmd) => (
                   <code key={cmd} className="rounded-full bg-surface-alt px-2.5 py-0.5 text-xs text-accent">{cmd}</code>
                 ))}
               </div>

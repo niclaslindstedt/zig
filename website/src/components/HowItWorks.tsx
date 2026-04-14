@@ -4,7 +4,7 @@ const steps = [
     title: "Describe",
     subtitle: "Tell zig what to automate",
     description:
-      "Use zig workflow create or zig describe to launch an interactive session. An AI agent helps you design the workflow and produces a .zwf file.",
+      "Use zig workflow create to launch an interactive session. An AI agent helps you design the workflow and produces a .zwf file.",
     code: `zig workflow create deploy --pattern sequential`,
     color: "text-accent",
   },

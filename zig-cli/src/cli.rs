@@ -57,16 +57,6 @@ pub enum Command {
         command: MemoryCommand,
     },
 
-    /// Describe a workflow to an agent and generate a .zwf file
-    Describe {
-        /// Natural language description of the workflow
-        prompt: String,
-
-        /// Output file path (defaults to <name>.zwf)
-        #[arg(long, short)]
-        output: Option<String>,
-    },
-
     /// Validate a .zwf/.zwfz workflow file
     Validate {
         /// Path to the .zwf or .zwfz file to validate
