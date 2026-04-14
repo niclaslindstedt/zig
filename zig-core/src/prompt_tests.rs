@@ -42,10 +42,90 @@ fn render_multiline_template() {
 
 #[test]
 fn templates_are_embedded() {
-    assert!(!templates::CREATE.is_empty());
-    assert!(!templates::CONFIG_SIDECAR.is_empty());
-    assert!(templates::CREATE.contains("{{zug_format_spec}}"));
-    assert!(templates::CONFIG_SIDECAR.contains(".zug"));
+    assert!(!templates::create().is_empty());
+    assert!(!templates::config_sidecar().is_empty());
+    assert!(templates::create().contains("{{zug_format_spec}}"));
+    assert!(templates::config_sidecar().contains(".zug"));
+}
+
+#[test]
+fn templates_have_front_matter_stripped() {
+    // Front matter delimiters and metadata fields must not leak into agent
+    // input. The substring checks below are line-ending agnostic so the test
+    // catches regressions on both Unix (LF) and Windows (CRLF) checkouts.
+    let create = templates::create();
+    assert!(
+        !create.starts_with("---"),
+        "create prompt still begins with front matter delimiter"
+    );
+    assert!(
+        !create.contains("name: create"),
+        "create prompt still contains front matter `name` field"
+    );
+    assert!(
+        !create.contains("references:"),
+        "create prompt still contains front matter `references` field"
+    );
+
+    let sidecar = templates::config_sidecar();
+    assert!(
+        !sidecar.starts_with("---"),
+        "config sidecar still begins with front matter delimiter"
+    );
+    assert!(
+        !sidecar.contains("name: config-sidecar"),
+        "config sidecar still contains front matter `name` field"
+    );
+}
+
+#[test]
+fn strip_front_matter_removes_block() {
+    let input = "---\nname: foo\nversion: \"1.0\"\n---\n\nbody line one\nbody line two\n";
+    assert_eq!(strip_front_matter(input), "body line one\nbody line two\n");
+}
+
+#[test]
+fn strip_front_matter_without_trailing_blank_line() {
+    let input = "---\nname: foo\n---\nbody\n";
+    assert_eq!(strip_front_matter(input), "body\n");
+}
+
+#[test]
+fn strip_front_matter_no_front_matter_passthrough() {
+    let input = "no front matter here\n---\nnot a delimiter\n";
+    assert_eq!(strip_front_matter(input), input);
+}
+
+#[test]
+fn strip_front_matter_does_not_match_mid_file_delimiters() {
+    // A `---` that is not on the first line is just markdown content.
+    let input = "# heading\n\n---\n\nbody\n";
+    assert_eq!(strip_front_matter(input), input);
+}
+
+#[test]
+fn strip_front_matter_handles_unterminated_block() {
+    // Missing closing delimiter — treat as no front matter rather than swallowing
+    // the whole file.
+    let input = "---\nname: foo\nversion: 1.0\nbody without close\n";
+    assert_eq!(strip_front_matter(input), input);
+}
+
+#[test]
+fn strip_front_matter_handles_crlf_line_endings() {
+    // Windows checkouts embed CRLF line endings via `include_str!`.
+    let input =
+        "---\r\nname: foo\r\nversion: \"1.0\"\r\n---\r\n\r\nbody line one\r\nbody line two\r\n";
+    assert_eq!(
+        strip_front_matter(input),
+        "body line one\r\nbody line two\r\n"
+    );
+}
+
+#[test]
+fn strip_front_matter_crlf_without_trailing_blank_line() {
+    let input = "---\r\nname: foo\r\n---\r\nbody\r\n";
+    assert_eq!(strip_front_matter(input), "body\r\n");
 }
 
 #[test]
@@ -92,11 +172,11 @@ fn example_for_pattern_returns_none_for_unknown() {
 #[test]
 fn create_prompt_renders_with_sidecar() {
     let vars = HashMap::from([
-        ("zug_format_spec", templates::CONFIG_SIDECAR),
+        ("zug_format_spec", templates::config_sidecar()),
         ("zag_help", "(zag help placeholder)"),
         ("zag_orch", "(zag orch placeholder)"),
     ]);
-    let rendered = render(templates::CREATE, &vars);
+    let rendered = render(templates::create(), &vars);
     assert!(!rendered.contains("{{zug_format_spec}}"));
     assert!(!rendered.contains("{{zag_help}}"));
     assert!(!rendered.contains("{{zag_orch}}"));
