@@ -27,6 +27,45 @@ pub fn ensure_global_workflows_dir() -> Result<PathBuf, ZigError> {
 }
 
 // =====================================================================
+// Local (project-level) workflow directories.
+//
+// Layout: `<git-root>/.zig/workflows/` — discovered by walking up from
+// the current working directory to the git root, matching the convention
+// used by resources and memory.
+// =====================================================================
+
+/// Walk up from `start` looking for a `.zig/workflows` directory. Stops at the
+/// containing git repository root, or returns the directory in `start` itself
+/// if it exists.
+pub fn cwd_workflows_dir_from(start: &Path) -> Option<PathBuf> {
+    let mut current = start;
+    let stop = find_git_root(start);
+
+    loop {
+        let candidate = current.join(".zig").join("workflows");
+        if candidate.is_dir() {
+            return Some(candidate);
+        }
+        if let Some(ref root) = stop {
+            if current == root.as_path() {
+                return None;
+            }
+        }
+        match current.parent() {
+            Some(p) => current = p,
+            None => return None,
+        }
+    }
+}
+
+/// Walk up from the process's current working directory looking for a
+/// `.zig/workflows` directory. See [`cwd_workflows_dir_from`].
+pub fn cwd_workflows_dir() -> Option<PathBuf> {
+    let cwd = std::env::current_dir().ok()?;
+    cwd_workflows_dir_from(&cwd)
+}
+
+// =====================================================================
 // Resource directories.
 //
 // Layout under the global base directory:

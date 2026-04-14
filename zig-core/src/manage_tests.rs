@@ -153,3 +153,18 @@ fn discover_zug_files_in_global_style_dir() {
     assert_eq!(files.len(), 1);
     assert!(files[0].to_string_lossy().contains("global.zug"));
 }
+
+#[test]
+fn collect_zug_files_finds_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let wf_dir = dir.path().join(".zig").join("workflows");
+    fs::create_dir_all(&wf_dir).unwrap();
+    fs::write(wf_dir.join("one.zug"), WORKFLOW_A).unwrap();
+    fs::write(wf_dir.join("two.zug"), WORKFLOW_B).unwrap();
+    fs::write(wf_dir.join("readme.txt"), "not a workflow").unwrap();
+
+    let mut files = Vec::new();
+    collect_zug_files(&wf_dir, &mut files);
+    assert_eq!(files.len(), 2);
+    assert!(files.iter().all(|f| f.extension().unwrap() == "zug"));
+}
