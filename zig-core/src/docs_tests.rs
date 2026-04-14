@@ -18,7 +18,7 @@ fn get_unknown_topic_returns_none() {
 #[test]
 fn command_topics_are_not_docs() {
     // Command topics live under `zig man`, not `zig docs`.
-    for topic in ["zig", "run", "listen", "workflow", "describe", "validate"] {
+    for topic in ["zig", "run", "listen", "workflow", "validate"] {
         assert!(
             get(topic).is_none(),
             "'{topic}' should be a manpage, not a docs topic"

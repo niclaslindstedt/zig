@@ -87,9 +87,7 @@ These methods execute the builder configuration. Each spawns a `zig` subprocess.
 | `workflowShow` | `async workflowShow(workflow: string): Promise<string>` | Show workflow details. |
 | `workflowDelete` | `async workflowDelete(workflow: string): Promise<string>` | Delete a workflow. |
 | `workflowCreate` | `async workflowCreate(options?): Promise<void>` | Create a workflow interactively. Options: `name?`, `output?`, `pattern?`. |
-| `describe` | `async describe(prompt: string, output?: string): Promise<void>` | Generate a .zwf file from natural language. |
 | `listen` | `async listen(options?): Promise<void>` | Tail a running/completed session. Options: `sessionId?`, `latest?`, `active?`. |
-| `init` | `async init(): Promise<void>` | Initialize a new zig project in the current directory. |
 | `workflowPack` | `async workflowPack(path: string, output?: string): Promise<string>` | Pack a workflow directory into a .zwfz zip archive. |
 | `man` | `async man(topic?: string): Promise<string>` | Show a manual page topic. |
 
@@ -681,7 +679,6 @@ zig [--debug] [--quiet] workflow list
 zig [--debug] [--quiet] workflow show <workflow>
 zig [--debug] [--quiet] workflow create [name] [--output path] [--pattern pat]
 zig [--debug] [--quiet] workflow delete <workflow>
-zig [--debug] [--quiet] describe <prompt> [--output path]
 zig [--debug] [--quiet] listen [session_id] [--latest] [--active]
 zig [--debug] [--quiet] init
 zig [--debug] [--quiet] workflow pack <path> [--output path]

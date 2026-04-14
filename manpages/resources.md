@@ -104,13 +104,13 @@ Copies `<file>` into the chosen tier directory:
 | (no flags)             | Same as `--cwd`                            |
 
 `--name` lets you rename the file as it lands in the tier directory. Add
-refuses to overwrite an existing file — remove it first with `zig resources
-remove`.
+refuses to overwrite an existing file — delete it first with `zig resources
+delete`.
 
-### `zig resources remove`
+### `zig resources delete`
 
 ```
-zig resources remove <name> [--global] [--cwd] [--workflow <name>]
+zig resources delete <name> [--global] [--cwd] [--workflow <name>]
 ```
 
 Deletes a file by its registered name from the chosen tier.

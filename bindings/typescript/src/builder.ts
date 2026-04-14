@@ -16,7 +16,7 @@ export interface RunOptions {
 /** Tier scope for `resources list`. */
 export type ResourceScope = "all" | "global" | "cwd";
 
-/** Target tier for `resources add` / `resources remove`. */
+/** Target tier for `resources add` / `resources delete`. */
 export interface ResourceTargetOptions {
   /** Place the resource in the global tier (~/.zig/resources/_shared/). */
   global?: boolean;
@@ -326,21 +326,6 @@ export class ZigBuilder {
   }
 
   /**
-   * Generate a .zwf workflow file from a natural language description.
-   *
-   * Runs with inherited stdio since the describe process is interactive.
-   *
-   * @param prompt - Natural language description of the workflow
-   * @param output - Output file path (defaults to workflow.zwf)
-   */
-  async describe(prompt: string, output?: string): Promise<void> {
-    await this.preflight();
-    const args = [...this.buildGlobalArgs(), "describe", prompt];
-    if (output) args.push("--output", output);
-    return runZig(this._bin, args);
-  }
-
-  /**
    * Tail a running or completed zig session.
    *
    * Runs with inherited stdio to display session output live.
@@ -363,22 +348,6 @@ export class ZigBuilder {
     } else if (options.active) {
       args.push("--active");
     }
-    return runZig(this._bin, args);
-  }
-
-  /**
-   * Initialize a new zig project in the current directory.
-   *
-   * Runs with inherited stdio since init may prompt for configuration.
-   *
-   * @example
-   * ```ts
-   * await new ZigBuilder().init();
-   * ```
-   */
-  async init(): Promise<void> {
-    await this.preflight();
-    const args = [...this.buildGlobalArgs(), "init"];
     return runZig(this._bin, args);
   }
 
@@ -455,17 +424,17 @@ export class ZigBuilder {
   }
 
   /**
-   * Remove a resource by name from one of the tiers.
+   * Delete a resource by name from one of the tiers.
    *
-   * @param name - Registered resource name to remove
+   * @param name - Registered resource name to delete
    * @param options - Target tier
    */
-  async resourcesRemove(
+  async resourcesDelete(
     name: string,
     options: ResourceTargetOptions = {},
   ): Promise<string> {
     await this.preflight();
-    const args = [...this.buildGlobalArgs(), "resources", "remove", name];
+    const args = [...this.buildGlobalArgs(), "resources", "delete", name];
     if (options.global) args.push("--global");
     if (options.cwd) args.push("--cwd");
     if (options.workflow) args.push("--workflow", options.workflow);

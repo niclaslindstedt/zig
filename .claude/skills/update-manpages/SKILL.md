@@ -22,7 +22,6 @@ manpage.
 | `listen.md` | Tail a running or completed zig session |
 | `workflow.md` | Manage workflows (list, show, create, update, delete, pack) |
 | `resources.md` | Manage reference files advertised to agents |
-| `describe.md` | Generate a `.zwf` file from a prompt |
 | `validate.md` | Validate a `.zwf`/`.zwfz` workflow file |
 | `serve.md` | Start the HTTP API server |
 
@@ -60,7 +59,6 @@ The file `.claude/skills/update-manpages/.last-updated` contains the git commit 
 | `zig-cli/src/cli.rs` (Command::Listen) | `listen.md` |
 | `zig-cli/src/cli.rs` (Command::Workflow) | `workflow.md` |
 | `zig-cli/src/cli.rs` (Command::Resources) | `resources.md` |
-| `zig-cli/src/cli.rs` (Command::Describe) | `describe.md` |
 | `zig-cli/src/cli.rs` (Command::Validate) | `validate.md` |
 | `zig-cli/src/cli.rs` (Command::Serve) | `serve.md` |
 | `zig-cli/src/cli.rs` (new Command variant) | New `manpages/<cmd>.md` + `zig.md` + `man.rs` |

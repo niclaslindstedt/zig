@@ -41,7 +41,7 @@ Dependency flow: `zig-core ← zig-cli`
 - **zig-cli/src/**: Thin CLI wrapper — argument parsing and command dispatch
 - **zig-core/src/**: Core library — .zwf/.zwfz format, workflow engine, zag integration
 
-Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the scenes. The `zig describe` command invokes zag in interactive mode to generate `.zwf` workflow files. The `zig run` command parses and executes `.zwf` / `.zwfz` files by delegating to zag orchestration.
+Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the scenes. The `zig workflow create` command invokes zag in interactive mode to generate `.zwf` workflow files. The `zig run` command parses and executes `.zwf` / `.zwfz` files by delegating to zag orchestration.
 
 ## Development workflow
 

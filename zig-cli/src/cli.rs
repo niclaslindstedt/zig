@@ -45,7 +45,7 @@ pub enum Command {
         command: WorkflowCommand,
     },
 
-    /// Manage knowledge / reference files (list, add, remove, show)
+    /// Manage knowledge / reference files (list, add, delete, show)
     Resources {
         #[command(subcommand)]
         command: ResourcesCommand,
@@ -57,24 +57,11 @@ pub enum Command {
         command: MemoryCommand,
     },
 
-    /// Describe a workflow to an agent and generate a .zwf file
-    Describe {
-        /// Natural language description of the workflow
-        prompt: String,
-
-        /// Output file path (defaults to <name>.zwf)
-        #[arg(long, short)]
-        output: Option<String>,
-    },
-
     /// Validate a .zwf/.zwfz workflow file
     Validate {
         /// Path to the .zwf or .zwfz file to validate
         workflow: String,
     },
-
-    /// Initialize a new zig project in the current directory
-    Init,
 
     /// Show manual pages for zig commands
     Man {
@@ -238,20 +225,20 @@ pub enum ResourcesCommand {
         name: Option<String>,
     },
 
-    /// Remove a resource by name from one of the tiers
-    Remove {
-        /// Name of the resource to remove (matches the registered file name)
+    /// Delete a resource by name from one of the tiers
+    Delete {
+        /// Name of the resource to delete (matches the registered file name)
         name: String,
 
         /// Target a specific named workflow's global tier
         #[arg(long)]
         workflow: Option<String>,
 
-        /// Remove from the global tier (~/.zig/resources)
+        /// Delete from the global tier (~/.zig/resources)
         #[arg(long, conflicts_with = "cwd")]
         global: bool,
 
-        /// Remove from the project tier (./.zig/resources)
+        /// Delete from the project tier (./.zig/resources)
         #[arg(long, conflicts_with = "global")]
         cwd: bool,
     },

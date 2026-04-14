@@ -80,7 +80,7 @@ The TypeScript binding follows this architecture:
 1. `ZigBuilder` class with private fields for CLI configuration (`_debug`, `_quiet`, `_bin`)
 2. Fluent setter methods that return `this` for chaining
 3. Internal `buildGlobalArgs()` method for shared flags
-4. Terminal methods that spawn `zig` subprocess: `run`, `runInteractive`, `stream`, `runStreaming`, `validate`, `workflowList`, `workflowShow`, `workflowDelete`, `workflowCreate`, `describe`, `listen`, `man`
+4. Terminal methods that spawn `zig` subprocess: `run`, `runInteractive`, `stream`, `runStreaming`, `validate`, `workflowList`, `workflowShow`, `workflowDelete`, `workflowCreate`, `listen`, `man`
 
 ### Naming conventions
 

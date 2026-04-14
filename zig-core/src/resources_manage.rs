@@ -1,4 +1,4 @@
-//! Management commands for resource files: list / add / remove / show / where.
+//! Management commands for resource files: list / add / delete / show / where.
 //!
 //! These functions back the `zig resources …` subcommands. They operate on the
 //! same tiered layout that [`crate::resources::ResourceCollector`] consumes at
@@ -42,7 +42,7 @@ impl ResourceScope {
     }
 }
 
-/// Where an `add` or `remove` command should place / look for a resource.
+/// Where an `add` or `delete` command should place / look for a resource.
 ///
 /// Constructed with [`ResourceTarget::from_flags`], which enforces the
 /// mutually-exclusive flag rules (a target must be unambiguous).
@@ -266,7 +266,7 @@ fn collect_listing(dir: &Path, tier: &str, out: &mut Vec<ListedResource>) {
 /// Copy a file into the chosen tier directory, optionally renaming it.
 ///
 /// Returns the absolute path of the destination file. Refuses to overwrite an
-/// existing file (the user must `zig resources remove <name>` first).
+/// existing file (the user must `zig resources delete <name>` first).
 pub fn add_resource(
     file: &str,
     target: ResourceTarget,
@@ -330,7 +330,7 @@ pub fn add_to_dir(src: &Path, dir: &Path, name: Option<&str>) -> Result<PathBuf,
     let dest = dir.join(&dest_name);
     if dest.exists() {
         return Err(ZigError::Io(format!(
-            "resource '{}' already exists at {} — remove it first",
+            "resource '{}' already exists at {} — delete it first",
             dest_name,
             dest.display()
         )));
@@ -347,13 +347,13 @@ pub fn add_to_dir(src: &Path, dir: &Path, name: Option<&str>) -> Result<PathBuf,
 }
 
 /// Delete a resource by name from the chosen tier.
-pub fn remove_resource(name: &str, target: ResourceTarget) -> Result<(), ZigError> {
+pub fn delete_resource(name: &str, target: ResourceTarget) -> Result<(), ZigError> {
     let dir = target
         .existing_dir()
         .ok_or_else(|| ZigError::Io("could not resolve target directory (HOME unset?)".into()))?;
-    let path = remove_from_dir(name, &dir)?;
+    let path = delete_from_dir(name, &dir)?;
     println!(
-        "removed resource '{}' from {} ({})",
+        "deleted resource '{}' from {} ({})",
         name,
         target.label(),
         path.display()
@@ -361,8 +361,8 @@ pub fn remove_resource(name: &str, target: ResourceTarget) -> Result<(), ZigErro
     Ok(())
 }
 
-/// Lower-level helper: remove a single resource from an explicit directory.
-pub fn remove_from_dir(name: &str, dir: &Path) -> Result<PathBuf, ZigError> {
+/// Lower-level helper: delete a single resource from an explicit directory.
+pub fn delete_from_dir(name: &str, dir: &Path) -> Result<PathBuf, ZigError> {
     if !dir.is_dir() {
         return Err(ZigError::Io(format!(
             "tier directory does not exist: {}",
@@ -378,7 +378,7 @@ pub fn remove_from_dir(name: &str, dir: &Path) -> Result<PathBuf, ZigError> {
         )));
     }
     std::fs::remove_file(&path)
-        .map_err(|e| ZigError::Io(format!("failed to remove {}: {e}", path.display())))?;
+        .map_err(|e| ZigError::Io(format!("failed to delete {}: {e}", path.display())))?;
     Ok(path)
 }
 

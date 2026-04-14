@@ -27,32 +27,40 @@ export interface StepField {
 
 // --- Data ---
 
-export const version = "0.4.1";
+export const version = "0.5.7";
 
 export const commands: CommandData[] = [
   {
     "name": "run",
-    "description": "Execute a .zwf workflow file"
+    "description": "Execute a .zwf/.zwfz workflow file"
   },
   {
     "name": "workflow",
     "description": "Manage workflows (list, show, create, delete)"
   },
   {
-    "name": "describe",
-    "description": "Describe a workflow to an agent and generate a .zwf file"
+    "name": "resources",
+    "description": "Manage knowledge / reference files (list, add, delete, show)"
+  },
+  {
+    "name": "memory",
+    "description": "Manage memory scratch pad files (add, update, delete, show, list, search)"
   },
   {
     "name": "validate",
-    "description": "Validate a .zwf workflow file"
-  },
-  {
-    "name": "init",
-    "description": "Initialize a new zig project in the current directory"
+    "description": "Validate a .zwf/.zwfz workflow file"
   },
   {
     "name": "man",
-    "description": "Show manual pages for zig topics"
+    "description": "Show manual pages for zig commands"
+  },
+  {
+    "name": "docs",
+    "description": "Show conceptual documentation topics"
+  },
+  {
+    "name": "serve",
+    "description": "section. Precedence: CLI flag > env var > config file > default."
   },
   {
     "name": "listen",
@@ -78,8 +86,12 @@ export const workflowSubcommands: CommandData[] = [
     "description": "Create a new workflow interactively with an AI agent"
   },
   {
+    "name": "update",
+    "description": "Update an existing workflow interactively with an AI agent"
+  },
+  {
     "name": "pack",
-    "description": "Pack a workflow directory into a .zwf zip archive"
+    "description": "Pack a workflow directory into a .zwfz zip archive"
   }
 ];
 
@@ -253,6 +265,16 @@ export const stepFields: StepField[] = [
     "description": "Files to attach to the agent prompt."
   },
   {
+    "name": "resources",
+    "type": "Vec<ResourceSpec>",
+    "description": "Step-level reference files advertised in the system prompt. /// These are appended to the workflow-level `resources` for this specific step. Paths are resolved relative to the `.zwf` file's directory. See [`ResourceSpec`] for the accepted shapes."
+  },
+  {
+    "name": "memory",
+    "type": "String?",
+    "description": "Per-step memory override: `\"all\"`, `\"global\"`, or `\"none\"`. If absent, inherits the workflow-level `memory` setting."
+  },
+  {
     "name": "context",
     "type": "list",
     "description": "Session IDs to inject as context (beyond depends_on). Maps to `--context <SESSION_ID>` flags on zag."
@@ -326,4 +348,4 @@ export const stepFields: StepField[] = [
 
 export const varTypes: string[] = ["string","number","bool","json"];
 
-export const manpageTopics: string[] = ["conditions","describe","listen","patterns","run","validate","variables","workflow","zig","zwf"];
+export const manpageTopics: string[] = ["listen","resources","run","serve","validate","workflow","zig"];
