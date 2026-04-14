@@ -13,8 +13,8 @@ alongside the files in each tier.
 
 ## Tiers
 
-Memory mirrors the [resources](resources.md) tier layout and is collected from
-three tiers at run time:
+Memory mirrors the resources tier layout (see `zig man resources`) and is
+collected from three tiers at run time:
 
 | Tier  | Source                                | Purpose                                                    |
 |-------|---------------------------------------|------------------------------------------------------------|

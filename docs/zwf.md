@@ -46,10 +46,12 @@ role = "analyst"
 | `provider`    | No       | Default provider for all steps (claude, codex, gemini, copilot, ollama) |
 | `model`       | No       | Default model for all steps (steps can override)                        |
 | `resources`   | No       | Reference files advertised to every step (see Resources below)          |
+| `memory`      | No       | Memory injection mode: `all` (default), `global`, or `none` (see `zig docs memory`) |
 
 When `provider` or `model` is set on the workflow, every step inherits it as a
 default. A step can override the workflow-level value by setting its own
-`provider` or `model` field.
+`provider` or `model` field. The workflow-level `memory` mode can similarly be
+overridden per step.
 
 ### `[roles.<name>]` — Roles
 
@@ -191,6 +193,7 @@ Each step is one zag agent invocation.
 | `env`            | No       | `{}`    | Per-step environment variables           |
 | `files`          | No       | `[]`    | Files to attach to the agent prompt      |
 | `resources`      | No       | `[]`    | Reference files advertised to this step's agent (see Resources below) |
+| `memory`         | No       |         | Memory injection override: `all`, `global`, or `none` (inherits workflow default) |
 
 #### Context Injection
 
@@ -377,4 +380,5 @@ TOML file — this works identically for both plain files and zip archives.
 - `zig docs variables` — variable references and data flow
 - `zig docs conditions` — condition expression syntax
 - `zig docs patterns` — common orchestration patterns
+- `zig docs memory` — memory scratch pad and the `<memory>` block
 - `zig man run` — executing workflows
