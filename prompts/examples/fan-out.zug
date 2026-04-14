@@ -1,0 +1,94 @@
+# Pull Request Review
+#
+# Fan-out / gather pattern: three reviewers analyze a PR in parallel from
+# different angles, then a synthesizer combines their findings into one report.
+#
+# Usage:
+#   zig run pr-review "Review the changes in the auth module refactor"
+
+[workflow]
+name = "pr-review"
+description = "Multi-perspective code review with parallel analysis and synthesis"
+tags = ["review", "code-quality", "fan-out"]
+version = "1.0.0"
+
+[vars.context]
+type = "string"
+from = "prompt"
+required = true
+description = "Description of the PR or area to review"
+
+# ── Steps ────────────────────────────────────────────────────────────────────
+
+[[step]]
+name = "security-review"
+prompt = """Review the current uncommitted changes for security issues.
+
+Context: ${context}
+
+Focus on:
+- Authentication and authorization flaws
+- Input validation and sanitization gaps
+- Secrets or credentials in code
+- SQL injection, XSS, and command injection vectors
+- Insecure dependencies or configurations
+
+Rate severity of each finding as critical, high, medium, or low."""
+system_prompt = "You are a senior application security engineer specializing in secure code review."
+auto_approve = true
+description = "Review for security vulnerabilities"
+
+[[step]]
+name = "performance-review"
+prompt = """Review the current uncommitted changes for performance issues.
+
+Context: ${context}
+
+Focus on:
+- N+1 query patterns and unnecessary database calls
+- Missing or ineffective caching opportunities
+- Memory allocation hotspots and potential leaks
+- Algorithmic complexity concerns
+- Blocking operations in async contexts
+
+Estimate impact of each finding as high, medium, or low."""
+system_prompt = "You are a performance engineer who specializes in identifying bottlenecks and optimization opportunities."
+auto_approve = true
+description = "Review for performance concerns"
+
+[[step]]
+name = "maintainability-review"
+prompt = """Review the current uncommitted changes for maintainability.
+
+Context: ${context}
+
+Focus on:
+- Code clarity and naming conventions
+- Test coverage gaps for new or changed logic
+- API design and backwards compatibility
+- Error handling completeness
+- Documentation accuracy for public interfaces
+
+Rate each finding as must-fix, should-fix, or nice-to-have."""
+system_prompt = "You are a staff engineer focused on long-term code health, API design, and developer experience."
+auto_approve = true
+description = "Review for maintainability and code health"
+
+[[step]]
+name = "synthesize"
+prompt = """Combine the three review reports into a single structured PR review.
+
+Context: ${context}
+
+Produce a unified report with:
+1. **Executive Summary** — one paragraph overall assessment and go/no-go recommendation
+2. **Critical Findings** — items that must be fixed before merge (from any reviewer)
+3. **Recommendations** — items that should be addressed but are not blocking
+4. **Observations** — nice-to-have improvements for future work
+5. **Verdict** — APPROVE, REQUEST_CHANGES, or NEEDS_DISCUSSION
+
+De-duplicate overlapping findings. When reviewers disagree, note the tension."""
+depends_on = ["security-review", "performance-review", "maintainability-review"]
+inject_context = true
+system_prompt = "You are a tech lead synthesizing feedback from multiple expert reviewers into a clear, actionable review."
+description = "Combine all review findings into a unified report"
