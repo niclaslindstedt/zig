@@ -145,6 +145,11 @@ jobs:
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: build web UI
+        run: make web-build
       - name: mint crates.io token via trusted publishing
         id: crates-auth
         uses: rust-lang/crates-io-auth-action@v1

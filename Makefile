@@ -1,6 +1,12 @@
-.PHONY: build release release-tag install run clean test check fmt clippy coverage coverage-report web-build
+.PHONY: build release release-tag install run clean test check fmt clippy coverage coverage-report web-build api-client-build
 
-web-build:
+# The web UI imports @nlindstedt/zig-api-client as a file: dependency,
+# which resolves to clients/typescript/dist/. Build the client before
+# the web UI so vite can find its entry point on a fresh checkout.
+api-client-build:
+	cd clients/typescript && npm ci && npm run build
+
+web-build: api-client-build
 	cd web && npm ci && npm run build
 
 build: web-build
