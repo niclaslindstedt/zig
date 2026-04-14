@@ -192,6 +192,6 @@ Default values are also validated at parse time (`zig validate`).
 
 ## See Also
 
-- `zig man zwf` — full `.zwf` format reference
-- `zig man conditions` — condition expressions using variables
+- `zig docs zwf` — full `.zwf`/`.zwfz` format reference
+- `zig docs conditions` — condition expressions using variables
 - `zig man run` — workflow execution model

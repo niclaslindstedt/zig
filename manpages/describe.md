@@ -42,4 +42,4 @@ zig describe "lint, test, and deploy" --output ci-pipeline.zwf
 ## See Also
 
 - `zig man workflow` — interactive workflow creation and management
-- `zig man zwf` — the `.zwf` file format
+- `zig docs zwf` — the `.zwf`/`.zwfz` file format

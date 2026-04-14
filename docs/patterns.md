@@ -235,5 +235,5 @@ depends_on = ["recommend"]
 ## See Also
 
 - `zig man workflow` — manage workflows, including `create --pattern`
-- `zig man zwf` — the `.zwf` file format
-- `zig man variables` — variable system and data flow
+- `zig docs zwf` — the `.zwf`/`.zwfz` file format
+- `zig docs variables` — variable system and data flow

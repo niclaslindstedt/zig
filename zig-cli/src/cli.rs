@@ -76,9 +76,15 @@ pub enum Command {
     /// Initialize a new zig project in the current directory
     Init,
 
-    /// Show manual pages for zig topics
+    /// Show manual pages for zig commands
     Man {
-        /// Topic to display (e.g., run, zwf, patterns). Omit to list all topics.
+        /// Command to display (e.g., run, workflow, serve). Omit to list all topics.
+        topic: Option<String>,
+    },
+
+    /// Show conceptual documentation topics
+    Docs {
+        /// Topic to display (e.g., zwf, patterns, variables). Omit to list all topics.
         topic: Option<String>,
     },
 
@@ -620,6 +626,24 @@ mod tests {
         match cli.command {
             Command::Man { topic } => assert!(topic.is_none()),
             _ => panic!("expected Man command"),
+        }
+    }
+
+    #[test]
+    fn parse_docs_with_topic() {
+        let cli = Cli::try_parse_from(["zig", "docs", "zug"]).unwrap();
+        match cli.command {
+            Command::Docs { topic } => assert_eq!(topic.as_deref(), Some("zug")),
+            _ => panic!("expected Docs command"),
+        }
+    }
+
+    #[test]
+    fn parse_docs_without_topic() {
+        let cli = Cli::try_parse_from(["zig", "docs"]).unwrap();
+        match cli.command {
+            Command::Docs { topic } => assert!(topic.is_none()),
+            _ => panic!("expected Docs command"),
         }
     }
 

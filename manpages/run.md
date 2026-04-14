@@ -89,7 +89,7 @@ zig run code-review --no-resources
 
 ## See Also
 
-- `zig man zwf` — the `.zwf`/`.zwfz` file format
-- `zig man variables` — variable substitution and data flow
-- `zig man conditions` — condition expressions
+- `zig docs zwf` — the `.zwf`/`.zwfz` file format
+- `zig docs variables` — variable substitution and data flow
+- `zig docs conditions` — condition expressions
 - `zig man resources` — managing reference files for agents

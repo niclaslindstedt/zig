@@ -197,5 +197,5 @@ zig workflow delete old-workflow
 
 ## See Also
 
-- `zig man zwf` — the `.zwf`/`.zwfz` file format
-- `zig man patterns` — orchestration patterns
+- `zig docs zwf` — the `.zwf`/`.zwfz` file format
+- `zig docs patterns` — orchestration patterns

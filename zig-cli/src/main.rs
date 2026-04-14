@@ -263,6 +263,20 @@ fn main() -> Result<()> {
                 println!("{}", zig_core::man::list_topics());
             }
         }
+        Command::Docs { topic } => {
+            if let Some(topic) = topic {
+                match zig_core::docs::get(&topic) {
+                    Some(content) => print!("{content}"),
+                    None => {
+                        eprintln!("unknown docs topic: '{topic}'\n");
+                        eprintln!("{}", zig_core::docs::list_topics());
+                        std::process::exit(1);
+                    }
+                }
+            } else {
+                println!("{}", zig_core::docs::list_topics());
+            }
+        }
     }
 
     Ok(())

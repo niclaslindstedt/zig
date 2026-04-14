@@ -64,5 +64,5 @@ zig validate workflows/deploy.zwf && echo "Valid!"
 
 ## See Also
 
-- `zig man zwf` — the `.zwf` file format
-- `zig man variables` — variable declarations and references
+- `zig docs zwf` — the `.zwf`/`.zwfz` file format
+- `zig docs variables` — variable declarations and references

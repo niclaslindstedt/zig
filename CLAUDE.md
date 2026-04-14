@@ -75,8 +75,9 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 |-------------|----------------|
 | New CLI command | `zig-cli/src/cli.rs` (Command or WorkflowCommand enum), `zig-cli/src/main.rs`, `manpages/<cmd>.md`, `zig-core/src/man.rs`, `README.md` |
 | New CLI flag | `zig-cli/src/cli.rs`, relevant `manpages/*.md`, `README.md` |
-| New pattern | `zig-cli/src/cli.rs` (Pattern enum), `manpages/patterns.md`, `manpages/workflow.md` |
-| Workflow format change | `zig-core/src/workflow/`, `manpages/zwf.md`, `docs/zwf-vs-zag-gap-analysis.md` |
+| New pattern | `zig-cli/src/cli.rs` (Pattern enum), `docs/patterns.md`, `manpages/workflow.md` |
+| Workflow format change | `zig-core/src/workflow/`, `docs/zwf.md`, `docs/variables.md`, `docs/conditions.md` |
+| New concept doc | `docs/<topic>.md`, `zig-core/src/docs.rs` (embed via `include_str!`) |
 | New crate or binding | `scripts/update-versions.sh` (version bumps), `.github/workflows/release.yml` (publish steps) |
 | CLI or model change | Run `update-bindings` skill — syncs TypeScript binding with Rust source |
 | README staleness | Run `update-readme` skill — tracks last update via `.claude/skills/update-readme/.last-updated` |
