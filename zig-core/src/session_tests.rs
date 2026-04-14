@@ -61,7 +61,7 @@ fn project_index_save_and_load_round_trips() {
     idx.sessions.push(SessionLogIndexEntry {
         zig_session_id: "id1".into(),
         workflow_name: "wf".into(),
-        workflow_path: "/tmp/wf.zug".into(),
+        workflow_path: "/tmp/wf.zwf".into(),
         log_path: "/tmp/id1.jsonl".into(),
         started_at: "2026-04-10T12:00:00+00:00".into(),
         ended_at: None,
@@ -87,7 +87,7 @@ fn writer_create_writes_started_event_and_index_entries() {
         std::env::set_var("HOME", home.path());
     }
 
-    let writer = SessionWriter::create("wf", "/tmp/wf.zug", Some("hi"), 2).unwrap();
+    let writer = SessionWriter::create("wf", "/tmp/wf.zwf", Some("hi"), 2).unwrap();
     let id = writer.session_id().to_string();
     let log_path = writer.log_path().to_path_buf();
 

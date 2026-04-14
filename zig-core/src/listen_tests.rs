@@ -16,7 +16,7 @@ fn format_event_text_renders_session_started() {
         1,
         SessionEventKind::ZigSessionStarted {
             workflow_name: "code-review".into(),
-            workflow_path: "/tmp/x.zug".into(),
+            workflow_path: "/tmp/x.zwf".into(),
             workspace_path: None,
             cwd: None,
             prompt: None,

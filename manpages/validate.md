@@ -1,6 +1,6 @@
 # zig validate
 
-Validate a `.zug` workflow file for structural correctness.
+Validate a `.zwf` workflow file for structural correctness.
 
 ## Synopsis
 
@@ -10,14 +10,14 @@ zig validate <workflow>
 
 ## Description
 
-Parses and validates a `.zug` workflow file without executing it. Reports
+Parses and validates a `.zwf` workflow file without executing it. Reports
 any errors found during validation.
 
 ## Arguments
 
 | Argument   | Description                          |
 |------------|--------------------------------------|
-| `workflow` | Path to the `.zug` file to validate  |
+| `workflow` | Path to the `.zwf` file to validate  |
 
 ## Validation Checks
 
@@ -56,13 +56,13 @@ The validator performs the following checks:
 
 ```bash
 # Validate a workflow file
-zig validate my-workflow.zug
+zig validate my-workflow.zwf
 
 # Validate and check output
-zig validate workflows/deploy.zug && echo "Valid!"
+zig validate workflows/deploy.zwf && echo "Valid!"
 ```
 
 ## See Also
 
-- `zig docs zug` — the `.zug` file format
+- `zig docs zwf` — the `.zwf`/`.zwfz` file format
 - `zig docs variables` — variable declarations and references

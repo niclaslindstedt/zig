@@ -8,7 +8,7 @@ The `manpages/` directory contains markdown manpages embedded at compile time
 via `include_str!()` in `zig-core/src/man.rs` and accessed via
 `zig man <topic>`. They are the authoritative **command-level** reference
 documentation — one manpage per CLI command. Conceptual documentation (the
-`.zug` format, patterns, variables, conditions, memory) lives in `docs/` and
+`.zwf`/`.zwfz` format, patterns, variables, conditions, memory) lives in `docs/` and
 is updated via the `update-docs` skill. Manpages get stale when CLI flags,
 commands, or command behavior change without updating the corresponding
 manpage.
@@ -18,12 +18,12 @@ manpage.
 | File | Covers |
 |------|--------|
 | `zig.md` | Overview of the zig CLI |
-| `run.md` | Execute a `.zug` workflow file |
+| `run.md` | Execute a `.zwf`/`.zwfz` workflow file |
 | `listen.md` | Tail a running or completed zig session |
-| `workflow.md` | Manage workflows (list, show, create, delete, pack) |
+| `workflow.md` | Manage workflows (list, show, create, update, delete, pack) |
 | `resources.md` | Manage reference files advertised to agents |
-| `describe.md` | Generate a `.zug` file from a prompt |
-| `validate.md` | Validate a `.zug` workflow file |
+| `describe.md` | Generate a `.zwf` file from a prompt |
+| `validate.md` | Validate a `.zwf`/`.zwfz` workflow file |
 | `serve.md` | Start the HTTP API server |
 
 ## Tracking Mechanism
@@ -64,6 +64,7 @@ The file `.claude/skills/update-manpages/.last-updated` contains the git commit 
 | `zig-cli/src/cli.rs` (Command::Validate) | `validate.md` |
 | `zig-cli/src/cli.rs` (Command::Serve) | `serve.md` |
 | `zig-cli/src/cli.rs` (new Command variant) | New `manpages/<cmd>.md` + `zig.md` + `man.rs` |
+| `zig-core/src/workflow/validate.rs` | `validate.md` |
 | `zig-core/src/run.rs` | `run.md` |
 | `zig-core/src/listen.rs` | `listen.md` |
 | `zig-core/src/manage.rs` / `create.rs` / `pack.rs` | `workflow.md` |
@@ -82,6 +83,7 @@ The file `.claude/skills/update-manpages/.last-updated` contains the git commit 
 | Source of truth | What it tells you |
 |----------------|-------------------|
 | `zig-cli/src/cli.rs` | All CLI commands, flags, subcommands, patterns |
+| `zig-core/src/workflow/validate.rs` | Validation rules and constraints |
 | `zig-core/src/run.rs` | Workflow execution behavior |
 | `zig-core/src/listen.rs` | Session tailing behavior |
 | `zig-core/src/manage.rs` | Workflow list/show/delete behavior |
@@ -107,7 +109,7 @@ When a new variant is added to the `Command` enum in `cli.rs`:
 
 ### Command vs. concept
 
-Anything that describes a concept (e.g., a new `.zug` field, a new orchestration
+Anything that describes a concept (e.g., a new `.zwf` field, a new orchestration
 pattern, the memory tier layout) belongs in `docs/`, not `manpages/`. Use the
 `update-docs` skill for those changes. Manpages should cross-reference concept
 docs via `` `zig docs <topic>` ``.

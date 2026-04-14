@@ -29,7 +29,7 @@ Do not manually edit `CHANGELOG.md` — it is auto-generated from conventional c
 
 ```
 zig-core (library crate)
-  .zug file parsing, workflow validation, execution engine
+  .zwf/.zwfz file parsing, workflow validation, execution engine
 
 zig-cli (binary crate)
   CLI argument parsing (clap) → dispatch to zig-core
@@ -39,9 +39,9 @@ zig-cli (binary crate)
 Dependency flow: `zig-core ← zig-cli`
 
 - **zig-cli/src/**: Thin CLI wrapper — argument parsing and command dispatch
-- **zig-core/src/**: Core library — .zug format, workflow engine, zag integration
+- **zig-core/src/**: Core library — .zwf/.zwfz format, workflow engine, zag integration
 
-Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the scenes. The `zig describe` command invokes zag in interactive mode to generate `.zug` workflow files. The `zig run` command parses and executes `.zug` files by delegating to zag orchestration.
+Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the scenes. The `zig describe` command invokes zag in interactive mode to generate `.zwf` workflow files. The `zig run` command parses and executes `.zwf` / `.zwfz` files by delegating to zag orchestration.
 
 ## Development workflow
 
@@ -76,7 +76,7 @@ Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the sce
 | New CLI command | `zig-cli/src/cli.rs` (Command or WorkflowCommand enum), `zig-cli/src/main.rs`, `manpages/<cmd>.md`, `zig-core/src/man.rs`, `README.md` |
 | New CLI flag | `zig-cli/src/cli.rs`, relevant `manpages/*.md`, `README.md` |
 | New pattern | `zig-cli/src/cli.rs` (Pattern enum), `docs/patterns.md`, `manpages/workflow.md` |
-| Workflow format change | `zig-core/src/workflow/`, `docs/zug.md`, `docs/variables.md`, `docs/conditions.md` |
+| Workflow format change | `zig-core/src/workflow/`, `docs/zwf.md`, `docs/variables.md`, `docs/conditions.md` |
 | New concept doc | `docs/<topic>.md`, `zig-core/src/docs.rs` (embed via `include_str!`) |
 | New crate or binding | `scripts/update-versions.sh` (version bumps), `.github/workflows/release.yml` (publish steps) |
 | CLI or model change | Run `update-bindings` skill — syncs TypeScript binding with Rust source |

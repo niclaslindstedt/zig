@@ -4,7 +4,7 @@ description: "Use when docs may be stale. Discovers commits since the last docs 
 
 # Updating the Docs
 
-The `docs/` directory contains conceptual documentation — the `.zug` format,
+The `docs/` directory contains conceptual documentation — the `.zwf`/`.zwfz` format,
 orchestration patterns, the variable system, condition expressions, and the
 memory scratch pad. Unlike manpages (command-level reference) or the README
 (overview), docs/ files explore concepts in depth with examples and
@@ -17,7 +17,7 @@ changes without corresponding docs updates.
 
 | File | Covers |
 |------|--------|
-| `zug.md` | The `.zug` workflow format (sections, fields, zip archives) |
+| `zwf.md` | The `.zwf`/`.zwfz` workflow format (sections, fields, zip archives) |
 | `patterns.md` | Orchestration patterns (sequential, fan-out, generator/critic, …) |
 | `variables.md` | Variable declarations, substitution, saves, data flow |
 | `conditions.md` | Condition expressions for step gating |
@@ -52,13 +52,13 @@ The file `.claude/skills/update-docs/.last-updated` contains the git commit hash
 
 | Changed files / commit scope | Doc(s) to update |
 |------------------------------|-----------------|
-| `zig-core/src/workflow/model.rs` (new fields, types) | `zug.md`, `variables.md`, `conditions.md` |
-| `zig-core/src/workflow/parser.rs` (format changes) | `zug.md` |
-| `zig-core/src/workflow/validate.rs` (validation rules) | `zug.md`, `variables.md` |
-| `zig-core/src/run.rs` (execution changes) | `zug.md`, `patterns.md` |
+| `zig-core/src/workflow/model.rs` (new fields, types) | `zwf.md`, `variables.md`, `conditions.md` |
+| `zig-core/src/workflow/parser.rs` (format changes) | `zwf.md` |
+| `zig-core/src/workflow/validate.rs` (validation rules) | `zwf.md`, `variables.md` |
+| `zig-core/src/run.rs` (execution changes) | `zwf.md`, `patterns.md` |
 | `zig-core/src/memory.rs` (memory tiers, manifest, modes) | `memory.md` |
 | `zig-cli/src/cli.rs` (Pattern enum) | `patterns.md` |
-| New `.zug` field | `zug.md` (field tables), possibly `variables.md`/`conditions.md` |
+| New `.zwf` field | `zwf.md` (field tables), possibly `variables.md`/`conditions.md` |
 | New orchestration pattern | `patterns.md` |
 | New concept that needs documentation | new `docs/<topic>.md` + `zig-core/src/docs.rs` |
 
@@ -73,8 +73,8 @@ The file `.claude/skills/update-docs/.last-updated` contains the git commit hash
 
 | Source of truth | What it tells you |
 |----------------|-------------------|
-| `zig-core/src/workflow/model.rs` | `.zug` data model — all fields and types |
-| `zig-core/src/workflow/parser.rs` | `.zug` format parsing rules |
+| `zig-core/src/workflow/model.rs` | `.zwf` data model — all fields and types |
+| `zig-core/src/workflow/parser.rs` | `.zwf` format parsing rules |
 | `zig-core/src/workflow/validate.rs` | Validation constraints |
 | `zig-core/src/run.rs` | How workflows are executed via zag |
 | `zig-core/src/memory.rs` | Memory tiers, manifest format, injection modes |
@@ -84,9 +84,9 @@ The file `.claude/skills/update-docs/.last-updated` contains the git commit hash
 
 ## Implementation Patterns
 
-### Adding a new `.zug` field
+### Adding a new `.zwf` field
 
-1. Update `docs/zug.md` field tables with the new field, default, and description
+1. Update `docs/zwf.md` field tables with the new field, default, and description
 2. Update `docs/variables.md` or `docs/conditions.md` if the field affects those subsystems
 3. Add an example to the relevant section
 
@@ -109,7 +109,7 @@ When a new conceptual topic needs documentation:
 
 - [ ] Read baseline from `.last-updated` and run `git log` to identify changes
 - [ ] Read all affected docs and source-of-truth files
-- [ ] Update `zug.md` if workflow model or parser changed
+- [ ] Update `zwf.md` if workflow model or parser changed
 - [ ] Update `patterns.md` if orchestration patterns or execution model changed
 - [ ] Update `variables.md` / `conditions.md` if those subsystems changed
 - [ ] Update `memory.md` if the memory subsystem changed

@@ -147,9 +147,12 @@ fn main() -> Result<()> {
             WorkflowCommand::Pack { path, output } => {
                 zig_core::pack::pack(&path, output.as_deref())?;
             }
+            WorkflowCommand::Update { workflow } => {
+                zig_core::update::run_update(&workflow)?;
+            }
         },
         Command::Describe { prompt, output } => {
-            let dest = output.unwrap_or_else(|| "workflow.zug".to_string());
+            let dest = output.unwrap_or_else(|| "workflow.zwf".to_string());
             println!(
                 "zig describe: generating '{dest}' from prompt '{prompt}' (not yet implemented)"
             );

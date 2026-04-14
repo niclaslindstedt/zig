@@ -4,7 +4,7 @@ description: "Use when the README.md may be stale. Discovers commits since the l
 
 # Updating the README
 
-The README.md is the primary user-facing documentation. It covers installation, commands, flags, the `.zug` format, architecture, and development instructions. It gets stale when new features land without corresponding README updates.
+The README.md is the primary user-facing documentation. It covers installation, commands, flags, the `.zwf` format, architecture, and development instructions. It gets stale when new features land without corresponding README updates.
 
 ## Tracking Mechanism
 
@@ -37,7 +37,7 @@ The file `.claude/skills/update-readme/.last-updated` contains the git commit ha
 |------------------------------|----------------------------|
 | `zig-cli/src/cli.rs` (Command enum) | **Commands** list, **Flags** table |
 | `zig-cli/src/cli.rs` (Pattern enum) | **Commands** (describe/create sections) |
-| `zig-core/src/workflow/` | **The `.zug` format** section |
+| `zig-core/src/workflow/` | **The `.zwf` format** section |
 | `zig-core/src/run.rs` | **`zig run`** section, architecture notes |
 | `zig-core/src/create.rs` | **`zig describe`** section |
 | `zig-core/src/prompt.rs` | Prompt templates, workflow generation |
@@ -58,8 +58,8 @@ The file `.claude/skills/update-readme/.last-updated` contains the git commit ha
 |----------------|-------------------|
 | `zig-cli/src/cli.rs` | All CLI commands, flags, subcommands |
 | `zig-core/src/lib.rs` | Public modules and crate structure |
-| `zig-core/src/workflow/model.rs` | `.zug` workflow data model |
-| `zig-core/src/workflow/parser.rs` | `.zug` format parsing rules |
+| `zig-core/src/workflow/model.rs` | `.zwf` workflow data model |
+| `zig-core/src/workflow/parser.rs` | `.zwf` format parsing rules |
 | `zig-core/src/run.rs` | Workflow execution logic |
 | `zig-core/src/create.rs` | Interactive workflow creation |
 | `zig-core/src/man.rs` | Manpage topics (mirrors command list) |
@@ -74,7 +74,7 @@ The file `.claude/skills/update-readme/.last-updated` contains the git commit ha
 - [ ] Update **Flags** table if CLI flags changed
 - [ ] Update **`zig run`** section if run behavior changed
 - [ ] Update **`zig describe`** section if describe behavior changed
-- [ ] Update **The `.zug` format** section if workflow model changed
+- [ ] Update **The `.zwf` format** section if workflow model changed
 - [ ] Update **Architecture** section if crate structure changed
 - [ ] Update **Install** section if installation methods changed
 - [ ] Update **Prerequisites** if dependency requirements changed

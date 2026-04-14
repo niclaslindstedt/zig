@@ -87,12 +87,12 @@ test("startChat posts JSON with initial_prompt", async () => {
     baseUrl: "http://zig.test",
     token: "t",
     fetch: makeFakeFetch(calls, [
-      { body: '{"session_id":"abc","output_path":"/tmp/x.zug"}' },
+      { body: '{"session_id":"abc","output_path":"/tmp/x.zwf"}' },
     ]),
   });
 
   const res = await client.startChat("build a CI workflow", "ci");
-  assert.deepEqual(res, { session_id: "abc", output_path: "/tmp/x.zug" });
+  assert.deepEqual(res, { session_id: "abc", output_path: "/tmp/x.zwf" });
 
   assert.equal(calls[0].url, "http://zig.test/api/v1/web/chat");
   assert.equal(calls[0].method, "POST");

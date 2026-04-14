@@ -2,7 +2,7 @@
 // Workflow model types — mirrors zig-core/src/workflow/model.rs
 // ---------------------------------------------------------------------------
 
-/** A complete workflow definition parsed from a `.zug` file. */
+/** A complete workflow definition parsed from a `.zwf` file. */
 export interface Workflow {
   workflow: WorkflowMeta;
   /** Reusable role definitions that can be referenced by steps. */
@@ -15,7 +15,7 @@ export interface Workflow {
 export interface Role {
   /** Inline system prompt for this role. Supports ${var} references. */
   system_prompt?: string;
-  /** Path to a file containing the system prompt (relative to the .zug file). */
+  /** Path to a file containing the system prompt (relative to the .zwf file). */
   system_prompt_file?: string;
 }
 
@@ -42,7 +42,7 @@ export interface WorkflowMeta {
 /**
  * Inline resource specification.
  *
- * Strings are interpreted as bare paths relative to the `.zug` file. Use the
+ * Strings are interpreted as bare paths relative to the `.zwf` file. Use the
  * detailed form to attach a name, description, or required flag.
  */
 export type ResourceSpec =
@@ -64,7 +64,7 @@ export interface Variable {
   type: VarType;
   /** Default value. If absent, the variable must be provided at runtime. */
   default?: unknown;
-  /** Path to a file whose contents become the default value (relative to .zug file). */
+  /** Path to a file whose contents become the default value (relative to .zwf file). */
   default_file?: string;
   /** Human-readable description of this variable's purpose. */
   description: string;

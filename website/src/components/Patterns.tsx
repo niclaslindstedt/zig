@@ -69,7 +69,7 @@ export default function Patterns() {
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-center text-text-secondary">
           Start from a proven pattern with <code className="rounded bg-surface px-1.5 py-0.5 text-xs text-accent">zig workflow create --pattern &lt;name&gt;</code>.
-          Each pattern generates a .zug template you can customize.
+          Each pattern generates a .zwf template you can customize.
         </p>
 
         {/* Featured patterns with code */}

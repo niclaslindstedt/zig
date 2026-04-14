@@ -14,7 +14,7 @@ export default function Navbar() {
     <>
       <a href="#features" className="text-sm text-text-secondary hover:text-text-primary transition-colors">Features</a>
       <a href="#how-it-works" className="text-sm text-text-secondary hover:text-text-primary transition-colors">How It Works</a>
-      <a href="#zug-format" className="text-sm text-text-secondary hover:text-text-primary transition-colors">.zug Format</a>
+      <a href="#zwf-format" className="text-sm text-text-secondary hover:text-text-primary transition-colors">.zwf Format</a>
       <a href="#patterns" className="text-sm text-text-secondary hover:text-text-primary transition-colors">Patterns</a>
       <a href="#built-on-zag" className="text-sm text-text-secondary hover:text-text-primary transition-colors">zag</a>
       <a href="#get-started" className="text-sm text-text-secondary hover:text-text-primary transition-colors">Get Started</a>

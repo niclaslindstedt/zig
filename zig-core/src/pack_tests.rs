@@ -24,7 +24,7 @@ prompt = "Say hello"
     std::fs::create_dir(&prompts_dir).unwrap();
     std::fs::write(prompts_dir.join("greeting.md"), "You are a greeter.").unwrap();
 
-    let output_path = tmp.path().join("output.zug");
+    let output_path = tmp.path().join("output.zwfz");
     let result = pack(
         workflow_dir.to_str().unwrap(),
         Some(output_path.to_str().unwrap()),
@@ -66,7 +66,7 @@ prompt = "Triage"
 
     assert!(result.is_ok());
     let output = result.unwrap();
-    assert_eq!(output.file_name().unwrap(), "hospital-triage.zug");
+    assert_eq!(output.file_name().unwrap(), "hospital-triage.zwfz");
 }
 
 #[test]
@@ -132,7 +132,7 @@ role = "doctor"
     )
     .unwrap();
 
-    let output_path = tmp.path().join("roles-pack.zug");
+    let output_path = tmp.path().join("roles-pack.zwfz");
     pack(
         workflow_dir.to_str().unwrap(),
         Some(output_path.to_str().unwrap()),

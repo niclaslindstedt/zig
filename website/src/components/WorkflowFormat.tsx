@@ -47,10 +47,10 @@ export default function WorkflowFormat() {
   const fields = showAll ? stepFields : displayFields;
 
   return (
-    <section id="zug-format" className="border-t border-border py-20 md:py-28">
+    <section id="zwf-format" className="border-t border-border py-20 md:py-28">
       <div className="mx-auto max-w-6xl px-6">
         <h2 className="text-center text-3xl font-bold text-text-primary md:text-4xl">
-          The .zug workflow format
+          The .zwf workflow format
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-center text-text-secondary">
           A TOML-based format for defining multi-agent workflows. Variables ({varTypes.join(", ")}),
@@ -66,7 +66,7 @@ export default function WorkflowFormat() {
                 <div className="h-3 w-3 rounded-full bg-[#febc2e]" />
                 <div className="h-3 w-3 rounded-full bg-[#28c840]" />
               </div>
-              <span className="text-xs text-text-dim font-medium">code-review.zug</span>
+              <span className="text-xs text-text-dim font-medium">code-review.zwf</span>
             </div>
             <pre className="overflow-x-auto p-5 text-xs leading-relaxed text-text-secondary">
               <code>{exampleWorkflow}</code>

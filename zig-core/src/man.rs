@@ -13,15 +13,15 @@ mod pages {
 /// All available manpage topics in display order.
 pub const TOPICS: &[(&str, &str)] = &[
     ("zig", "Overview of the zig CLI"),
-    ("run", "Execute a .zug workflow file"),
+    ("run", "Execute a .zwf/.zwfz workflow file"),
     ("listen", "Tail a running or completed zig session"),
     ("serve", "Start an HTTP API server"),
     (
         "workflow",
-        "Manage workflows (list, show, create, delete, pack)",
+        "Manage workflows (list, show, create, update, delete, pack)",
     ),
-    ("describe", "Generate a .zug file from a prompt"),
-    ("validate", "Validate a .zug workflow file"),
+    ("describe", "Generate a .zwf file from a prompt"),
+    ("validate", "Validate a .zwf or .zwfz workflow file"),
     (
         "resources",
         "Manage reference files advertised to step agents",

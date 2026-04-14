@@ -30,7 +30,7 @@ export default function Hero() {
         </h1>
 
         <p className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary md:text-xl">
-          Capture automation as shareable <code className="rounded bg-surface-alt px-1.5 py-0.5 text-sm text-accent">.zug</code> files
+          Capture automation as shareable <code className="rounded bg-surface-alt px-1.5 py-0.5 text-sm text-accent">.zwf</code> files
           and replay them anywhere with a single command.
           Powered by{" "}
           <a href="https://github.com/niclaslindstedt/zag" target="_blank" rel="noopener noreferrer" className="text-zag-light hover:underline">zag</a>.
@@ -38,7 +38,7 @@ export default function Hero() {
 
         {/* Capability pills */}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          {["Natural Language", ".zug Files", "7 Patterns", "DAG Execution", "Multi-Provider"].map((label) => (
+          {["Natural Language", ".zwf Files", "7 Patterns", "DAG Execution", "Multi-Provider"].map((label) => (
             <span key={label} className="rounded-full border border-border bg-surface-alt px-3 py-1 text-sm font-medium text-accent">
               {label}
             </span>

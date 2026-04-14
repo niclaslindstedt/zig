@@ -135,6 +135,6 @@ granularity:
 
 ## See Also
 
-- `zig docs resources` — reference files vs. accumulated memory
-- `zig docs zug` — the `memory` field on `[workflow]` and `[[step]]`
+- `zig man resources` — reference files vs. accumulated memory
+- `zig docs zwf` — the `memory` field on `[workflow]` and `[[step]]`
 - `zig man run` — `--no-memory` and the run model

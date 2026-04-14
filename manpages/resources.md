@@ -15,7 +15,7 @@ Resources are collected from five tiers and merged at run time in this order:
 | 1    | `~/.zig/resources/_shared/`              | Files advertised to **every** workflow regardless of name |
 | 2    | `~/.zig/resources/<workflow-name>/`      | Files advertised only to a specific named workflow        |
 | 3    | `<git-root>/.zig/resources/`             | Project-local resources (walks up from cwd to git root)   |
-| 4    | `[workflow] resources = [...]`           | Inline workflow-level resources from the `.zug` file      |
+| 4    | `[workflow] resources = [...]`           | Inline workflow-level resources from the `.zwf` file      |
 | 5    | `[[step]] resources = [...]`             | Inline step-level resources                               |
 
 The first tier to register a given canonical path wins for display ordering;
@@ -47,7 +47,7 @@ Paths are absolute and canonicalized. When a `description` was provided in the
 detailed inline form it appears after `—`; otherwise the file's display name
 appears in parentheses.
 
-## Inline Resources in `.zug` Files
+## Inline Resources in `.zwf` Files
 
 Both `[workflow]` and `[[step]]` accept a `resources` field. Each entry is
 either a bare path string or a table with `path`, `name`, `description`, and
@@ -67,14 +67,14 @@ prompt = "Write a cover letter for the attached job posting."
 resources = [{ path = "./templates/cover-letter.md", description = "House template" }]
 ```
 
-Inline paths are resolved relative to the `.zug` file. A missing optional
+Inline paths are resolved relative to the `.zwf` file. A missing optional
 resource is logged as a warning and skipped; a missing **required** resource
 aborts the run.
 
 ## Management Commands
 
 The `zig resources` subcommand manages files in the global and project tiers.
-Inline resources in `.zug` files are not touched — edit the workflow file to
+Inline resources in `.zwf` files are not touched — edit the workflow file to
 change those.
 
 ### `zig resources list`
@@ -147,5 +147,5 @@ zig run cover-letter --no-resources
 
 ## See Also
 
-- `zig docs zug` — the inline `resources` field in the `.zug` format
+- `zig docs zwf` — the inline `resources` field in the `.zwf` format
 - `zig man run` — `--no-resources` and the run model

@@ -473,13 +473,13 @@ fn resolve_from_global_dir() {
     let global_wf_dir = crate::paths::global_workflows_dir_from(dir.path());
     std::fs::create_dir_all(&global_wf_dir).unwrap();
     std::fs::write(
-        global_wf_dir.join("global-test.zug"),
+        global_wf_dir.join("global-test.zwf"),
         "[workflow]\nname = \"g\"\ndescription = \"\"\n[[step]]\nname = \"s\"\nprompt = \"p\"",
     )
     .unwrap();
 
     // Use the full path to test resolution
-    let full_path = global_wf_dir.join("global-test.zug");
+    let full_path = global_wf_dir.join("global-test.zwf");
     let result = resolve_workflow_path(full_path.to_str().unwrap());
     assert!(result.is_ok());
 }
@@ -487,7 +487,7 @@ fn resolve_from_global_dir() {
 #[test]
 fn resolve_local_over_global_precedence() {
     let local_dir = tempfile::tempdir().unwrap();
-    let local_path = local_dir.path().join("precedence.zug");
+    let local_path = local_dir.path().join("precedence.zwf");
     std::fs::write(&local_path, "local").unwrap();
 
     // Resolving the literal local path finds the local file

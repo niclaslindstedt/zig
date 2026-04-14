@@ -113,4 +113,4 @@ condition = "complexity == \"complex\""
 
 - `zig docs variables` — variable declarations and data flow
 - `zig docs patterns` — orchestration patterns using conditions
-- `zig docs zug` — full `.zug` format reference
+- `zig docs zwf` — full `.zwf` format reference

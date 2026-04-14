@@ -5,7 +5,7 @@ in the `[vars]` section and referenced in prompts, conditions, and saves.
 
 ## Declaring Variables
 
-Variables are declared in the `[vars]` section of a `.zug` file:
+Variables are declared in the `[vars]` section of a `.zwf` file:
 
 ```toml
 [vars.target]
@@ -148,7 +148,7 @@ default_file = "prompts/instructions.md"
 ```
 
 `default` and `default_file` are mutually exclusive. File paths are resolved
-relative to the `.zug` file (works for both plain files and zip archives).
+relative to the `.zwf` file (works for both plain files and zip archives).
 
 ## Input Binding
 
@@ -192,6 +192,6 @@ Default values are also validated at parse time (`zig validate`).
 
 ## See Also
 
-- `zig docs zug` — full `.zug` format reference
+- `zig docs zwf` — full `.zwf`/`.zwfz` format reference
 - `zig docs conditions` — condition expressions using variables
 - `zig man run` — workflow execution model

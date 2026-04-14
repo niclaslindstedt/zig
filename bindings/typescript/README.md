@@ -94,7 +94,7 @@ don't need them.
 import { ZigBuilder, ZigError } from "@nlindstedt/zig-workflow";
 
 try {
-  const msg = await new ZigBuilder().validate("deploy.zug");
+  const msg = await new ZigBuilder().validate("deploy.zwf");
   console.log(msg); // "workflow 'deploy' is valid (3 steps)"
 } catch (err) {
   if (err instanceof ZigError) {
@@ -128,9 +128,9 @@ await zig.workflowCreate({
 });
 ```
 
-## Parsing .zug files
+## Parsing .zwf files
 
-The SDK includes a lightweight TOML parser for reading `.zug` workflow files
+The SDK includes a lightweight TOML parser for reading `.zwf` workflow files
 directly from Node.js without spawning the CLI:
 
 ```typescript
@@ -153,7 +153,7 @@ console.log(workflow.workflow.name);     // "example"
 console.log(workflow.steps[0].provider); // "claude"
 
 // Parse from a file
-const wf = await parseWorkflowFile("./deploy.zug");
+const wf = await parseWorkflowFile("./deploy.zwf");
 console.log(wf.steps.length);
 ```
 
@@ -174,23 +174,23 @@ console.log(wf.steps.length);
 | `.runInteractive(workflow, prompt?)` | `Promise<void>` | Run a workflow interactively (inherits stdio) |
 | `.stream(workflow, prompt?)` | `AsyncGenerator<string>` | Stream stdout lines as they arrive |
 | `.runStreaming(workflow, prompt?)` | `StreamingSession` | Bidirectional streaming with piped stdin/stdout |
-| `.validate(workflow)` | `Promise<string>` | Validate a .zug file |
+| `.validate(workflow)` | `Promise<string>` | Validate a .zwf file |
 | `.workflowList()` | `Promise<string>` | List available workflows |
 | `.workflowShow(workflow)` | `Promise<string>` | Show workflow details |
 | `.workflowDelete(workflow)` | `Promise<string>` | Delete a workflow |
 | `.workflowCreate(options?)` | `Promise<void>` | Create a workflow interactively |
-| `.describe(prompt, output?)` | `Promise<void>` | Generate a .zug file from natural language |
+| `.describe(prompt, output?)` | `Promise<void>` | Generate a .zwf file from natural language |
 | `.listen(options?)` | `Promise<void>` | Tail a running/completed session |
 | `.init()` | `Promise<void>` | Initialize a new zig project in the current directory |
-| `.workflowPack(path, output?)` | `Promise<string>` | Pack a workflow directory into a .zug zip archive |
+| `.workflowPack(path, output?)` | `Promise<string>` | Pack a workflow directory into a .zwfz zip archive |
 | `.man(topic?)` | `Promise<string>` | Show a manual page topic |
 
 ## Utility functions
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| `parseWorkflow(content)` | `Workflow` | Parse a TOML `.zug` string into a typed `Workflow` object |
-| `parseWorkflowFile(path)` | `Promise<Workflow>` | Read and parse a `.zug` file from disk |
+| `parseWorkflow(content)` | `Workflow` | Parse a TOML `.zwf` string into a typed `Workflow` object |
+| `parseWorkflowFile(path)` | `Promise<Workflow>` | Read and parse a `.zwf` file from disk |
 | `zagSessionName(workflow, step)` | `string` | Compute the zag session name for a single step (`zig-{workflow}-{step}`) |
 | `zagSessionNames(workflow)` | `Record<string, string>` | Extract all zag session names from a parsed workflow |
 
@@ -242,7 +242,7 @@ const session = zagSessionName("deploy", "lint");
 // "zig-deploy-lint"
 
 // All session names from a workflow file
-const wf = await parseWorkflowFile("deploy.zug");
+const wf = await parseWorkflowFile("deploy.zwf");
 const sessions = zagSessionNames(wf);
 // { lint: "zig-deploy-lint", test: "zig-deploy-test", deploy: "zig-deploy-deploy" }
 
@@ -287,7 +287,7 @@ npm run build && npm test
 
 - [Zag TypeScript SDK (`@nlindstedt/zag-agent`)](https://github.com/niclaslindstedt/zag/tree/main/bindings/typescript) — Lower-level agent control
 - [Zig CLI](../../README.md) — The zig command-line tool
-- [.zug Format Reference](../../docs/zug.md) — Full .zug file specification
+- [.zwf Format Reference](../../docs/zwf.md) — Full .zwf/.zwfz file specification
 
 ## License
 

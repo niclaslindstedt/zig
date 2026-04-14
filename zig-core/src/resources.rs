@@ -11,7 +11,7 @@
 //! 1. **Global shared** — every file under `~/.zig/resources/_shared/`
 //! 2. **Global per-workflow** — every file under `~/.zig/resources/<workflow-name>/`
 //! 3. **Project (cwd)** — every file under `<git-root>/.zig/resources/`
-//! 4. **Inline workflow** — `resources = [...]` in `[workflow]` of the `.zug` file
+//! 4. **Inline workflow** — `resources = [...]` in `[workflow]` of the `.zwf` file
 //! 5. **Inline step** — `resources = [...]` on a single `[[step]]`
 //!
 //! Entries are deduplicated by canonicalized absolute path; the first tier to
@@ -116,9 +116,9 @@ impl ResourceSet {
 /// directly without mutating `$HOME`. Use [`ResourceCollector::from_env`]
 /// at runtime to populate the directories from `crate::paths`.
 pub struct ResourceCollector<'a> {
-    /// Inline workflow-level resources from the `.zug` file.
+    /// Inline workflow-level resources from the `.zwf` file.
     pub workflow_resources: &'a [ResourceSpec],
-    /// Directory the `.zug` file lives in — relative paths in inline specs
+    /// Directory the `.zwf` file lives in — relative paths in inline specs
     /// are resolved against this.
     pub workflow_dir: &'a Path,
     /// `~/.zig/resources/_shared/`, when present.

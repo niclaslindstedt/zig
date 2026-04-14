@@ -31,7 +31,7 @@ pub fn get_workflow_list() -> Result<Vec<WorkflowInfo>, ZigError> {
     let mut local_entries: Vec<PathBuf> = Vec::new();
 
     if let Some(local_dir) = crate::paths::cwd_workflows_dir() {
-        collect_zug_files(&local_dir, &mut local_entries);
+        collect_workflow_files(&local_dir, &mut local_entries);
         local_entries.sort();
     }
 
@@ -46,7 +46,7 @@ pub fn get_workflow_list() -> Result<Vec<WorkflowInfo>, ZigError> {
 
     if let Some(global_dir) = crate::paths::global_workflows_dir() {
         let mut global_all = Vec::new();
-        collect_zug_files(&global_dir, &mut global_all);
+        collect_workflow_files(&global_dir, &mut global_all);
         for f in global_all {
             if local_filenames
                 .iter()
@@ -122,8 +122,8 @@ pub fn get_workflow_detail(workflow: &str) -> Result<Workflow, ZigError> {
     parser::parse_file(&path)
 }
 
-/// List all `.zug` workflow files found in the current directory, `./workflows/`,
-/// and the global `~/.zig/workflows/` directory.
+/// List all `.zwf`/`.zwfz` workflow files found in the current directory,
+/// `./workflows/`, and the global `~/.zig/workflows/` directory.
 pub fn list_workflows() -> Result<(), ZigError> {
     let infos = get_workflow_list()?;
 
@@ -304,24 +304,29 @@ fn terminal_width() -> Option<usize> {
     std::env::var("COLUMNS").ok().and_then(|v| v.parse().ok())
 }
 
-/// Discover all `.zug` files in a base directory and its `workflows/` subdirectory.
+/// Discover all `.zwf`/`.zwfz` files in a base directory and its `workflows/`
+/// subdirectory.
 #[cfg(test)]
-fn discover_zug_files(base: &Path) -> Vec<PathBuf> {
+fn discover_workflow_files(base: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
-    collect_zug_files(base, &mut files);
-    collect_zug_files(&base.join("workflows"), &mut files);
+    collect_workflow_files(base, &mut files);
+    collect_workflow_files(&base.join("workflows"), &mut files);
 
     files.sort();
     files
 }
 
-/// Collect `.zug` files from a single directory into `out`.
-fn collect_zug_files(dir: &Path, out: &mut Vec<PathBuf>) {
+/// Collect `.zwf` and `.zwfz` workflow files from a single directory into `out`.
+fn collect_workflow_files(dir: &Path, out: &mut Vec<PathBuf>) {
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().is_some_and(|ext| ext == "zug") && path.is_file() {
+            if path
+                .extension()
+                .is_some_and(|ext| ext == "zwf" || ext == "zwfz")
+                && path.is_file()
+            {
                 out.push(path);
             }
         }

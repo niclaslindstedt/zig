@@ -1,7 +1,7 @@
 //! zig-core — workflow orchestration engine for AI coding agents.
 //!
 //! This crate provides the core library for parsing, validating, and executing
-//! `.zug` workflow files. It powers the `zig` CLI.
+//! `.zwf` workflow files (and zipped `.zwfz` bundles). It powers the `zig` CLI.
 
 pub mod config;
 pub mod create;
@@ -18,4 +18,5 @@ pub mod resources;
 pub mod resources_manage;
 pub mod run;
 pub mod session;
+pub mod update;
 pub mod workflow;

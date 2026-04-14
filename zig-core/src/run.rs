@@ -19,7 +19,7 @@ use crate::workflow::{parser, validate};
 /// Maximum number of loop iterations to prevent infinite loops from `next` fields.
 const MAX_LOOP_ITERATIONS: usize = 100;
 
-/// Execute a `.zug` workflow file.
+/// Execute a workflow file (`.zwf` or `.zwfz`).
 ///
 /// Parses the workflow, validates it, resolves the step DAG, and executes
 /// each step by delegating to `zag`. The optional `user_prompt` is injected
@@ -76,25 +76,31 @@ pub(crate) fn check_zag() -> Result<(), ZigError> {
 ///
 /// Tries in order:
 /// 1. Literal path as given
-/// 2. With `.zug` extension appended
-/// 3. Under local project `.zig/workflows/` directory
-/// 4. Under local project `.zig/workflows/` with `.zug` appended
-/// 5. Under global `~/.zig/workflows/` directory
-/// 6. Under global `~/.zig/workflows/` with `.zug` appended
+/// 2. With `.zwf` extension appended
+/// 3. With `.zwfz` extension appended
+/// 4. Under local project `.zig/workflows/` directory
+/// 5. Under local project `.zig/workflows/` with `.zwf` appended
+/// 6. Under local project `.zig/workflows/` with `.zwfz` appended
+/// 7. Under global `~/.zig/workflows/` directory
+/// 8. Under global `~/.zig/workflows/` with `.zwf` appended
+/// 9. Under global `~/.zig/workflows/` with `.zwfz` appended
 pub fn resolve_workflow_path(workflow: &str) -> Result<PathBuf, ZigError> {
     let mut candidates = vec![
         PathBuf::from(workflow),
-        PathBuf::from(format!("{workflow}.zug")),
+        PathBuf::from(format!("{workflow}.zwf")),
+        PathBuf::from(format!("{workflow}.zwfz")),
     ];
 
     if let Some(local_dir) = crate::paths::cwd_workflows_dir() {
         candidates.push(local_dir.join(workflow));
-        candidates.push(local_dir.join(format!("{workflow}.zug")));
+        candidates.push(local_dir.join(format!("{workflow}.zwf")));
+        candidates.push(local_dir.join(format!("{workflow}.zwfz")));
     }
 
     if let Some(global_dir) = crate::paths::global_workflows_dir() {
         candidates.push(global_dir.join(workflow));
-        candidates.push(global_dir.join(format!("{workflow}.zug")));
+        candidates.push(global_dir.join(format!("{workflow}.zwf")));
+        candidates.push(global_dir.join(format!("{workflow}.zwfz")));
     }
 
     for candidate in &candidates {

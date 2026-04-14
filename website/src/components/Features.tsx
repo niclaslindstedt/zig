@@ -4,7 +4,7 @@ const features = [
   {
     title: "Natural Language Workflows",
     description:
-      "Describe what you want done in plain English. An AI agent designs the orchestration and produces a portable .zug file for you.",
+      "Describe what you want done in plain English. An AI agent designs the orchestration and produces a portable .zwf file for you.",
     icon: "\u{1F4AC}",
   },
   {
@@ -32,7 +32,7 @@ const features = [
     icon: "\u{1F527}",
   },
   {
-    title: "Shareable .zug Files",
+    title: "Shareable .zwf Files",
     description:
       "Workflow definitions are portable TOML files. Commit them to your repo, share with your team, version alongside your code.",
     icon: "\u{1F4E4}",
@@ -46,7 +46,7 @@ const features = [
   {
     title: "Powered by zag",
     description:
-      "Built on zag's battle-tested orchestration primitives. Zig translates .zug files into spawn, wait, collect, and pipe commands automatically.",
+      "Built on zag's battle-tested orchestration primitives. Zig translates .zwf files into spawn, wait, collect, and pipe commands automatically.",
     icon: "\u{26A1}",
   },
   {

@@ -1,9 +1,9 @@
 /// Embedded documentation pages, compiled from `docs/` markdown files.
 ///
-/// Docs cover concepts (the `.zug` format, patterns, variables, …) as
+/// Docs cover concepts (the `.zwf`/`.zwfz` format, patterns, variables, …) as
 /// opposed to command references, which live under `zig man`.
 mod pages {
-    pub const ZUG: &str = include_str!("../docs/zug.md");
+    pub const ZWF: &str = include_str!("../docs/zwf.md");
     pub const PATTERNS: &str = include_str!("../docs/patterns.md");
     pub const VARIABLES: &str = include_str!("../docs/variables.md");
     pub const CONDITIONS: &str = include_str!("../docs/conditions.md");
@@ -12,7 +12,7 @@ mod pages {
 
 /// All available docs topics in display order.
 pub const TOPICS: &[(&str, &str)] = &[
-    ("zug", "The .zug workflow format"),
+    ("zwf", "The .zwf/.zwfz workflow format"),
     ("patterns", "Orchestration patterns"),
     ("variables", "Variable system and data flow"),
     ("conditions", "Condition expressions"),
@@ -24,7 +24,7 @@ pub const TOPICS: &[(&str, &str)] = &[
 /// Returns the markdown content if the topic exists, or `None`.
 pub fn get(topic: &str) -> Option<&'static str> {
     match topic {
-        "zug" => Some(pages::ZUG),
+        "zwf" => Some(pages::ZWF),
         "patterns" => Some(pages::PATTERNS),
         "variables" => Some(pages::VARIABLES),
         "conditions" => Some(pages::CONDITIONS),

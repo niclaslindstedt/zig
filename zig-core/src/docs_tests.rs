@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn get_existing_topic() {
-    assert!(get("zug").is_some());
+    assert!(get("zwf").is_some());
     assert!(get("patterns").is_some());
     assert!(get("variables").is_some());
     assert!(get("conditions").is_some());

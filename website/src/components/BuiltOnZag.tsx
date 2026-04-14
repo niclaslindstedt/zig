@@ -18,7 +18,7 @@ export default function BuiltOnZag() {
             <div className="rounded-lg border-2 border-accent bg-surface p-6 text-center">
               <div className="text-lg font-bold text-accent">zig</div>
               <div className="mt-2 text-sm text-text-secondary">
-                Workflow CLI &mdash; .zug files, patterns, validation, execution
+                Workflow CLI &mdash; .zwf files, patterns, validation, execution
               </div>
               <div className="mt-3 flex flex-wrap justify-center gap-2">
                 {["run", "workflow create", "validate", "describe", "man"].map((cmd) => (
@@ -91,12 +91,12 @@ export default function BuiltOnZag() {
                 </tr>
                 <tr className="bg-surface-alt">
                   <td className="border-b border-border px-5 py-2.5">Run a workflow from a file</td>
-                  <td className="border-b border-border px-5 py-2.5 text-accent">zig run deploy.zug</td>
+                  <td className="border-b border-border px-5 py-2.5 text-accent">zig run deploy.zwf</td>
                   <td className="border-b border-border px-5 py-2.5 text-zag-light">Compose spawn/wait/pipe</td>
                 </tr>
                 <tr>
                   <td className="border-b border-border px-5 py-2.5">Share automation with your team</td>
-                  <td className="border-b border-border px-5 py-2.5 text-accent">Commit .zug file</td>
+                  <td className="border-b border-border px-5 py-2.5 text-accent">Commit .zwf file</td>
                   <td className="border-b border-border px-5 py-2.5 text-zag-light">Share the script</td>
                 </tr>
                 <tr className="bg-surface-alt">

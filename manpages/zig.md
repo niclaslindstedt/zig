@@ -11,20 +11,20 @@ zig <command> [options]
 ## Description
 
 `zig` lets you describe a workflow in natural language, capture it as a
-shareable `.zug` file, and replay it anywhere with a single command. It uses
+shareable `.zwf` file, and replay it anywhere with a single command. It uses
 zag behind the scenes for agent orchestration.
 
 ## Commands
 
 | Command              | Description                                              |
 |----------------------|----------------------------------------------------------|
-| `run <workflow>`     | Execute a `.zug` workflow file                           |
+| `run <workflow>`     | Execute a `.zwf` workflow file                           |
 | `listen [session]`   | Tail a running or completed zig session                  |
 | `workflow <command>` | Manage workflows (list, show, create, delete, pack)      |
 | `resources <command>`| Manage reference files advertised to step agents         |
 | `memory <command>`   | Manage the memory scratch pad for workflows              |
-| `describe <prompt>`  | Generate a `.zug` file from a natural language prompt    |
-| `validate <file>`    | Validate a `.zug` workflow file                          |
+| `describe <prompt>`  | Generate a `.zwf` file from a natural language prompt    |
+| `validate <file>`    | Validate a `.zwf`/`.zwfz` workflow file                  |
 | `serve`              | Start an HTTP API server                                 |
 | `init`               | Initialize a new zig project                             |
 | `man [topic]`        | Show manual pages for zig commands                       |
@@ -52,7 +52,7 @@ zig describe "review code, run tests, and generate a report"
 zig run my-workflow
 
 # Validate a workflow file
-zig validate my-workflow.zug
+zig validate my-workflow.zwf
 ```
 
 ## Manpages
@@ -72,7 +72,7 @@ zig man serve        # Start the HTTP API server
 Use `zig docs` to learn more about a concept:
 
 ```bash
-zig docs zug         # The .zug file format
+zig docs zwf         # The .zwf/.zwfz file format
 zig docs patterns    # Orchestration patterns
 zig docs variables   # Variable system and data flow
 zig docs conditions  # Condition expressions
@@ -80,6 +80,6 @@ zig docs conditions  # Condition expressions
 
 ## See Also
 
-- `zig docs zug` — the `.zug` workflow format
+- `zig docs zwf` — the `.zwf`/`.zwfz` workflow format
 - `zig docs patterns` — orchestration patterns
 - zag documentation: https://github.com/niclaslindstedt/zag

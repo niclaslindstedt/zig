@@ -19,7 +19,7 @@ fn get_unknown_topic_returns_none() {
 #[test]
 fn concept_topics_are_not_manpages() {
     // Concept topics live under `zig docs`, not `zig man`.
-    for topic in ["zug", "patterns", "variables", "conditions"] {
+    for topic in ["zwf", "patterns", "variables", "conditions"] {
         assert!(
             get(topic).is_none(),
             "'{topic}' should be a docs topic, not a manpage"
