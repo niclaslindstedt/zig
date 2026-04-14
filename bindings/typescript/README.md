@@ -180,7 +180,6 @@ console.log(wf.steps.length);
 | `.workflowDelete(workflow)` | `Promise<string>` | Delete a workflow |
 | `.workflowCreate(options?)` | `Promise<void>` | Create a workflow interactively |
 | `.listen(options?)` | `Promise<void>` | Tail a running/completed session |
-| `.init()` | `Promise<void>` | Initialize a new zig project in the current directory |
 | `.workflowPack(path, output?)` | `Promise<string>` | Pack a workflow directory into a .zwfz zip archive |
 | `.man(topic?)` | `Promise<string>` | Show a manual page topic |
 

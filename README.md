@@ -34,9 +34,6 @@ zig workflow list
 # Run a workflow
 zig run code-review
 
-# Initialize a new zig project
-zig init
-
 # Start the HTTP API
 zig serve
 
@@ -91,12 +88,12 @@ zig workflow delete <workflow>  Delete a workflow file
 zig workflow pack <path>        Pack a workflow directory into a .zwfz zip archive
 zig resources list              List discovered resource files (global + cwd tiers)
 zig resources add <file>        Register a file as a global / cwd / per-workflow resource
-zig resources remove <name>     Remove a registered resource
+zig resources delete <name>     Delete a registered resource
 zig resources show <name>       Print the absolute path and contents of a resource
 zig resources where             Print the directories the collector searches
 zig validate <file>             Validate a .zwf workflow file
 zig man [topic]                 Show manual pages for zig topics
-zig init                        Initialize a new zig project (not yet implemented)
+zig docs [topic]                Show conceptual documentation topics
 ```
 
 ### `zig run`
@@ -182,7 +179,7 @@ zig validate my-workflow.zwf
 
 ### `zig man`
 
-Show built-in manual pages for zig commands (zig, run, listen, workflow, resources, describe, validate, serve).
+Show built-in manual pages for zig commands (zig, run, listen, workflow, resources, validate, serve).
 
 ```bash
 zig man run
@@ -204,13 +201,13 @@ zig docs patterns
 |------|-------|-------|-------------|
 | `--debug` | `-d` | global | Enable debug logging |
 | `--quiet` | `-q` | global | Suppress all output except errors |
-| `--output <path>` | `-o` | `workflow create`, `describe`, `workflow pack` | Output file path |
+| `--output <path>` | `-o` | `workflow create`, `workflow pack` | Output file path |
 | `--pattern <name>` | `-p` | `workflow create` | Orchestration pattern (sequential, fan-out, generator-critic, etc.) |
 | `--latest` | | `listen` | Tail the most recently started session |
 | `--active` | | `listen` | Tail the most recently active (still-running) session |
 | `--no-resources` | | `run` | Skip the `<resources>` block injected into each step's system prompt |
-| `--global` | | `resources add/remove/list` | Target the global tier (`~/.zig/resources/_shared/`) |
-| `--cwd` | | `resources add/remove/list` | Target the project tier (`<git-root>/.zig/resources/`) |
+| `--global` | | `resources add/delete/list` | Target the global tier (`~/.zig/resources/_shared/`) |
+| `--cwd` | | `resources add/delete/list` | Target the project tier (`<git-root>/.zig/resources/`) |
 | `--workflow <name>` | | `resources` | Restrict to a specific workflow's global tier |
 
 ## The `.zwf` / `.zwfz` format

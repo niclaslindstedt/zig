@@ -38,14 +38,14 @@ fn main() -> Result<()> {
                 let target = ResourceTarget::from_flags(workflow.as_deref(), global, cwd)?;
                 zig_core::resources_manage::add_resource(&file, target, name.as_deref())?;
             }
-            ResourcesCommand::Remove {
+            ResourcesCommand::Delete {
                 name,
                 workflow,
                 global,
                 cwd,
             } => {
                 let target = ResourceTarget::from_flags(workflow.as_deref(), global, cwd)?;
-                zig_core::resources_manage::remove_resource(&name, target)?;
+                zig_core::resources_manage::delete_resource(&name, target)?;
             }
             ResourcesCommand::Show { name, workflow } => {
                 zig_core::resources_manage::show_resource(&name, workflow.as_deref())?;
@@ -175,9 +175,6 @@ fn main() -> Result<()> {
                     std::process::exit(1);
                 }
             }
-        }
-        Command::Init => {
-            println!("zig init: initializing project (not yet implemented)");
         }
         Command::Serve {
             port,

@@ -40,7 +40,7 @@ export const commands: CommandData[] = [
   },
   {
     "name": "resources",
-    "description": "Manage knowledge / reference files (list, add, remove, show)"
+    "description": "Manage knowledge / reference files (list, add, delete, show)"
   },
   {
     "name": "memory",
@@ -49,10 +49,6 @@ export const commands: CommandData[] = [
   {
     "name": "validate",
     "description": "Validate a .zwf/.zwfz workflow file"
-  },
-  {
-    "name": "init",
-    "description": "Initialize a new zig project in the current directory"
   },
   {
     "name": "man",

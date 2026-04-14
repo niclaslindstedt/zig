@@ -117,26 +117,26 @@ fn add_to_dir_rejects_missing_source() {
 }
 
 #[test]
-fn remove_from_dir_deletes_file() {
+fn delete_from_dir_deletes_file() {
     let dir = tempfile::TempDir::new().unwrap();
     std::fs::write(dir.path().join("cv.md"), "x").unwrap();
 
-    let path = remove_from_dir("cv.md", dir.path()).unwrap();
+    let path = delete_from_dir("cv.md", dir.path()).unwrap();
     assert!(!path.exists());
 }
 
 #[test]
-fn remove_from_dir_errors_when_missing() {
+fn delete_from_dir_errors_when_missing() {
     let dir = tempfile::TempDir::new().unwrap();
-    let err = remove_from_dir("ghost.md", dir.path()).unwrap_err();
+    let err = delete_from_dir("ghost.md", dir.path()).unwrap_err();
     assert!(err.to_string().contains("not found"));
 }
 
 #[test]
-fn remove_from_dir_errors_when_directory_missing() {
+fn delete_from_dir_errors_when_directory_missing() {
     let tmp = tempfile::TempDir::new().unwrap();
     let missing = tmp.path().join("does-not-exist");
-    let err = remove_from_dir("anything", &missing).unwrap_err();
+    let err = delete_from_dir("anything", &missing).unwrap_err();
     assert!(err.to_string().contains("does not exist"));
 }
 

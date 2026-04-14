@@ -25,7 +25,6 @@ zag behind the scenes for agent orchestration.
 | `memory <command>`   | Manage the memory scratch pad for workflows              |
 | `validate <file>`    | Validate a `.zwf`/`.zwfz` workflow file                  |
 | `serve`              | Start an HTTP API server                                 |
-| `init`               | Initialize a new zig project                             |
 | `man [topic]`        | Show manual pages for zig commands                       |
 | `docs [topic]`       | Show conceptual documentation topics                     |
 

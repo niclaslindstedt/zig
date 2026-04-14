@@ -88,7 +88,6 @@ These methods execute the builder configuration. Each spawns a `zig` subprocess.
 | `workflowDelete` | `async workflowDelete(workflow: string): Promise<string>` | Delete a workflow. |
 | `workflowCreate` | `async workflowCreate(options?): Promise<void>` | Create a workflow interactively. Options: `name?`, `output?`, `pattern?`. |
 | `listen` | `async listen(options?): Promise<void>` | Tail a running/completed session. Options: `sessionId?`, `latest?`, `active?`. |
-| `init` | `async init(): Promise<void>` | Initialize a new zig project in the current directory. |
 | `workflowPack` | `async workflowPack(path: string, output?: string): Promise<string>` | Pack a workflow directory into a .zwfz zip archive. |
 | `man` | `async man(topic?: string): Promise<string>` | Show a manual page topic. |
 
