@@ -33,6 +33,10 @@ pub enum Command {
         /// Disable the `<resources>` block injected into each step's system prompt
         #[arg(long)]
         no_resources: bool,
+
+        /// Disable the `<memory>` block injected into each step's system prompt
+        #[arg(long)]
+        no_memory: bool,
     },
 
     /// Manage workflows (list, show, create, delete)
@@ -45,6 +49,12 @@ pub enum Command {
     Resources {
         #[command(subcommand)]
         command: ResourcesCommand,
+    },
+
+    /// Manage memory scratch pad files (add, update, delete, show, list, search)
+    Memory {
+        #[command(subcommand)]
+        command: MemoryCommand,
     },
 
     /// Describe a workflow to an agent and generate a .zug file
@@ -252,6 +262,99 @@ pub enum ResourcesCommand {
     },
 }
 
+/// Subcommands for `zig memory`.
+#[derive(Subcommand)]
+pub enum MemoryCommand {
+    /// Add a file to the memory scratch pad
+    Add {
+        /// Path to the file to add
+        path: String,
+
+        /// Target a specific named workflow's memory tier
+        #[arg(long)]
+        workflow: Option<String>,
+
+        /// Associate this memory with a specific step (metadata only)
+        #[arg(long)]
+        step: Option<String>,
+
+        /// Custom display name (defaults to the file's basename)
+        #[arg(long)]
+        name: Option<String>,
+
+        /// Description of the memory entry
+        #[arg(long)]
+        description: Option<String>,
+
+        /// Comma-separated tags
+        #[arg(long, value_delimiter = ',')]
+        tags: Vec<String>,
+    },
+
+    /// Update metadata for a memory entry
+    Update {
+        /// Numeric ID of the memory entry
+        id: u64,
+
+        /// Restrict search to a specific workflow tier
+        #[arg(long)]
+        workflow: Option<String>,
+
+        /// New display name
+        #[arg(long)]
+        name: Option<String>,
+
+        /// New description
+        #[arg(long)]
+        description: Option<String>,
+
+        /// New comma-separated tags (replaces existing)
+        #[arg(long, value_delimiter = ',')]
+        tags: Option<Vec<String>>,
+    },
+
+    /// Delete a memory entry and its file
+    Delete {
+        /// Numeric ID of the memory entry
+        id: u64,
+
+        /// Restrict search to a specific workflow tier
+        #[arg(long)]
+        workflow: Option<String>,
+    },
+
+    /// Show metadata and contents of a memory entry
+    Show {
+        /// Numeric ID of the memory entry
+        id: u64,
+
+        /// Restrict search to a specific workflow tier
+        #[arg(long)]
+        workflow: Option<String>,
+    },
+
+    /// List all memory entries
+    List {
+        /// Filter by workflow name
+        #[arg(long)]
+        workflow: Option<String>,
+    },
+
+    /// Search across memory files
+    Search {
+        /// Search query string
+        query: String,
+
+        /// Result granularity: sentence, paragraph, section, file
+        #[arg(long, default_value = "sentence")]
+        scope: String,
+
+        /// Filter by workflow name
+        #[arg(long)]
+        workflow: Option<String>,
+    },
+}
+
 /// Orchestration pattern for workflow creation.
 #[derive(Clone, Debug, ValueEnum)]
 pub enum Pattern {
@@ -299,10 +402,12 @@ mod tests {
                 workflow,
                 prompt,
                 no_resources,
+                no_memory,
             } => {
                 assert_eq!(workflow, "my-workflow");
                 assert!(prompt.is_none());
                 assert!(!no_resources);
+                assert!(!no_memory);
             }
             _ => panic!("expected Run command"),
         }
@@ -563,6 +668,151 @@ mod tests {
         match cli.command {
             Command::Serve { web, .. } => assert!(!web),
             _ => panic!("expected Serve command"),
+        }
+    }
+
+    #[test]
+    fn parse_run_with_no_memory() {
+        let cli = Cli::try_parse_from(["zig", "run", "wf", "--no-memory"]).unwrap();
+        match cli.command {
+            Command::Run { no_memory, .. } => assert!(no_memory),
+            _ => panic!("expected Run command"),
+        }
+    }
+
+    #[test]
+    fn parse_memory_add() {
+        let cli = Cli::try_parse_from([
+            "zig",
+            "memory",
+            "add",
+            "./notes.md",
+            "--workflow",
+            "my-wf",
+            "--step",
+            "analysis",
+            "--description",
+            "Architecture notes",
+            "--tags",
+            "arch,design",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Memory {
+                command:
+                    MemoryCommand::Add {
+                        path,
+                        workflow,
+                        step,
+                        description,
+                        tags,
+                        ..
+                    },
+            } => {
+                assert_eq!(path, "./notes.md");
+                assert_eq!(workflow.as_deref(), Some("my-wf"));
+                assert_eq!(step.as_deref(), Some("analysis"));
+                assert_eq!(description.as_deref(), Some("Architecture notes"));
+                assert_eq!(tags, vec!["arch", "design"]);
+            }
+            _ => panic!("expected Memory Add command"),
+        }
+    }
+
+    #[test]
+    fn parse_memory_update() {
+        let cli = Cli::try_parse_from([
+            "zig",
+            "memory",
+            "update",
+            "42",
+            "--description",
+            "Updated desc",
+            "--tags",
+            "new",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Memory {
+                command:
+                    MemoryCommand::Update {
+                        id,
+                        description,
+                        tags,
+                        ..
+                    },
+            } => {
+                assert_eq!(id, 42);
+                assert_eq!(description.as_deref(), Some("Updated desc"));
+                assert_eq!(tags, Some(vec!["new".to_string()]));
+            }
+            _ => panic!("expected Memory Update command"),
+        }
+    }
+
+    #[test]
+    fn parse_memory_delete() {
+        let cli = Cli::try_parse_from(["zig", "memory", "delete", "3"]).unwrap();
+        match cli.command {
+            Command::Memory {
+                command: MemoryCommand::Delete { id, .. },
+            } => assert_eq!(id, 3),
+            _ => panic!("expected Memory Delete command"),
+        }
+    }
+
+    #[test]
+    fn parse_memory_show() {
+        let cli = Cli::try_parse_from(["zig", "memory", "show", "5"]).unwrap();
+        match cli.command {
+            Command::Memory {
+                command: MemoryCommand::Show { id, .. },
+            } => assert_eq!(id, 5),
+            _ => panic!("expected Memory Show command"),
+        }
+    }
+
+    #[test]
+    fn parse_memory_list() {
+        let cli = Cli::try_parse_from(["zig", "memory", "list"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Memory {
+                command: MemoryCommand::List { .. }
+            }
+        ));
+    }
+
+    #[test]
+    fn parse_memory_search() {
+        let cli = Cli::try_parse_from([
+            "zig",
+            "memory",
+            "search",
+            "architecture",
+            "--scope",
+            "section",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Memory {
+                command: MemoryCommand::Search { query, scope, .. },
+            } => {
+                assert_eq!(query, "architecture");
+                assert_eq!(scope, "section");
+            }
+            _ => panic!("expected Memory Search command"),
+        }
+    }
+
+    #[test]
+    fn parse_memory_search_default_scope() {
+        let cli = Cli::try_parse_from(["zig", "memory", "search", "test"]).unwrap();
+        match cli.command {
+            Command::Memory {
+                command: MemoryCommand::Search { scope, .. },
+            } => assert_eq!(scope, "sentence"),
+            _ => panic!("expected Memory Search command"),
         }
     }
 

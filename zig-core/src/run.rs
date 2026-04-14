@@ -8,10 +8,12 @@ use std::time::Duration;
 
 use std::time::Instant;
 
+use crate::config::ZigConfig;
 use crate::error::ZigError;
+use crate::memory::{MemoryCollector, render_memory_block};
 use crate::resources::{ResourceCollector, render_system_block};
 use crate::session::{OutputStream, SessionCoordinator, SessionStatus, SessionWriter};
-use crate::workflow::model::{FailurePolicy, Role, Step, StepCommand, Workflow};
+use crate::workflow::model::{FailurePolicy, MemoryMode, Role, Step, StepCommand, Workflow};
 use crate::workflow::{parser, validate};
 
 /// Maximum number of loop iterations to prevent infinite loops from `next` fields.
@@ -26,10 +28,14 @@ const MAX_LOOP_ITERATIONS: usize = 100;
 /// Resource advertisement (the `<resources>` block prepended to each step's
 /// system prompt) is enabled by default; pass `disable_resources = true` to
 /// opt out, e.g. via `zig run --no-resources`.
+///
+/// Memory injection (the `<memory>` block) is similarly enabled by default;
+/// pass `disable_memory = true` to opt out via `zig run --no-memory`.
 pub fn run_workflow(
     workflow_path: &str,
     user_prompt: Option<&str>,
     disable_resources: bool,
+    disable_memory: bool,
 ) -> Result<(), ZigError> {
     check_zag()?;
 
@@ -47,6 +53,7 @@ pub fn run_workflow(
         user_prompt,
         source.dir(),
         disable_resources,
+        disable_memory,
     )
 }
 
@@ -242,8 +249,10 @@ fn resolve_role_system_prompt(
     step: &Step,
     roles: &HashMap<String, Role>,
     resources: &ResourceCollector,
+    memory: &MemoryCollector,
     vars: &HashMap<String, String>,
     workflow_dir: &Path,
+    workflow_name: &str,
 ) -> Result<Option<String>, ZigError> {
     // Resolve the base system prompt (may be empty if neither is set).
     let base_prompt: Option<String> = if let Some(ref sp) = step.system_prompt {
@@ -279,11 +288,17 @@ fn resolve_role_system_prompt(
     let set = resources.collect_for_step(&step.resources)?;
     let resource_block = render_system_block(&set);
 
-    match (resource_block.is_empty(), base_prompt) {
+    // Collect and render memory.
+    let memory_entries = memory.collect_for_step(step.memory.as_deref())?;
+    let memory_block = render_memory_block(&memory_entries, workflow_name, Some(&step.name));
+
+    let prefix = format!("{resource_block}{memory_block}");
+
+    match (prefix.is_empty(), base_prompt) {
         (true, None) => Ok(None),
         (true, Some(p)) => Ok(Some(p)),
-        (false, None) => Ok(Some(resource_block.trim_end().to_string())),
-        (false, Some(p)) => Ok(Some(format!("{resource_block}{p}"))),
+        (false, None) => Ok(Some(prefix.trim_end().to_string())),
+        (false, Some(p)) => Ok(Some(format!("{prefix}{p}"))),
     }
 }
 
@@ -968,6 +983,7 @@ fn execute_sequential_step(
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
     resources: &ResourceCollector,
+    memory: &MemoryCollector,
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
@@ -988,7 +1004,15 @@ fn execute_sequential_step(
     eprintln!("  running step '{}'...", step.name);
 
     let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
-    let rendered_sp = resolve_role_system_prompt(step, roles, resources, vars, workflow_dir)?;
+    let rendered_sp = resolve_role_system_prompt(
+        step,
+        roles,
+        resources,
+        memory,
+        vars,
+        workflow_dir,
+        workflow_name,
+    )?;
     if let Some(w) = session {
         let zag_session_id = format!("zig-{workflow_name}-{}", step.name);
         let _ = w.step_started(
@@ -1073,6 +1097,7 @@ fn execute_parallel_tier(
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
     resources: &ResourceCollector,
+    memory: &MemoryCollector,
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
@@ -1097,7 +1122,15 @@ fn execute_parallel_tier(
         }
         let prompt = render_step_prompt(step, vars, user_prompt, step_outputs);
         prompts.insert(step.name.clone(), prompt);
-        if let Some(sp) = resolve_role_system_prompt(step, roles, resources, vars, workflow_dir)? {
+        if let Some(sp) = resolve_role_system_prompt(
+            step,
+            roles,
+            resources,
+            memory,
+            vars,
+            workflow_dir,
+            workflow_name,
+        )? {
             rendered_sps.insert(step.name.clone(), sp);
         }
         active.push(*step);
@@ -1237,6 +1270,7 @@ fn execute(
     user_prompt: Option<&str>,
     workflow_dir: &Path,
     disable_resources: bool,
+    disable_memory: bool,
 ) -> Result<(), ZigError> {
     let mut vars = init_vars(workflow);
 
@@ -1245,6 +1279,15 @@ fn execute(
         &workflow.workflow.resources,
         workflow_dir,
         disable_resources,
+    );
+
+    let config = ZigConfig::load();
+    let workflow_memory_mode = MemoryMode::from_str_opt(workflow.workflow.memory.as_deref());
+    let memory_collector = MemoryCollector::from_env(
+        &workflow.workflow.name,
+        workflow_memory_mode,
+        &config,
+        disable_memory,
     );
 
     // Load file-backed variable defaults before prompt binding.
@@ -1360,6 +1403,7 @@ fn execute(
                         session_ref,
                         &workflow.roles,
                         &resource_collector,
+                        &memory_collector,
                         workflow_dir,
                         wf_provider,
                         wf_model,
@@ -1377,6 +1421,7 @@ fn execute(
                     session_ref,
                     &workflow.roles,
                     &resource_collector,
+                    &memory_collector,
                     workflow_dir,
                     wf_provider,
                     wf_model,
@@ -1408,8 +1453,10 @@ fn execute(
                         step,
                         &workflow.roles,
                         &resource_collector,
+                        &memory_collector,
                         &vars,
                         workflow_dir,
+                        &workflow.workflow.name,
                     )? {
                         race_sps.insert(step.name.clone(), sp);
                     }
