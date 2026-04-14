@@ -71,7 +71,7 @@ fn prepare_update_builds_prompts_pointing_at_staging_path() {
     // System prompt should be fully rendered — no leftover placeholders.
     assert!(!params.system_prompt.contains("{{zwf_format_spec}}"));
     assert!(!params.system_prompt.contains("{{examples_reference}}"));
-    assert!(params.system_prompt.contains("revision assistant"));
+    assert!(params.system_prompt.contains("revision specialist"));
 }
 
 #[test]
