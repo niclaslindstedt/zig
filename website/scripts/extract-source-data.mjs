@@ -23,6 +23,76 @@ function read(relPath) {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function camelToKebab(s) {
+  return s.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
+// Parse a Rust block (enum or struct body) into a list of top-level items.
+// Each item has the form { doc: string[], decl: string } where `doc` is the
+// collected `///` doc comment lines and `decl` is the first non-doc line of
+// the declaration (trimmed). Only items at brace depth 0 within the block are
+// returned, so fields inside a variant's inline struct are skipped.
+function parseItems(blockText) {
+  const lines = blockText.split("\n");
+  const items = [];
+  let doc = [];
+  let depth = 0;
+  for (const line of lines) {
+    const opens = (line.match(/\{/g) || []).length;
+    const closes = (line.match(/\}/g) || []).length;
+    const preDepth = depth;
+    depth += opens - closes;
+
+    // Only process lines at the top level of the block.
+    if (preDepth !== 0) continue;
+
+    const docMatch = line.match(/^\s*\/\/\/\s?(.*)$/);
+    if (docMatch) {
+      doc.push(docMatch[1]);
+      continue;
+    }
+
+    // Skip attributes without clearing the doc buffer.
+    if (/^\s*#\[/.test(line)) continue;
+
+    // Skip regular `//` comments (but not `///` doc comments, handled above).
+    if (/^\s*\/\/($|[^/])/.test(line)) continue;
+
+    const trimmed = line.trim();
+    if (trimmed === "" || trimmed === "}") {
+      // Blank line or closing brace breaks association with any collected doc.
+      doc = [];
+      continue;
+    }
+
+    if (doc.length > 0) {
+      items.push({ doc: [...doc], decl: trimmed });
+      doc = [];
+    }
+  }
+  return items;
+}
+
+// First non-empty doc line (used for one-line descriptions like CLI commands).
+function firstDocLine(doc) {
+  for (const l of doc) {
+    if (l.trim() !== "") return l.trim();
+  }
+  return "";
+}
+
+// Join all non-empty doc lines with a single space (used for full field docs).
+function joinDoc(doc) {
+  return doc
+    .filter((l) => l.trim() !== "")
+    .join(" ")
+    .trim();
+}
+
+// ---------------------------------------------------------------------------
 // 1. Version (from zig-cli/Cargo.toml)
 // ---------------------------------------------------------------------------
 
@@ -40,18 +110,17 @@ function extractVersion() {
 function extractCommands() {
   const src = read("zig-cli/src/cli.rs");
 
-  // Extract Command enum
-  const commandsBlock = src.match(/pub enum Command\s*\{([\s\S]*?)^}/m);
-  if (!commandsBlock) throw new Error("Could not find Command enum in cli.rs");
+  const block = src.match(/pub enum Command\s*\{([\s\S]*?)^}/m);
+  if (!block) throw new Error("Could not find Command enum in cli.rs");
 
   const commands = [];
-  const re = /\/\/\/\s*(.+)\n\s+(\w+)\s*[\{,]/g;
-  let m;
-  while ((m = re.exec(commandsBlock[1])) !== null) {
-    const desc = m[1].trim();
-    const name = camelToKebab(m[2]);
-    if (desc.includes("Internal:") || desc.includes("#[command(hide")) continue;
-    commands.push({ name, description: desc });
+  for (const item of parseItems(block[1])) {
+    const m = item.decl.match(/^(\w+)/);
+    if (!m) continue;
+    commands.push({
+      name: camelToKebab(m[1]),
+      description: firstDocLine(item.doc),
+    });
   }
   return commands;
 }
@@ -64,19 +133,15 @@ function extractWorkflowSubcommands() {
   if (!block) return [];
 
   const subcommands = [];
-  const re = /\/\/\/\s*(.+)\n\s+(\w+)\s*[\{,]/g;
-  let m;
-  while ((m = re.exec(block[1])) !== null) {
+  for (const item of parseItems(block[1])) {
+    const m = item.decl.match(/^(\w+)/);
+    if (!m) continue;
     subcommands.push({
-      name: camelToKebab(m[2]),
-      description: m[1].trim(),
+      name: camelToKebab(m[1]),
+      description: firstDocLine(item.doc),
     });
   }
   return subcommands;
-}
-
-function camelToKebab(s) {
-  return s.replace(/([a-z])([A-Z])/g, "$1-$2").toLowerCase();
 }
 
 // ---------------------------------------------------------------------------
@@ -90,16 +155,16 @@ function extractPatterns() {
   if (!block) return [];
 
   const patterns = [];
-  const re = /\/\/\/\s*(.+)\n\s+(\w+),?/g;
-  let m;
-  while ((m = re.exec(block[1])) !== null) {
-    const name = m[2];
+  for (const item of parseItems(block[1])) {
+    const m = item.decl.match(/^(\w+)/);
+    if (!m) continue;
+    const name = m[1];
     // Find the kebab-case name from as_core_name
     const kebabMatch = src.match(new RegExp(`Pattern::${name}\\s*=>\\s*"([^"]+)"`));
     patterns.push({
       name: kebabMatch ? kebabMatch[1] : camelToKebab(name),
       displayName: name.replace(/([a-z])([A-Z])/g, "$1 $2"),
-      description: m[1].trim(),
+      description: firstDocLine(item.doc),
     });
   }
   return patterns;
@@ -116,20 +181,26 @@ function extractStepFields() {
   if (!block) return [];
 
   const fields = [];
-  // Match doc comments followed by pub field declarations
-  const re = /\/\/\/\s*(.+(?:\n\s*\/\/\/\s*.+)*)\n\s*(?:#\[serde[^\]]*\]\s*\n\s*)*pub (\w+):\s*([^,\n]+)/g;
-  let m;
-  while ((m = re.exec(block[1])) !== null) {
-    const description = m[1].replace(/\n\s*\/\/\/\s*/g, " ").trim();
-    const name = m[2];
-    let fieldType = m[3].trim();
+  for (const item of parseItems(block[1])) {
+    // Match `pub <name>: <type>` where the type may contain commas (e.g.,
+    // `HashMap<String, String>`) and may or may not end with a trailing comma.
+    const m = item.decl.match(/^pub (\w+):\s*(.+?),?$/);
+    if (!m) continue;
+    const name = m[1];
+    let fieldType = m[2].trim();
 
-    // Simplify types for display
-    if (fieldType.startsWith("Option<")) fieldType = fieldType.replace(/Option<(.+)>/, "$1") + "?";
+    // Simplify types for display.
+    if (fieldType.startsWith("Option<")) {
+      fieldType = fieldType.replace(/^Option<(.+)>$/, "$1") + "?";
+    }
     if (fieldType === "HashMap<String, String>") fieldType = "map";
     if (fieldType === "Vec<String>") fieldType = "list";
 
-    fields.push({ name, type: fieldType, description });
+    fields.push({
+      name,
+      type: fieldType,
+      description: joinDoc(item.doc),
+    });
   }
   return fields;
 }
