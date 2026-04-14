@@ -11,11 +11,11 @@ The `manpages/` directory contains markdown manpages embedded at compile time vi
 | File | Covers |
 |------|--------|
 | `zig.md` | Overview of the zig CLI |
-| `run.md` | Execute a .zug workflow file |
+| `run.md` | Execute a .zwf workflow file |
 | `create.md` | Create a new workflow interactively |
-| `describe.md` | Generate a .zug file from a prompt |
-| `validate.md` | Validate a .zug workflow file |
-| `zug.md` | The .zug workflow format |
+| `describe.md` | Generate a .zwf file from a prompt |
+| `validate.md` | Validate a .zwf workflow file |
+| `zwf.md` | The .zwf workflow format |
 | `patterns.md` | Orchestration patterns |
 | `variables.md` | Variable system and data flow |
 | `conditions.md` | Condition expressions |
@@ -56,9 +56,9 @@ The file `.claude/skills/update-manpages/.last-updated` contains the git commit 
 | `zig-cli/src/cli.rs` (Command::Validate) | `validate.md` |
 | `zig-cli/src/cli.rs` (Pattern enum) | `patterns.md`, `create.md` |
 | `zig-cli/src/cli.rs` (new Command variant) | New `manpages/<cmd>.md` + `zig.md` + `man.rs` |
-| `zig-core/src/workflow/model.rs` | `zug.md`, `variables.md`, `conditions.md` |
-| `zig-core/src/workflow/parser.rs` | `zug.md` |
-| `zig-core/src/workflow/validate.rs` | `validate.md`, `zug.md` |
+| `zig-core/src/workflow/model.rs` | `zwf.md`, `variables.md`, `conditions.md` |
+| `zig-core/src/workflow/parser.rs` | `zwf.md` |
+| `zig-core/src/workflow/validate.rs` | `validate.md`, `zwf.md` |
 | `zig-core/src/run.rs` | `run.md` |
 | `zig-core/src/create.rs` | `create.md` |
 | `zig-core/src/prompt.rs` | `describe.md`, `create.md` |
@@ -76,7 +76,7 @@ The file `.claude/skills/update-manpages/.last-updated` contains the git commit 
 |----------------|-------------------|
 | `zig-cli/src/cli.rs` | All CLI commands, flags, subcommands, patterns |
 | `zig-core/src/workflow/model.rs` | Workflow data model (steps, fields, types) |
-| `zig-core/src/workflow/parser.rs` | .zug format parsing rules |
+| `zig-core/src/workflow/parser.rs` | .zwf format parsing rules |
 | `zig-core/src/workflow/validate.rs` | Validation rules and constraints |
 | `zig-core/src/run.rs` | Workflow execution behavior |
 | `zig-core/src/create.rs` | Interactive creation behavior |
@@ -103,11 +103,11 @@ When a new variant is added to the `Pattern` enum:
 1. Update `patterns.md` with the new pattern description and examples
 2. Update `create.md` if the `--pattern` flag documentation lists patterns
 
-### Updating the .zug format
+### Updating the .zwf format
 
 When `workflow/model.rs` or `workflow/parser.rs` changes:
 
-1. Update `zug.md` with new fields, types, or format changes
+1. Update `zwf.md` with new fields, types, or format changes
 2. Update `variables.md` if variable handling changed
 3. Update `conditions.md` if condition expressions changed
 
@@ -118,7 +118,7 @@ When `workflow/model.rs` or `workflow/parser.rs` changes:
 - [ ] Read all affected manpages and source-of-truth files
 - [ ] Update `zig.md` if commands or global flags changed
 - [ ] Update command-specific manpages for changed flags or behavior
-- [ ] Update `zug.md` if the workflow format changed
+- [ ] Update `zwf.md` if the workflow format changed
 - [ ] Update `patterns.md` if orchestration patterns changed
 - [ ] Update `variables.md` if variable system changed
 - [ ] Update `conditions.md` if condition expressions changed

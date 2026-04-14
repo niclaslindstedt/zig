@@ -592,7 +592,7 @@ fn parse_workflow_from_zip_archive() {
     use std::io::Write;
 
     let tmp = tempfile::TempDir::new().unwrap();
-    let zip_path = tmp.path().join("test.zug");
+    let zip_path = tmp.path().join("test.zwfz");
 
     // Create a zip archive containing a workflow TOML
     let file = std::fs::File::create(&zip_path).unwrap();
@@ -624,7 +624,7 @@ prompt = "Say hello"
 #[test]
 fn parse_workflow_plain_toml_returns_directory_source() {
     let tmp = tempfile::TempDir::new().unwrap();
-    let toml_path = tmp.path().join("workflow.zug");
+    let toml_path = tmp.path().join("workflow.zwf");
     std::fs::write(
         &toml_path,
         r#"[workflow]
@@ -647,7 +647,7 @@ fn parse_zip_with_role_prompt_files() {
     use std::io::Write;
 
     let tmp = tempfile::TempDir::new().unwrap();
-    let zip_path = tmp.path().join("healthcare.zug");
+    let zip_path = tmp.path().join("healthcare.zwfz");
 
     let file = std::fs::File::create(&zip_path).unwrap();
     let mut zip_writer = zip::ZipWriter::new(file);
@@ -698,7 +698,7 @@ fn parse_zip_with_no_toml_fails() {
     use std::io::Write;
 
     let tmp = tempfile::TempDir::new().unwrap();
-    let zip_path = tmp.path().join("empty.zug");
+    let zip_path = tmp.path().join("empty.zwfz");
 
     let file = std::fs::File::create(&zip_path).unwrap();
     let mut zip_writer = zip::ZipWriter::new(file);

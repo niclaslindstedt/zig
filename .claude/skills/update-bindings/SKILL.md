@@ -62,7 +62,7 @@ grep "case '" bindings/typescript/src/workflow.ts
 |------|------|
 | `bindings/typescript/src/types.ts` | TypeScript type definitions for Workflow, Step, Variable, error classes |
 | `bindings/typescript/src/builder.ts` | `ZigBuilder` fluent API wrapping CLI commands |
-| `bindings/typescript/src/workflow.ts` | Lightweight TOML parser for .zug files |
+| `bindings/typescript/src/workflow.ts` | Lightweight TOML parser for .zwf files |
 | `bindings/typescript/src/process.ts` | Subprocess management (exec, stream, run) |
 | `bindings/typescript/src/version.ts` | CLI version detection and checking |
 | `bindings/typescript/src/index.ts` | Public API exports |

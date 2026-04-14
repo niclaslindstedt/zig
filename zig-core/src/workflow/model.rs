@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-/// A complete workflow definition parsed from a `.zug` file.
+/// A complete workflow definition parsed from a `.zwf` file.
 ///
 /// A workflow describes a DAG of agent steps with shared variables,
 /// conditional routing, and data flow between steps. It maps directly
@@ -59,7 +59,7 @@ pub struct WorkflowMeta {
     ///
     /// Each entry is either a bare path string or a table with `path`, `name`,
     /// `description`, and `required` fields. Paths are resolved relative to
-    /// the `.zug` file's directory. See [`ResourceSpec`] for the accepted
+    /// the `.zwf` file's directory. See [`ResourceSpec`] for the accepted
     /// shapes.
     #[serde(default)]
     pub resources: Vec<ResourceSpec>,
@@ -117,7 +117,7 @@ pub enum ResourceSpec {
     Path(String),
     /// Table form with optional metadata.
     Detailed {
-        /// Path to the resource file, relative to the `.zug` file's directory.
+        /// Path to the resource file, relative to the `.zwf` file's directory.
         path: String,
         /// Optional display name. Defaults to the file name if absent.
         #[serde(default)]
@@ -132,7 +132,7 @@ pub enum ResourceSpec {
 }
 
 impl ResourceSpec {
-    /// The raw path string as written in the `.zug` file.
+    /// The raw path string as written in the `.zwf` file.
     pub fn path(&self) -> &str {
         match self {
             ResourceSpec::Path(p) => p,
@@ -176,7 +176,7 @@ pub struct Role {
     #[serde(default)]
     pub system_prompt: Option<String>,
 
-    /// Path to a file containing the system prompt (relative to the .zug file).
+    /// Path to a file containing the system prompt (relative to the .zwf file).
     /// Loaded at execution time. Supports `${var}` references in the file content.
     #[serde(default)]
     pub system_prompt_file: Option<String>,
@@ -197,7 +197,7 @@ pub struct Variable {
     #[serde(default)]
     pub default: Option<toml::Value>,
 
-    /// Path to a file whose contents become the default value (relative to .zug file).
+    /// Path to a file whose contents become the default value (relative to .zwf file).
     /// Mutually exclusive with `default`.
     #[serde(default)]
     pub default_file: Option<String>,
@@ -379,7 +379,7 @@ pub struct Step {
     /// Step-level reference files advertised in the system prompt.
     ///
     /// These are appended to the workflow-level `resources` for this specific
-    /// step. Paths are resolved relative to the `.zug` file's directory.
+    /// step. Paths are resolved relative to the `.zwf` file's directory.
     /// See [`ResourceSpec`] for the accepted shapes.
     #[serde(default)]
     pub resources: Vec<ResourceSpec>,

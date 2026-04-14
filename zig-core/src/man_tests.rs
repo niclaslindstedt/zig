@@ -7,7 +7,7 @@ fn get_existing_topic() {
     assert!(get("workflow").is_some());
     assert!(get("describe").is_some());
     assert!(get("validate").is_some());
-    assert!(get("zug").is_some());
+    assert!(get("zwf").is_some());
     assert!(get("patterns").is_some());
     assert!(get("variables").is_some());
     assert!(get("conditions").is_some());

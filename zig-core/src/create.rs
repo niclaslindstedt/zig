@@ -10,17 +10,18 @@ use crate::run;
 
 /// Build the system prompt for the create agent by rendering the template
 /// with injected variables.
-fn build_system_prompt(zag_help: &str, zag_orch: &str) -> String {
+fn build_system_prompt(zag_help: &str, zag_orch: &str, examples_reference: &str) -> String {
     let vars = HashMap::from([
-        ("zug_format_spec", prompt::templates::config_sidecar()),
+        ("zwf_format_spec", prompt::templates::config_sidecar()),
         ("zag_help", zag_help),
         ("zag_orch", zag_orch),
+        ("examples_reference", examples_reference),
     ]);
     prompt::render(prompt::templates::create(), &vars)
 }
 
 /// Attempt to capture zag CLI reference text via `zag --help-agent`.
-fn get_zag_help() -> String {
+pub(crate) fn get_zag_help() -> String {
     Command::new("zag")
         .arg("--help-agent")
         .output()
@@ -31,7 +32,7 @@ fn get_zag_help() -> String {
 }
 
 /// Attempt to capture zag orchestration reference via `zag man orchestration`.
-fn get_zag_orch_reference() -> String {
+pub(crate) fn get_zag_orch_reference() -> String {
     Command::new("zag")
         .args(["man", "orchestration"])
         .output()
@@ -43,21 +44,12 @@ fn get_zag_orch_reference() -> String {
         })
 }
 
-/// Write all embedded example `.zug` files to `~/.zig/examples/`.
-fn write_examples_to_global_dir() -> Result<(), ZigError> {
-    let dir = crate::paths::ensure_global_examples_dir()?;
-    for (filename, content) in prompt::all_examples() {
-        let path = dir.join(filename);
-        std::fs::write(&path, content)
-            .map_err(|e| ZigError::Io(format!("failed to write {}: {e}", path.display())))?;
-    }
-    Ok(())
-}
-
-/// Return pattern-specific guidance sentences to inject into the initial prompt.
-/// Includes the full example `.zug` content when a matching example exists.
+/// Return a short one-sentence guidance about a specific orchestration pattern
+/// to append to the initial user prompt when `--pattern` is passed. The full
+/// example files live at `~/.zig/examples/` (see [`prompt::examples_reference_block`])
+/// so this helper no longer embeds example TOML inline.
 fn pattern_guidance(pattern: &str) -> String {
-    let description = match pattern {
+    match pattern {
         "sequential" => {
             "Use the Sequential Pipeline pattern: steps run in order, each feeding \
             its output to the next via inject_context. Structure it as a linear \
@@ -95,17 +87,9 @@ fn pattern_guidance(pattern: &str) -> String {
             shared variables. Design the vars section carefully so agents can \
             read and write to common state."
         }
-        _ => return String::new(),
-    };
-
-    let mut guidance = description.to_string();
-    if let Some(example) = prompt::example_for_pattern(pattern) {
-        guidance
-            .push_str("\n\nHere is a complete reference example for this pattern:\n\n```toml\n");
-        guidance.push_str(example);
-        guidance.push_str("\n```");
+        _ => "",
     }
-    guidance
+    .to_string()
 }
 
 /// Prepared parameters for workflow creation — used by both the CLI
@@ -128,21 +112,22 @@ pub fn prepare_create(
     pattern: Option<&str>,
 ) -> Result<CreateParams, ZigError> {
     // Write example files to ~/.zig/examples/ so the agent can inspect them.
-    if let Err(e) = write_examples_to_global_dir() {
+    if let Err(e) = prompt::write_examples_to_global_dir() {
         eprintln!("Warning: could not write example files: {e}");
     }
 
     let zag_help = get_zag_help();
     let zag_orch = get_zag_orch_reference();
-    let system_prompt = build_system_prompt(&zag_help, &zag_orch);
+    let examples_reference = prompt::examples_reference_block();
+    let system_prompt = build_system_prompt(&zag_help, &zag_orch, &examples_reference);
 
     let output_path = if let Some(o) = output {
         o.to_string()
     } else {
         let global_dir = crate::paths::ensure_global_workflows_dir()?;
         let filename = name
-            .map(|n| format!("{n}.zug"))
-            .unwrap_or_else(|| "workflow.zug".to_string());
+            .map(|n| format!("{n}.zwf"))
+            .unwrap_or_else(|| "workflow.zwf".to_string());
         global_dir.join(&filename).to_string_lossy().to_string()
     };
 
@@ -179,7 +164,7 @@ pub fn prepare_create(
 
 /// Launch an interactive zag session for workflow creation.
 ///
-/// The agent is given full context about zag and the .zug format, and guides
+/// The agent is given full context about zag and the .zwf format, and guides
 /// the user through designing their workflow.
 pub fn run_create(
     name: Option<&str>,
