@@ -188,10 +188,10 @@ Each step is one zag agent invocation.
 |------------------|----------|---------|------------------------------------------|
 | `interactive`    | No       | `false` | Spawn a long-lived interactive session   |
 | `auto_approve`   | No       | `false` | Auto-approve all agent actions           |
-| `root`           | No       |         | Working directory override               |
-| `add_dirs`       | No       | `[]`    | Additional directories in agent scope    |
+| `root`           | No       |         | Working directory override (`~/` and `$HOME` are expanded) |
+| `add_dirs`       | No       | `[]`    | Additional directories in agent scope (`~/` and `$HOME` are expanded) |
 | `env`            | No       | `{}`    | Per-step environment variables           |
-| `files`          | No       | `[]`    | Files to attach to the agent prompt      |
+| `files`          | No       | `[]`    | Files to attach to the agent prompt (`~/` and `$HOME` are expanded) |
 | `resources`      | No       | `[]`    | Reference files advertised to this step's agent (see Resources below) |
 | `memory`         | No       |         | Memory injection override: `all`, `global`, or `none` (inherits workflow default) |
 
@@ -200,8 +200,8 @@ Each step is one zag agent invocation.
 | Field            | Required | Default | Description                              |
 |------------------|----------|---------|------------------------------------------|
 | `context`        | No       | `[]`    | Session IDs to inject as context         |
-| `plan`           | No       |         | Path to a plan file to prepend as context|
-| `mcp_config`     | No       |         | MCP configuration (Claude provider only) |
+| `plan`           | No       |         | Path to a plan file to prepend as context (`~/` and `$HOME` are expanded) |
+| `mcp_config`     | No       |         | MCP configuration, path to config file (`~/` and `$HOME` are expanded) |
 
 #### Isolation
 
@@ -231,8 +231,9 @@ its file tools when the user's request touches them. Use this for things like
 CVs, style guides, and reference docs that you want available *if needed*
 without burning context up front.
 
-Each entry is either a bare path string (relative to the `.zwf` file) or a
-detailed table:
+Each entry is either a bare path string or a detailed table. Paths are resolved
+relative to the `.zwf` file. `~/` and `$HOME` are expanded at runtime, so
+paths like `~/.zig/resources/my-cv.pdf` work correctly:
 
 ```toml
 [workflow]

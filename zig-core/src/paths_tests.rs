@@ -3,6 +3,53 @@ use std::path::Path;
 use super::*;
 
 // =====================================================================
+// expand_path tests
+// =====================================================================
+
+#[test]
+fn expand_path_tilde_slash() {
+    let home = std::env::var("HOME").unwrap();
+    assert_eq!(expand_path("~/foo/bar"), format!("{home}/foo/bar"));
+}
+
+#[test]
+fn expand_path_tilde_alone() {
+    let home = std::env::var("HOME").unwrap();
+    assert_eq!(expand_path("~"), home);
+}
+
+#[test]
+fn expand_path_dollar_home() {
+    let home = std::env::var("HOME").unwrap();
+    assert_eq!(expand_path("$HOME/foo"), format!("{home}/foo"));
+}
+
+#[test]
+fn expand_path_dollar_home_braces() {
+    let home = std::env::var("HOME").unwrap();
+    assert_eq!(expand_path("${HOME}/foo"), format!("{home}/foo"));
+}
+
+#[test]
+fn expand_path_dollar_home_mid_string() {
+    let home = std::env::var("HOME").unwrap();
+    assert_eq!(
+        expand_path("prefix/$HOME/suffix"),
+        format!("prefix/{home}/suffix")
+    );
+}
+
+#[test]
+fn expand_path_absolute_unchanged() {
+    assert_eq!(expand_path("/usr/local/bin"), "/usr/local/bin");
+}
+
+#[test]
+fn expand_path_relative_unchanged() {
+    assert_eq!(expand_path("relative/path"), "relative/path");
+}
+
+// =====================================================================
 // Local workflow directory tests
 // =====================================================================
 

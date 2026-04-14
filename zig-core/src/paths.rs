@@ -262,6 +262,32 @@ pub fn global_base_dir() -> Option<PathBuf> {
         .map(|h| Path::new(&h).join(".zig"))
 }
 
+/// Expand `~/` and `$HOME` / `${HOME}` in a path string.
+///
+/// Handles three forms:
+/// - Leading `~/` → replaced with `$HOME/`
+/// - `~` alone     → replaced with `$HOME`
+/// - `$HOME` or `${HOME}` anywhere in the string → replaced with the home dir
+///
+/// Other environment variables and absolute paths are returned unchanged.
+/// Returns the input unchanged if `HOME` is not set.
+pub fn expand_path(path: &str) -> String {
+    let home = match std::env::var("HOME") {
+        Ok(h) => h,
+        Err(_) => return path.to_string(),
+    };
+
+    let s = if path == "~" {
+        home.clone()
+    } else if let Some(rest) = path.strip_prefix("~/") {
+        format!("{home}/{rest}")
+    } else {
+        path.to_string()
+    };
+
+    s.replace("${HOME}", &home).replace("$HOME", &home)
+}
+
 /// Sanitize an absolute path into a directory name.
 ///
 /// Strips leading `/` and replaces remaining `/` with `-`. Mirrors zag's

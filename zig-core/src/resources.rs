@@ -22,6 +22,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::error::ZigError;
+use crate::paths::expand_path;
 use crate::workflow::model::ResourceSpec;
 
 /// Where a resource was discovered. Tiers are emitted in declaration order;
@@ -257,7 +258,7 @@ fn resolve_inline(
         ));
     }
 
-    let joined = workflow_dir.join(raw_path);
+    let joined = workflow_dir.join(expand_path(raw_path));
     let abs_path = match std::fs::canonicalize(&joined) {
         Ok(p) => p,
         Err(_) => {

@@ -11,6 +11,7 @@ use std::time::Instant;
 use crate::config::ZigConfig;
 use crate::error::ZigError;
 use crate::memory::{MemoryCollector, render_memory_block};
+use crate::paths::expand_path;
 use crate::resources::{ResourceCollector, render_system_block};
 use crate::session::{OutputStream, SessionCoordinator, SessionStatus, SessionWriter};
 use crate::workflow::model::{FailurePolicy, MemoryMode, Role, Step, StepCommand, Workflow};
@@ -278,7 +279,7 @@ fn resolve_role_system_prompt(
         })?;
 
         let raw_prompt = if let Some(ref file_path) = role.system_prompt_file {
-            let full_path = workflow_dir.join(file_path);
+            let full_path = workflow_dir.join(expand_path(file_path));
             Some(std::fs::read_to_string(&full_path).map_err(|e| {
                 ZigError::Execution(format!(
                     "failed to read system_prompt_file '{}' for role '{}': {e}",
@@ -325,7 +326,7 @@ fn load_file_defaults(
     for (name, decl) in declarations {
         if decl.default.is_none() {
             if let Some(ref file_path) = decl.default_file {
-                let full_path = workflow_dir.join(file_path);
+                let full_path = workflow_dir.join(expand_path(file_path));
                 let content = std::fs::read_to_string(&full_path).map_err(|e| {
                     ZigError::Execution(format!(
                         "failed to read default_file '{}' for variable '{name}': {e}",
@@ -491,7 +492,7 @@ fn build_zag_args(
         Some(StepCommand::Plan) => {
             let mut a = vec!["plan".to_string(), prompt.to_string()];
             if let Some(output) = &step.plan_output {
-                a.extend(["-o".into(), output.clone()]);
+                a.extend(["-o".into(), expand_path(output)]);
             }
             if let Some(instructions) = &step.instructions {
                 a.extend(["--instructions".into(), instructions.clone()]);
@@ -554,7 +555,7 @@ fn build_zag_args(
         }
 
         if let Some(mcp_config) = &step.mcp_config {
-            args.extend(["--mcp-config".into(), mcp_config.clone()]);
+            args.extend(["--mcp-config".into(), expand_path(mcp_config)]);
         }
 
         // Execution environment
@@ -562,16 +563,16 @@ fn build_zag_args(
             args.push("--auto-approve".into());
         }
         if let Some(root) = &step.root {
-            args.extend(["--root".into(), root.clone()]);
+            args.extend(["--root".into(), expand_path(root)]);
         }
         for dir in &step.add_dirs {
-            args.extend(["--add-dir".into(), dir.clone()]);
+            args.extend(["--add-dir".into(), expand_path(dir)]);
         }
         for (key, value) in &step.env {
             args.extend(["--env".into(), format!("{key}={value}")]);
         }
         for file in &step.files {
-            args.extend(["--file".into(), file.clone()]);
+            args.extend(["--file".into(), expand_path(file)]);
         }
 
         // Context injection
@@ -579,7 +580,7 @@ fn build_zag_args(
             args.extend(["--context".into(), ctx.clone()]);
         }
         if let Some(plan) = &step.plan {
-            args.extend(["--plan".into(), plan.clone()]);
+            args.extend(["--plan".into(), expand_path(plan)]);
         }
 
         // Isolation
