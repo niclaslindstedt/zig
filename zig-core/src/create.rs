@@ -12,11 +12,11 @@ use crate::run;
 /// with injected variables.
 fn build_system_prompt(zag_help: &str, zag_orch: &str) -> String {
     let vars = HashMap::from([
-        ("zug_format_spec", prompt::templates::CONFIG_SIDECAR),
+        ("zug_format_spec", prompt::templates::config_sidecar()),
         ("zag_help", zag_help),
         ("zag_orch", zag_orch),
     ]);
-    prompt::render(prompt::templates::CREATE, &vars)
+    prompt::render(prompt::templates::create(), &vars)
 }
 
 /// Attempt to capture zag CLI reference text via `zag --help-agent`.
