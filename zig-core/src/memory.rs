@@ -667,7 +667,7 @@ pub struct MemoryCollector {
     pub global_shared_dir: Option<PathBuf>,
     pub global_workflow_dir: Option<PathBuf>,
     pub cwd_memory_dir: Option<PathBuf>,
-    /// Workflow-level memory mode (from `.zug` file).
+    /// Workflow-level memory mode (from `.zwf` file).
     pub workflow_mode: MemoryMode,
     /// Whether project-local memory is enabled globally.
     pub local_enabled: bool,

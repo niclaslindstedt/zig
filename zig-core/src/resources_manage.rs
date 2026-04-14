@@ -8,7 +8,7 @@
 //! * `~/.zig/resources/<workflow>/` — the global per-workflow tier
 //! * `<git-root>/.zig/resources/` — the project (cwd) tier
 //!
-//! Inline resources declared in `.zug` files are *not* manipulated by these
+//! Inline resources declared in `.zwf` files are *not* manipulated by these
 //! commands — they live inside the workflow file itself and the user edits
 //! them by hand.
 

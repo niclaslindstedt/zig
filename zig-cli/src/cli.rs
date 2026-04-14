@@ -22,7 +22,7 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Execute a .zug workflow file
+    /// Execute a .zwf/.zwfz workflow file
     Run {
         /// Name or path of the workflow to run
         workflow: String,
@@ -57,19 +57,19 @@ pub enum Command {
         command: MemoryCommand,
     },
 
-    /// Describe a workflow to an agent and generate a .zug file
+    /// Describe a workflow to an agent and generate a .zwf file
     Describe {
         /// Natural language description of the workflow
         prompt: String,
 
-        /// Output file path (defaults to <name>.zug)
+        /// Output file path (defaults to <name>.zwf)
         #[arg(long, short)]
         output: Option<String>,
     },
 
-    /// Validate a .zug workflow file
+    /// Validate a .zwf/.zwfz workflow file
     Validate {
-        /// Path to the .zug file to validate
+        /// Path to the .zwf or .zwfz file to validate
         workflow: String,
     },
 
@@ -78,7 +78,7 @@ pub enum Command {
 
     /// Show manual pages for zig topics
     Man {
-        /// Topic to display (e.g., run, zug, patterns). Omit to list all topics.
+        /// Topic to display (e.g., run, zwf, patterns). Omit to list all topics.
         topic: Option<String>,
     },
 
@@ -166,7 +166,7 @@ pub enum WorkflowCommand {
         /// Workflow name
         name: Option<String>,
 
-        /// Output file path (defaults to <name>.zug or workflow.zug)
+        /// Output file path (defaults to <name>.zwf or workflow.zwf)
         #[arg(long, short)]
         output: Option<String>,
 
@@ -175,12 +175,18 @@ pub enum WorkflowCommand {
         pattern: Option<Pattern>,
     },
 
-    /// Pack a workflow directory into a .zug zip archive
+    /// Update an existing workflow interactively with an AI agent
+    Update {
+        /// Name or path of the workflow to update
+        workflow: String,
+    },
+
+    /// Pack a workflow directory into a .zwfz zip archive
     Pack {
         /// Path to directory containing the workflow and its prompt files
         path: String,
 
-        /// Output file path (defaults to <workflow-name>.zug)
+        /// Output file path (defaults to <workflow-name>.zwfz)
         #[arg(long, short)]
         output: Option<String>,
     },
@@ -581,18 +587,29 @@ mod tests {
 
     #[test]
     fn parse_validate_command() {
-        let cli = Cli::try_parse_from(["zig", "validate", "test.zug"]).unwrap();
+        let cli = Cli::try_parse_from(["zig", "validate", "test.zwf"]).unwrap();
         match cli.command {
-            Command::Validate { workflow } => assert_eq!(workflow, "test.zug"),
+            Command::Validate { workflow } => assert_eq!(workflow, "test.zwf"),
             _ => panic!("expected Validate command"),
         }
     }
 
     #[test]
-    fn parse_man_with_topic() {
-        let cli = Cli::try_parse_from(["zig", "man", "zug"]).unwrap();
+    fn parse_workflow_update() {
+        let cli = Cli::try_parse_from(["zig", "workflow", "update", "my-wf"]).unwrap();
         match cli.command {
-            Command::Man { topic } => assert_eq!(topic.as_deref(), Some("zug")),
+            Command::Workflow {
+                command: WorkflowCommand::Update { workflow },
+            } => assert_eq!(workflow, "my-wf"),
+            _ => panic!("expected Workflow Update command"),
+        }
+    }
+
+    #[test]
+    fn parse_man_with_topic() {
+        let cli = Cli::try_parse_from(["zig", "man", "zwf"]).unwrap();
+        match cli.command {
+            Command::Man { topic } => assert_eq!(topic.as_deref(), Some("zwf")),
             _ => panic!("expected Man command"),
         }
     }

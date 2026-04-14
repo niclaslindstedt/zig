@@ -1,11 +1,11 @@
-# The .zug Format
+# The .zwf / .zwfz Format
 
-A `.zug` file is a TOML file that describes a workflow — a DAG of AI agent
+A `.zwf` file is a plain TOML file that describes a workflow — a DAG of AI agent
 steps with shared variables, conditional routing, and data flow. Zig compiles
 this into zag orchestration commands at execution time.
 
-A `.zug` file can also be a **zip archive** containing one TOML workflow file
-and associated resource files (prompt files, schemas, etc.). Use
+A `.zwfz` file is a **zip archive** containing one workflow file plus
+associated resource files (prompt files, schemas, etc.). Use
 `zig workflow pack` to create distributable zip archives.
 
 ## File Structure
@@ -70,7 +70,7 @@ mutually exclusive.
 system_prompt = "You are a board-certified physician."
 
 [roles.nurse]
-system_prompt_file = "prompts/nurse.md"       # Loaded relative to the .zug file
+system_prompt_file = "prompts/nurse.md"       # Loaded relative to the .zwf file
 ```
 
 Steps reference roles statically or dynamically:
@@ -228,7 +228,7 @@ its file tools when the user's request touches them. Use this for things like
 CVs, style guides, and reference docs that you want available *if needed*
 without burning context up front.
 
-Each entry is either a bare path string (relative to the `.zug` file) or a
+Each entry is either a bare path string (relative to the `.zwf` file) or a
 detailed table:
 
 ```toml
@@ -247,7 +247,7 @@ resources = [{ path = "./templates/cover-letter.md", description = "House templa
 
 | Field         | Required | Description                                                                          |
 |---------------|----------|--------------------------------------------------------------------------------------|
-| `path`        | Yes      | Path relative to the `.zug` file                                                     |
+| `path`        | Yes      | Path relative to the `.zwf` file                                                     |
 | `name`        | No       | Display name (defaults to the file's basename)                                       |
 | `description` | No       | Description rendered next to the path in the system prompt                           |
 | `required`    | No       | When true, missing files cause the run to fail (instead of being skipped + warning)  |
@@ -346,15 +346,15 @@ max_retries = 2
 
 ## Zip Archives
 
-A `.zug` file can be a zip archive containing a TOML workflow and associated
+A `.zwfz` bundle is a zip archive containing a workflow file and associated
 files (prompt files, schemas, defaults). This enables distributing self-contained
 workflow packages.
 
 ### Creating Archives
 
 ```bash
-# Pack a directory into a .zug zip archive
-zig workflow pack examples/healthcare/ -o healthcare.zug
+# Pack a directory into a .zwfz zip archive
+zig workflow pack examples/healthcare/ -o healthcare.zwfz
 ```
 
 The directory must contain exactly one TOML workflow file. All files in the
@@ -365,8 +365,8 @@ directory are included in the archive.
 Archives work transparently with `zig run` and `zig validate`:
 
 ```bash
-zig validate healthcare.zug
-zig run healthcare.zug "I have chest pain"
+zig validate healthcare.zwfz
+zig run healthcare.zwfz "I have chest pain"
 ```
 
 File paths (`system_prompt_file`, `default_file`) are resolved relative to the

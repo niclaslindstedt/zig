@@ -4,25 +4,26 @@ use std::path::{Path, PathBuf};
 use crate::error::ZigError;
 use crate::workflow::model::Workflow;
 
-/// Parse a `.zug` workflow file from a TOML string.
+/// Parse a workflow from a TOML string.
 pub fn parse(content: &str) -> Result<Workflow, ZigError> {
     let workflow: Workflow = toml::from_str(content).map_err(|e| ZigError::Parse(e.to_string()))?;
     Ok(workflow)
 }
 
-/// Parse a `.zug` workflow file from disk.
+/// Parse a plain `.zwf` workflow file from disk.
 ///
-/// If the file is a zip archive, it is extracted to a temp directory and
-/// the TOML workflow inside is parsed. The returned `WorkflowSource` must
-/// be kept alive for the duration of execution — dropping it cleans up
-/// any temp directory.
+/// This does not handle `.zwfz` zip archives — use [`parse_workflow`] for
+/// that. If the file is a zip archive, it is extracted to a temp directory
+/// and the TOML workflow inside is parsed. The returned `WorkflowSource`
+/// must be kept alive for the duration of execution — dropping it cleans
+/// up any temp directory.
 pub fn parse_file(path: &Path) -> Result<Workflow, ZigError> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| ZigError::Io(format!("failed to read {}: {e}", path.display())))?;
     parse(&content)
 }
 
-/// Parse a `.zug` file, handling both plain TOML and zip archives.
+/// Parse a workflow file, handling both plain `.zwf` and zipped `.zwfz`.
 ///
 /// Returns the parsed `Workflow` and a `WorkflowSource` that tracks the
 /// effective directory for resolving relative file paths. The source must
@@ -44,9 +45,9 @@ pub fn parse_workflow(path: &Path) -> Result<(Workflow, WorkflowSource), ZigErro
 
 /// Tracks where a workflow's associated files live.
 ///
-/// For plain `.zug` files, this is the parent directory. For zip archives,
-/// this is a temp directory containing the extracted contents. Dropping
-/// the `Zip` variant cleans up the temp directory.
+/// For plain `.zwf` files, this is the parent directory. For `.zwfz` zip
+/// archives, this is a temp directory containing the extracted contents.
+/// Dropping the `Zip` variant cleans up the temp directory.
 #[derive(Debug)]
 pub enum WorkflowSource {
     /// Plain TOML file on disk — resolve paths relative to this directory.
@@ -79,26 +80,23 @@ fn is_zip_archive(path: &Path) -> Result<bool, ZigError> {
     }
 }
 
-/// Parse a `.zug` zip archive.
+/// Extract a zip archive into a destination directory.
 ///
-/// Extracts the archive to a temp directory, finds the single TOML workflow
-/// file inside, and parses it.
-fn parse_zip(path: &Path) -> Result<(Workflow, WorkflowSource), ZigError> {
-    let file = std::fs::File::open(path)
-        .map_err(|e| ZigError::Io(format!("failed to open {}: {e}", path.display())))?;
+/// Used by both [`parse_zip`] (into a temp directory) and
+/// `update::run_update` (into a staging directory for in-place editing).
+/// Returns an error if any entry has an invalid path or cannot be written.
+pub fn extract_zip(archive_path: &Path, dest: &Path) -> Result<(), ZigError> {
+    let file = std::fs::File::open(archive_path)
+        .map_err(|e| ZigError::Io(format!("failed to open {}: {e}", archive_path.display())))?;
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|e| ZigError::Parse(format!("failed to read zip archive: {e}")))?;
 
-    let temp_dir = tempfile::TempDir::new()
-        .map_err(|e| ZigError::Io(format!("failed to create temp directory: {e}")))?;
-
-    // Extract all files
     for i in 0..archive.len() {
         let mut entry = archive
             .by_index(i)
             .map_err(|e| ZigError::Parse(format!("failed to read zip entry: {e}")))?;
 
-        let out_path = temp_dir.path().join(
+        let out_path = dest.join(
             entry
                 .enclosed_name()
                 .ok_or_else(|| ZigError::Parse("zip entry has invalid path".into()))?,
@@ -129,12 +127,25 @@ fn parse_zip(path: &Path) -> Result<(Workflow, WorkflowSource), ZigError> {
         }
     }
 
+    Ok(())
+}
+
+/// Parse a `.zwfz` zip archive.
+///
+/// Extracts the archive to a temp directory, finds the single TOML workflow
+/// file inside, and parses it.
+fn parse_zip(path: &Path) -> Result<(Workflow, WorkflowSource), ZigError> {
+    let temp_dir = tempfile::TempDir::new()
+        .map_err(|e| ZigError::Io(format!("failed to create temp directory: {e}")))?;
+
+    extract_zip(path, temp_dir.path())?;
+
     // Find the single TOML workflow file
-    let toml_files: Vec<PathBuf> = find_toml_files(temp_dir.path())?;
+    let toml_files: Vec<PathBuf> = find_workflow_files(temp_dir.path())?;
 
     if toml_files.is_empty() {
         return Err(ZigError::Parse(
-            "zip archive contains no .toml or .zug workflow file".into(),
+            "zip archive contains no .toml or .zwf workflow file".into(),
         ));
     }
     if toml_files.len() > 1 {
@@ -166,9 +177,9 @@ fn parse_zip(path: &Path) -> Result<(Workflow, WorkflowSource), ZigError> {
     ))
 }
 
-/// Recursively find `.toml` and `.zug` files in a directory (non-recursive,
-/// only checks the top level and immediate subdirectories).
-fn find_toml_files(dir: &Path) -> Result<Vec<PathBuf>, ZigError> {
+/// Recursively find `.toml` and `.zwf` workflow files in a directory
+/// (only the top level and immediate subdirectories).
+pub fn find_workflow_files(dir: &Path) -> Result<Vec<PathBuf>, ZigError> {
     let mut results = Vec::new();
 
     fn scan_dir(dir: &Path, results: &mut Vec<PathBuf>, depth: usize) -> Result<(), ZigError> {
@@ -183,7 +194,7 @@ fn find_toml_files(dir: &Path) -> Result<Vec<PathBuf>, ZigError> {
 
             if path.is_file() {
                 if let Some(ext) = path.extension() {
-                    if ext == "toml" || ext == "zug" {
+                    if ext == "toml" || ext == "zwf" {
                         // Quick check: does it look like a workflow TOML?
                         if let Ok(content) = std::fs::read_to_string(&path) {
                             if content.contains("[workflow]") {

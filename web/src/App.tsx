@@ -182,7 +182,7 @@ function EmptyState({
           </h1>
           <p className="mt-2 text-[var(--color-text-secondary)]">
             Describe the process you want to automate. An agent will help you
-            design and save a <code className="rounded bg-[var(--color-surface-alt)] px-1.5 py-0.5 font-mono text-sm">.zug</code>{" "}
+            design and save a <code className="rounded bg-[var(--color-surface-alt)] px-1.5 py-0.5 font-mono text-sm">.zwf</code>{" "}
             file.
           </p>
         </div>

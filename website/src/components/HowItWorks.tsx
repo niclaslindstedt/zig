@@ -4,17 +4,17 @@ const steps = [
     title: "Describe",
     subtitle: "Tell zig what to automate",
     description:
-      "Use zig workflow create or zig describe to launch an interactive session. An AI agent helps you design the workflow and produces a .zug file.",
+      "Use zig workflow create or zig describe to launch an interactive session. An AI agent helps you design the workflow and produces a .zwf file.",
     code: `zig workflow create deploy --pattern sequential`,
     color: "text-accent",
   },
   {
     number: "2",
     title: "Share",
-    subtitle: "Commit the .zug file",
+    subtitle: "Commit the .zwf file",
     description:
-      "The .zug file is a self-contained workflow definition in TOML. Commit it to your repo, send it to a colleague, or publish it for your team.",
-    code: `git add workflows/deploy.zug\ngit commit -m "add deploy workflow"`,
+      "The .zwf file is a self-contained workflow definition in TOML. Commit it to your repo, send it to a colleague, or publish it for your team.",
+    code: `git add workflows/deploy.zwf\ngit commit -m "add deploy workflow"`,
     color: "text-zag-light",
   },
   {
@@ -22,7 +22,7 @@ const steps = [
     title: "Run",
     subtitle: "Execute anywhere",
     description:
-      "Run the workflow with zig run. Zig parses the .zug file, resolves the dependency graph, and delegates each step to zag's orchestration engine.",
+      "Run the workflow with zig run. Zig parses the .zwf file, resolves the dependency graph, and delegates each step to zag's orchestration engine.",
     code: `zig run deploy`,
     color: "text-success",
   },

@@ -1,6 +1,6 @@
 # zig run
 
-Execute a `.zug` workflow file.
+Execute a `.zwf` or `.zwfz` workflow file.
 
 ## Synopsis
 
@@ -10,8 +10,8 @@ zig run <workflow> [prompt] [--no-resources]
 
 ## Description
 
-Parses a `.zug` workflow file, validates it, resolves the step DAG, and
-executes each step by delegating to `zag`. Steps are grouped into
+Parses a `.zwf` or `.zwfz` workflow file, validates it, resolves the step
+DAG, and executes each step by delegating to `zag`. Steps are grouped into
 parallelizable tiers using topological sorting — steps within the same tier
 run concurrently when their dependencies are satisfied.
 
@@ -32,12 +32,11 @@ run concurrently when their dependencies are satisfied.
 
 The `workflow` argument is resolved in this order:
 
-1. Literal path as given (e.g., `./my-workflow.zug`)
-2. With `.zug` extension appended (e.g., `my-workflow` → `my-workflow.zug`)
-3. Under `./workflows/` directory (e.g., `workflows/my-workflow`)
-4. Under `./workflows/` with `.zug` appended (e.g., `workflows/my-workflow.zug`)
-5. Under `~/.zig/workflows/` global directory
-6. Under `~/.zig/workflows/` with `.zug` appended
+1. Literal path as given (e.g., `./my-workflow.zwf`)
+2. With `.zwf` extension appended (e.g., `my-workflow` → `my-workflow.zwf`)
+3. With `.zwfz` extension appended (e.g., `my-workflow` → `my-workflow.zwfz`)
+4. Under `./workflows/` with those three forms
+5. Under `~/.zig/workflows/` (the global workflows dir) with those three forms
 
 ## Execution Model
 
@@ -72,7 +71,10 @@ Each step can configure its failure behavior with `on_failure`:
 zig run code-review
 
 # Run a workflow file directly
-zig run ./workflows/deploy.zug
+zig run ./workflows/deploy.zwf
+
+# Run a bundled workflow archive directly
+zig run ./workflows/healthcare.zwfz
 
 # Run with additional context
 zig run code-review "focus on the authentication module"
@@ -87,7 +89,7 @@ zig run code-review --no-resources
 
 ## See Also
 
-- `zig man zug` — the `.zug` file format
+- `zig man zwf` — the `.zwf`/`.zwfz` file format
 - `zig man variables` — variable substitution and data flow
 - `zig man conditions` — condition expressions
 - `zig man resources` — managing reference files for agents

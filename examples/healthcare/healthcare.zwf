@@ -8,8 +8,8 @@
 #   zig run examples/healthcare/healthcare.toml "I've been having chest pain and shortness of breath for two days"
 #
 # Or pack and distribute:
-#   zig workflow pack examples/healthcare/ -o healthcare.zug
-#   zig run healthcare.zug "I've been having headaches and blurry vision"
+#   zig workflow pack examples/healthcare/ -o healthcare.zwfz
+#   zig run healthcare.zwfz "I've been having headaches and blurry vision"
 
 [workflow]
 name = "healthcare-triage"

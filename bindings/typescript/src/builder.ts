@@ -51,9 +51,9 @@ import {
  *   .debug()
  *   .run("deploy-pipeline");
  *
- * // Validate a .zug file
+ * // Validate a .zwf file
  * const result = await new ZigBuilder()
- *   .validate("workflow.zug");
+ *   .validate("workflow.zwf");
  * ```
  */
 export class ZigBuilder {
@@ -119,7 +119,7 @@ export class ZigBuilder {
   /**
    * Execute a workflow by name or path.
    *
-   * @param workflow - Workflow name or path to a .zug file
+   * @param workflow - Workflow name or path to a .zwf file
    * @param promptOrOptions - Optional additional context prompt or options object
    *
    * @example
@@ -143,7 +143,7 @@ export class ZigBuilder {
   /**
    * Execute a workflow interactively with inherited stdio.
    *
-   * @param workflow - Workflow name or path to a .zug file
+   * @param workflow - Workflow name or path to a .zwf file
    * @param promptOrOptions - Optional additional context prompt or options object
    */
   async runInteractive(
@@ -161,7 +161,7 @@ export class ZigBuilder {
   /**
    * Execute a workflow and stream stdout lines as they arrive.
    *
-   * @param workflow - Workflow name or path to a .zug file
+   * @param workflow - Workflow name or path to a .zwf file
    * @param promptOrOptions - Optional additional context prompt or options object
    *
    * @example
@@ -188,7 +188,7 @@ export class ZigBuilder {
    *
    * Returns a `StreamingSession` for sending input and reading output lines.
    *
-   * @param workflow - Workflow name or path to a .zug file
+   * @param workflow - Workflow name or path to a .zwf file
    * @param promptOrOptions - Optional additional context prompt or options object
    *
    * @example
@@ -232,18 +232,18 @@ export class ZigBuilder {
   }
 
   /**
-   * Validate a .zug workflow file.
+   * Validate a .zwf workflow file.
    *
    * Returns the raw stdout from `zig validate`. The CLI exits with code 0
    * on a valid workflow and non-zero on validation errors; in the latter case
    * this method throws `ZigError` with the validation output on stderr.
    *
-   * @param workflow - Path to the .zug file to validate
+   * @param workflow - Path to the .zwf file to validate
    *
    * @example
    * ```ts
    * try {
-   *   const msg = await new ZigBuilder().validate("deploy.zug");
+   *   const msg = await new ZigBuilder().validate("deploy.zwf");
    *   console.log(msg); // "workflow 'deploy' is valid (3 steps)"
    * } catch (err) {
    *   if (err instanceof ZigError) {
@@ -326,12 +326,12 @@ export class ZigBuilder {
   }
 
   /**
-   * Generate a .zug workflow file from a natural language description.
+   * Generate a .zwf workflow file from a natural language description.
    *
    * Runs with inherited stdio since the describe process is interactive.
    *
    * @param prompt - Natural language description of the workflow
-   * @param output - Output file path (defaults to workflow.zug)
+   * @param output - Output file path (defaults to workflow.zwf)
    */
   async describe(prompt: string, output?: string): Promise<void> {
     await this.preflight();
@@ -383,10 +383,10 @@ export class ZigBuilder {
   }
 
   /**
-   * Pack a workflow directory into a .zug zip archive.
+   * Pack a workflow directory into a .zwfz zip archive.
    *
    * @param path - Path to directory containing the workflow and its prompt files
-   * @param output - Output file path (defaults to <workflow-name>.zug)
+   * @param output - Output file path (defaults to <workflow-name>.zwfz)
    *
    * @example
    * ```ts
@@ -403,11 +403,11 @@ export class ZigBuilder {
   /**
    * Show a manual page topic.
    *
-   * @param topic - Topic name (e.g., "run", "zug", "patterns"). Omit to list all topics.
+   * @param topic - Topic name (e.g., "run", "zwf", "patterns"). Omit to list all topics.
    *
    * @example
    * ```ts
-   * const content = await new ZigBuilder().man("zug");
+   * const content = await new ZigBuilder().man("zwf");
    * console.log(content);
    * ```
    */

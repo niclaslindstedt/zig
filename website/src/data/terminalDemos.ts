@@ -4,7 +4,7 @@ export const terminalDemos: TerminalTab[] = [
   {
     label: "Run Workflow",
     sequence: [
-      { type: "comment", text: "# Run a workflow from a .zug file" },
+      { type: "comment", text: "# Run a workflow from a .zwf file" },
       {
         type: "command",
         text: "zig run code-review",
@@ -15,7 +15,7 @@ export const terminalDemos: TerminalTab[] = [
         delay: 200,
         lines: [
           { text: "\u25b6 Running workflow: code-review (3 steps)", style: "zag" },
-          { text: "\u2713 Parsed code-review.zug", style: "success" },
+          { text: "\u2713 Parsed code-review.zwf", style: "success" },
           "",
         ],
       },
@@ -79,7 +79,7 @@ export const terminalDemos: TerminalTab[] = [
         type: "output",
         lines: [
           "",
-          { text: "\u2713 Wrote deploy.zug (4 steps, sequential pattern)", style: "success" },
+          { text: "\u2713 Wrote deploy.zwf (4 steps, sequential pattern)", style: "success" },
           { text: "  Run it with: zig run deploy", style: "dim" },
         ],
       },
@@ -92,7 +92,7 @@ export const terminalDemos: TerminalTab[] = [
       { type: "comment", text: "# Validate a workflow before sharing" },
       {
         type: "command",
-        text: "zig validate workflows/ci-pipeline.zug",
+        text: "zig validate workflows/ci-pipeline.zwf",
       },
       { type: "pause", duration: 300 },
       {
@@ -155,7 +155,7 @@ export const terminalDemos: TerminalTab[] = [
         delay: 200,
         lines: [
           { text: "\u25b6 Running workflow: security-audit (4 steps)", style: "zag" },
-          { text: "\u2713 Parsed security-audit.zug", style: "success" },
+          { text: "\u2713 Parsed security-audit.zwf", style: "success" },
           "",
           { text: "[tier 1] Running 3 steps in parallel...", style: "assistant" },
         ],

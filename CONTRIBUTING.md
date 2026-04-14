@@ -40,7 +40,7 @@ make build && make test && make clippy && make fmt
 
 ```
 zig-core (library crate)
-  .zug file parsing, workflow validation, execution engine
+  .zwf/.zwfz file parsing, workflow validation, execution engine
 
 zig-cli (binary crate)
   CLI argument parsing (clap) → dispatch to zig-core
@@ -50,7 +50,7 @@ zig-cli (binary crate)
 The dependency flow is: `zig-core ← zig-cli`.
 
 - **zig-cli/src/**: Thin CLI wrapper — argument parsing and command dispatch
-- **zig-core/src/**: Core library — .zug format, workflow engine, zag integration
+- **zig-core/src/**: Core library — .zwf/.zwfz format, workflow engine, zag integration
 
 ## Commit conventions
 

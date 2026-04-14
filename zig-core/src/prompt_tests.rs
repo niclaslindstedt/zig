@@ -43,9 +43,11 @@ fn render_multiline_template() {
 #[test]
 fn templates_are_embedded() {
     assert!(!templates::create().is_empty());
+    assert!(!templates::update().is_empty());
     assert!(!templates::config_sidecar().is_empty());
-    assert!(templates::create().contains("{{zug_format_spec}}"));
-    assert!(templates::config_sidecar().contains(".zug"));
+    assert!(templates::create().contains("{{zwf_format_spec}}"));
+    assert!(templates::update().contains("{{zwf_format_spec}}"));
+    assert!(templates::config_sidecar().contains(".zwf"));
 }
 
 #[test]
@@ -65,6 +67,16 @@ fn templates_have_front_matter_stripped() {
     assert!(
         !create.contains("references:"),
         "create prompt still contains front matter `references` field"
+    );
+
+    let update = templates::update();
+    assert!(
+        !update.starts_with("---"),
+        "update prompt still begins with front matter delimiter"
+    );
+    assert!(
+        !update.contains("name: update"),
+        "update prompt still contains front matter `name` field"
     );
 
     let sidecar = templates::config_sidecar();
@@ -141,6 +153,10 @@ fn example_templates_are_embedded() {
             content.contains("[workflow]"),
             "example {filename} should contain [workflow] section"
         );
+        assert!(
+            filename.ends_with(".zwf"),
+            "example {filename} should use the .zwf extension"
+        );
     }
 }
 
@@ -172,14 +188,29 @@ fn example_for_pattern_returns_none_for_unknown() {
 #[test]
 fn create_prompt_renders_with_sidecar() {
     let vars = HashMap::from([
-        ("zug_format_spec", templates::config_sidecar()),
+        ("zwf_format_spec", templates::config_sidecar()),
         ("zag_help", "(zag help placeholder)"),
         ("zag_orch", "(zag orch placeholder)"),
+        ("examples_reference", "(examples placeholder)"),
     ]);
     let rendered = render(templates::create(), &vars);
-    assert!(!rendered.contains("{{zug_format_spec}}"));
+    assert!(!rendered.contains("{{zwf_format_spec}}"));
     assert!(!rendered.contains("{{zag_help}}"));
     assert!(!rendered.contains("{{zag_orch}}"));
-    assert!(rendered.contains(".zug Workflow Format Specification"));
+    assert!(!rendered.contains("{{examples_reference}}"));
+    assert!(rendered.contains(".zwf Workflow Format Specification"));
     assert!(rendered.contains("(zag help placeholder)"));
+    assert!(rendered.contains("(examples placeholder)"));
+}
+
+#[test]
+fn examples_reference_block_lists_all_patterns() {
+    let block = examples_reference_block();
+    assert!(block.contains("~/.zig/examples/sequential.zwf"));
+    assert!(block.contains("~/.zig/examples/fan-out.zwf"));
+    assert!(block.contains("~/.zig/examples/generator-critic.zwf"));
+    assert!(block.contains("~/.zig/examples/coordinator-dispatcher.zwf"));
+    assert!(block.contains("~/.zig/examples/hierarchical-decomposition.zwf"));
+    assert!(block.contains("~/.zig/examples/human-in-the-loop.zwf"));
+    assert!(block.contains("~/.zig/examples/inter-agent-communication.zwf"));
 }

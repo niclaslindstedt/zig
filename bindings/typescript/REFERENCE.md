@@ -26,7 +26,7 @@ Comprehensive reference for the TypeScript binding of zig, a workflow orchestrat
   - [Stream Workflow Output](#stream-workflow-output)
   - [Bidirectional Streaming](#bidirectional-streaming)
   - [Validate a Workflow](#validate-a-workflow)
-  - [Parse a .zug File](#parse-a-zug-file)
+  - [Parse a .zwf File](#parse-a-zwf-file)
   - [Manage Workflows](#manage-workflows)
   - [Bridge to zag-agent](#bridge-to-zag-agent)
   - [Error Handling](#error-handling)
@@ -82,15 +82,15 @@ These methods execute the builder configuration. Each spawns a `zig` subprocess.
 | `runInteractive` | `async runInteractive(workflow: string, prompt?: string): Promise<void>` | Run a workflow interactively. Inherits stdin/stdout/stderr. |
 | `stream` | `async *stream(workflow: string, prompt?: string): AsyncGenerator<string>` | Stream stdout lines as they arrive. |
 | `runStreaming` | `runStreaming(workflow: string, prompt?: string): StreamingSession` | Bidirectional streaming with piped stdin/stdout. |
-| `validate` | `async validate(workflow: string): Promise<string>` | Validate a .zug file. Returns success message or throws `ZigError`. |
+| `validate` | `async validate(workflow: string): Promise<string>` | Validate a .zwf file. Returns success message or throws `ZigError`. |
 | `workflowList` | `async workflowList(): Promise<string>` | List available workflows. |
 | `workflowShow` | `async workflowShow(workflow: string): Promise<string>` | Show workflow details. |
 | `workflowDelete` | `async workflowDelete(workflow: string): Promise<string>` | Delete a workflow. |
 | `workflowCreate` | `async workflowCreate(options?): Promise<void>` | Create a workflow interactively. Options: `name?`, `output?`, `pattern?`. |
-| `describe` | `async describe(prompt: string, output?: string): Promise<void>` | Generate a .zug file from natural language. |
+| `describe` | `async describe(prompt: string, output?: string): Promise<void>` | Generate a .zwf file from natural language. |
 | `listen` | `async listen(options?): Promise<void>` | Tail a running/completed session. Options: `sessionId?`, `latest?`, `active?`. |
 | `init` | `async init(): Promise<void>` | Initialize a new zig project in the current directory. |
-| `workflowPack` | `async workflowPack(path: string, output?: string): Promise<string>` | Pack a workflow directory into a .zug zip archive. |
+| `workflowPack` | `async workflowPack(path: string, output?: string): Promise<string>` | Pack a workflow directory into a .zwfz zip archive. |
 | `man` | `async man(topic?: string): Promise<string>` | Show a manual page topic. |
 
 ---
@@ -125,7 +125,7 @@ interface StreamingSession {
 
 ## Workflow Parsing
 
-Two standalone functions for reading `.zug` workflow files directly from Node.js:
+Two standalone functions for reading `.zwf` workflow files directly from Node.js:
 
 ```typescript
 import { parseWorkflow, parseWorkflowFile } from "@nlindstedt/zig-workflow";
@@ -137,7 +137,7 @@ import { parseWorkflow, parseWorkflowFile } from "@nlindstedt/zig-workflow";
 function parseWorkflow(content: string): Workflow
 ```
 
-Parse a TOML `.zug` workflow string into a typed `Workflow` object. This is a lightweight parser covering the standard `.zug` subset. For authoritative validation, use `ZigBuilder.validate()`.
+Parse a TOML `.zwf` workflow string into a typed `Workflow` object. This is a lightweight parser covering the standard `.zwf` subset. For authoritative validation, use `ZigBuilder.validate()`.
 
 ### parseWorkflowFile
 
@@ -145,7 +145,7 @@ Parse a TOML `.zug` workflow string into a typed `Workflow` object. This is a li
 async function parseWorkflowFile(path: string): Promise<Workflow>
 ```
 
-Read a `.zug` file from disk and parse it into a `Workflow` object. Throws `ZigError` if the file cannot be read.
+Read a `.zwf` file from disk and parse it into a `Workflow` object. Throws `ZigError` if the file cannot be read.
 
 ---
 
@@ -201,7 +201,7 @@ import { ZigError, ZigVersionError } from "@nlindstedt/zig-workflow";
 
 ### Workflow
 
-A complete workflow definition parsed from a `.zug` file.
+A complete workflow definition parsed from a `.zwf` file.
 
 ```typescript
 interface Workflow {
@@ -252,7 +252,7 @@ interface Role {
   /** Inline system prompt for this role. Supports ${var} references. */
   system_prompt?: string;
 
-  /** Path to a file containing the system prompt (relative to the .zug file). */
+  /** Path to a file containing the system prompt (relative to the .zwf file). */
   system_prompt_file?: string;
 }
 ```
@@ -270,7 +270,7 @@ interface Variable {
   /** Default value. If absent, the variable must be provided at runtime. */
   default?: unknown;
 
-  /** Path to a file whose contents become the default value (relative to .zug file). */
+  /** Path to a file whose contents become the default value (relative to .zwf file). */
   default_file?: string;
 
   /** Human-readable description. */
@@ -520,7 +520,7 @@ await session.close({ timeout: "5s" });
 import { ZigBuilder, ZigError } from "@nlindstedt/zig-workflow";
 
 try {
-  const msg = await new ZigBuilder().validate("deploy.zug");
+  const msg = await new ZigBuilder().validate("deploy.zwf");
   console.log(msg); // "workflow 'deploy' is valid (3 steps)"
 } catch (err) {
   if (err instanceof ZigError) {
@@ -531,7 +531,7 @@ try {
 }
 ```
 
-### Parse a .zug File
+### Parse a .zwf File
 
 Read and inspect a workflow definition without spawning the CLI:
 
@@ -575,7 +575,7 @@ console.log(wf.steps[1].depends_on);      // ["lint"]
 console.log(wf.steps[1].on_failure);      // "continue"
 
 // From a file
-const fromFile = await parseWorkflowFile("./deploy.zug");
+const fromFile = await parseWorkflowFile("./deploy.zwf");
 console.log(fromFile.steps.length);
 ```
 
@@ -598,7 +598,7 @@ console.log(details);
 await zig.workflowCreate({
   name: "new-pipeline",
   pattern: "fan-out",
-  output: "./pipelines/new-pipeline.zug",
+  output: "./pipelines/new-pipeline.zwf",
 });
 
 // Delete
@@ -614,7 +614,7 @@ import { ZigBuilder, parseWorkflowFile, zagSessionName, zagSessionNames } from "
 import { ZagBuilder } from "@nlindstedt/zag-agent";
 
 // 1. Parse the workflow to discover step names and session IDs
-const wf = await parseWorkflowFile("deploy.zug");
+const wf = await parseWorkflowFile("deploy.zwf");
 const sessions = zagSessionNames(wf);
 // { lint: "zig-deploy-lint", test: "zig-deploy-test", deploy: "zig-deploy-deploy" }
 

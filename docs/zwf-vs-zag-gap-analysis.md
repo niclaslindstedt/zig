@@ -1,19 +1,19 @@
-# Gap Analysis: .zug Workflow Format vs. Zag Capabilities
+# Gap Analysis: .zwf Workflow Format vs. Zag Capabilities
 
-> Generated 2026-04-09 by analyzing zig-core `.zug` model against the full
+> Generated 2026-04-09 by analyzing zig-core `.zwf` model against the full
 > zag CLI + zag-orch orchestration surface.
 
 ## Summary
 
-The `.zug` format covers **core DAG orchestration** well — sequential pipelines,
+The `.zwf` format covers **core DAG orchestration** well — sequential pipelines,
 fan-out/gather, generator/critic loops, and coordinator/dispatcher patterns all
 map cleanly to `zag spawn` with `--depends-on` and `--inject-context`. However,
 there are **significant gaps** in real-time communication, session lifecycle
-management, isolation, and several zag features that have no `.zug` equivalent.
+management, isolation, and several zag features that have no `.zwf` equivalent.
 
-## What .zug Supports Well
+## What .zwf Supports Well
 
-| .zug Feature | Zag Mapping |
+| .zwf Feature | Zag Mapping |
 |---|---|
 | `depends_on` | `zag spawn --depends-on` |
 | `inject_context` | `zag spawn --inject-context` |
@@ -45,11 +45,11 @@ management, isolation, and several zag features that have no `.zug` equivalent.
 | `from = "prompt"` input binding | CLI prompt to variable binding |
 | Variable constraints (required, min/max, pattern, allowed_values) | Pre-execution validation |
 
-## Gaps: Zag Features NOT Expressible in .zug
+## Gaps: Zag Features NOT Expressible in .zwf
 
 ### 1. Real-Time Communication (High Impact)
 
-| Zag Command | Description | .zug Gap |
+| Zag Command | Description | .zwf Gap |
 |---|---|---|
 | `input` | Send message to a running session | No mid-execution communication |
 | `broadcast` | Send message to all sessions | No broadcast primitive |
@@ -120,7 +120,7 @@ Only `session update` (runtime metadata updates) remains unimplemented.
 
 ## Orchestration Pattern Coverage
 
-| # | Pattern | Supported in .zug? | Gap |
+| # | Pattern | Supported in .zwf? | Gap |
 |---|---|---|---|
 | 1 | Sequential Pipeline | **Yes** | — |
 | 2 | Fan-Out / Gather | **Yes** | Race variant now supported via `race_group` |

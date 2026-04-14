@@ -4,12 +4,12 @@ use std::path::{Path, PathBuf};
 use crate::error::ZigError;
 use crate::workflow::parser;
 
-/// Pack a workflow directory into a `.zug` zip archive.
+/// Pack a workflow directory into a `.zwfz` zip archive.
 ///
-/// The directory must contain exactly one workflow TOML file (`.toml` or `.zug`
-/// that contains a `[workflow]` section). All files in the directory are included
-/// in the archive. The resulting zip file can be used directly with `zig run`
-/// and `zig validate`.
+/// The directory must contain exactly one workflow TOML file (`.toml` or `.zwf`
+/// with a `[workflow]` section). All files in the directory are included
+/// in the archive, preserving directory structure. The resulting zip file
+/// can be used directly with `zig run` and `zig validate`.
 pub fn pack(dir_path: &str, output: Option<&str>) -> Result<PathBuf, ZigError> {
     let dir = Path::new(dir_path);
     if !dir.is_dir() {
@@ -32,14 +32,30 @@ pub fn pack(dir_path: &str, output: Option<&str>) -> Result<PathBuf, ZigError> {
         PathBuf::from(out)
     } else {
         let name = wf.workflow.name.replace(' ', "-").to_lowercase();
-        PathBuf::from(format!("{name}.zug"))
+        PathBuf::from(format!("{name}.zwfz"))
     };
 
-    // Collect all files in the directory
+    let file_count = zip_directory(dir, &output_path)?;
+
+    eprintln!(
+        "packed {} files into '{}' (workflow: '{}')",
+        file_count,
+        output_path.display(),
+        wf.workflow.name
+    );
+
+    Ok(output_path)
+}
+
+/// Zip every file under `dir` into a new archive at `output_path`.
+///
+/// Preserves directory structure relative to `dir`. Returns the number of
+/// files written. Used by [`pack`] and by `update::run_update` to re-zip
+/// a staging directory after an interactive edit session.
+pub fn zip_directory(dir: &Path, output_path: &Path) -> Result<usize, ZigError> {
     let files = collect_files(dir)?;
 
-    // Create the zip archive
-    let file = std::fs::File::create(&output_path)
+    let file = std::fs::File::create(output_path)
         .map_err(|e| ZigError::Io(format!("failed to create {}: {e}", output_path.display())))?;
     let mut zip = zip::ZipWriter::new(file);
     let options = zip::write::SimpleFileOptions::default()
@@ -63,14 +79,7 @@ pub fn pack(dir_path: &str, output: Option<&str>) -> Result<PathBuf, ZigError> {
     zip.finish()
         .map_err(|e| ZigError::Io(format!("failed to finalize archive: {e}")))?;
 
-    eprintln!(
-        "packed {} files into '{}' (workflow: '{}')",
-        files.len(),
-        output_path.display(),
-        wf.workflow.name
-    );
-
-    Ok(output_path)
+    Ok(files.len())
 }
 
 /// Find the single workflow TOML file in a directory.
@@ -85,7 +94,7 @@ fn find_workflow_toml(dir: &Path) -> Result<PathBuf, ZigError> {
         let path = entry.path();
         if path.is_file() {
             if let Some(ext) = path.extension() {
-                if ext == "toml" || ext == "zug" {
+                if ext == "toml" || ext == "zwf" {
                     if let Ok(content) = std::fs::read_to_string(&path) {
                         if content.contains("[workflow]") {
                             candidates.push(path);

@@ -32,7 +32,7 @@ export const version = "0.4.1";
 export const commands: CommandData[] = [
   {
     "name": "run",
-    "description": "Execute a .zug workflow file"
+    "description": "Execute a .zwf workflow file"
   },
   {
     "name": "workflow",
@@ -40,11 +40,11 @@ export const commands: CommandData[] = [
   },
   {
     "name": "describe",
-    "description": "Describe a workflow to an agent and generate a .zug file"
+    "description": "Describe a workflow to an agent and generate a .zwf file"
   },
   {
     "name": "validate",
-    "description": "Validate a .zug workflow file"
+    "description": "Validate a .zwf workflow file"
   },
   {
     "name": "init",
@@ -79,7 +79,7 @@ export const workflowSubcommands: CommandData[] = [
   },
   {
     "name": "pack",
-    "description": "Pack a workflow directory into a .zug zip archive"
+    "description": "Pack a workflow directory into a .zwf zip archive"
   }
 ];
 
@@ -326,4 +326,4 @@ export const stepFields: StepField[] = [
 
 export const varTypes: string[] = ["string","number","bool","json"];
 
-export const manpageTopics: string[] = ["conditions","describe","listen","patterns","run","validate","variables","workflow","zig","zug"];
+export const manpageTopics: string[] = ["conditions","describe","listen","patterns","run","validate","variables","workflow","zig","zwf"];

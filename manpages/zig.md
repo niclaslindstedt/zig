@@ -11,18 +11,18 @@ zig <command> [options]
 ## Description
 
 `zig` lets you describe a workflow in natural language, capture it as a
-shareable `.zug` file, and replay it anywhere with a single command. It uses
+shareable `.zwf` file, and replay it anywhere with a single command. It uses
 zag behind the scenes for agent orchestration.
 
 ## Commands
 
 | Command              | Description                                              |
 |----------------------|----------------------------------------------------------|
-| `run <workflow>`     | Execute a `.zug` workflow file                           |
+| `run <workflow>`     | Execute a `.zwf` workflow file                           |
 | `listen [session]`   | Tail a running or completed zig session                  |
 | `workflow <command>` | Manage workflows (list, show, create, delete, pack)      |
-| `describe <prompt>`  | Generate a `.zug` file from a natural language prompt    |
-| `validate <file>`    | Validate a `.zug` workflow file                          |
+| `describe <prompt>`  | Generate a `.zwf` file from a natural language prompt    |
+| `validate <file>`    | Validate a `.zwf` workflow file                          |
 | `init`               | Initialize a new zig project                             |
 | `man [topic]`        | Show manual pages for zig topics                         |
 
@@ -48,7 +48,7 @@ zig describe "review code, run tests, and generate a report"
 zig run my-workflow
 
 # Validate a workflow file
-zig validate my-workflow.zug
+zig validate my-workflow.zwf
 ```
 
 ## Manpages
@@ -59,7 +59,7 @@ Use `zig man` to learn more about specific topics:
 zig man run          # The run command
 zig man listen       # Tail a running or completed zig session
 zig man workflow     # Manage workflows (list, show, create, delete, pack)
-zig man zug          # The .zug file format
+zig man zwf          # The .zwf file format
 zig man patterns     # Orchestration patterns
 zig man variables    # Variable system and data flow
 zig man conditions   # Condition expressions
@@ -67,6 +67,6 @@ zig man conditions   # Condition expressions
 
 ## See Also
 
-- `zig man zug` — the `.zug` workflow format
+- `zig man zwf` — the `.zwf` workflow format
 - `zig man patterns` — orchestration patterns
 - zag documentation: https://github.com/niclaslindstedt/zag

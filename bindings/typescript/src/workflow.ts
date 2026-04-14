@@ -43,7 +43,7 @@ export function zagSessionName(workflowName: string, stepName: string): string {
  * ```ts
  * import { parseWorkflowFile, zagSessionNames } from "@nlindstedt/zig-workflow";
  *
- * const wf = await parseWorkflowFile("deploy.zug");
+ * const wf = await parseWorkflowFile("deploy.zwf");
  * const sessions = zagSessionNames(wf);
  * // { lint: "zig-deploy-lint", test: "zig-deploy-test", deploy: "zig-deploy-deploy" }
  * ```
@@ -57,23 +57,23 @@ export function zagSessionNames(workflow: Workflow): Record<string, string> {
 }
 
 /**
- * Parse a TOML .zug workflow string into a typed Workflow object.
+ * Parse a TOML .zwf workflow string into a typed Workflow object.
  *
  * This is a lightweight parser that handles the subset of TOML used by
- * .zug files. For full TOML parsing, use the `zig validate` command
+ * .zwf files. For full TOML parsing, use the `zig validate` command
  * via {@link ZigBuilder.validate} or a dedicated TOML library.
  *
  * The canonical parser lives in zig-core (Rust); this TypeScript parser
  * covers the common case for read-only inspection of workflow files
  * from Node.js without spawning the CLI.
  *
- * @param content - Raw TOML string from a .zug file
+ * @param content - Raw TOML string from a .zwf file
  * @returns Parsed Workflow object
  * @throws ZigError if the content cannot be parsed
  */
 export function parseWorkflow(content: string): Workflow {
   // We parse the TOML structure manually to avoid external dependencies.
-  // .zug files use a predictable subset: [workflow], [vars.*], [[step]].
+  // .zwf files use a predictable subset: [workflow], [vars.*], [[step]].
   const workflow: Workflow = {
     workflow: { name: "", description: "", tags: [], resources: [] },
     roles: {},
@@ -193,9 +193,9 @@ export function parseWorkflow(content: string): Workflow {
 }
 
 /**
- * Parse a .zug workflow file from disk.
+ * Parse a .zwf workflow file from disk.
  *
- * @param path - Path to the .zug file
+ * @param path - Path to the .zwf file
  * @returns Parsed Workflow object
  * @throws ZigError if the file cannot be read or parsed
  */

@@ -37,25 +37,25 @@ condition = "ready"
 "#;
 
 #[test]
-fn discover_zug_files_in_base_dir() {
+fn discover_workflow_files_in_base_dir() {
     let dir = tempfile::tempdir().unwrap();
 
-    fs::write(dir.path().join("one.zug"), WORKFLOW_A).unwrap();
-    fs::write(dir.path().join("two.zug"), WORKFLOW_B).unwrap();
+    fs::write(dir.path().join("one.zwf"), WORKFLOW_A).unwrap();
+    fs::write(dir.path().join("two.zwf"), WORKFLOW_B).unwrap();
     fs::write(dir.path().join("not-a-workflow.txt"), "hello").unwrap();
 
-    let files = discover_zug_files(dir.path());
+    let files = discover_workflow_files(dir.path());
 
     assert_eq!(files.len(), 2);
     assert!(
         files
             .iter()
-            .any(|f| f.to_string_lossy().contains("one.zug"))
+            .any(|f| f.to_string_lossy().contains("one.zwf"))
     );
     assert!(
         files
             .iter()
-            .any(|f| f.to_string_lossy().contains("two.zug"))
+            .any(|f| f.to_string_lossy().contains("two.zwf"))
     );
     assert!(
         !files
@@ -65,24 +65,24 @@ fn discover_zug_files_in_base_dir() {
 }
 
 #[test]
-fn discover_zug_files_in_workflows_subdir() {
+fn discover_workflow_files_in_workflows_subdir() {
     let dir = tempfile::tempdir().unwrap();
 
     let workflows_dir = dir.path().join("workflows");
     fs::create_dir(&workflows_dir).unwrap();
-    fs::write(workflows_dir.join("nested.zug"), WORKFLOW_A).unwrap();
+    fs::write(workflows_dir.join("nested.zwf"), WORKFLOW_A).unwrap();
 
-    let files = discover_zug_files(dir.path());
+    let files = discover_workflow_files(dir.path());
 
     assert_eq!(files.len(), 1);
-    assert!(files[0].to_string_lossy().contains("nested.zug"));
+    assert!(files[0].to_string_lossy().contains("nested.zwf"));
 }
 
 #[test]
 fn discover_empty_directory() {
     let dir = tempfile::tempdir().unwrap();
 
-    let files = discover_zug_files(dir.path());
+    let files = discover_workflow_files(dir.path());
 
     assert!(files.is_empty());
 }
@@ -91,12 +91,12 @@ fn discover_empty_directory() {
 fn discover_both_locations() {
     let dir = tempfile::tempdir().unwrap();
 
-    fs::write(dir.path().join("root.zug"), WORKFLOW_A).unwrap();
+    fs::write(dir.path().join("root.zwf"), WORKFLOW_A).unwrap();
     let workflows_dir = dir.path().join("workflows");
     fs::create_dir(&workflows_dir).unwrap();
-    fs::write(workflows_dir.join("nested.zug"), WORKFLOW_B).unwrap();
+    fs::write(workflows_dir.join("nested.zwf"), WORKFLOW_B).unwrap();
 
-    let files = discover_zug_files(dir.path());
+    let files = discover_workflow_files(dir.path());
 
     assert_eq!(files.len(), 2);
 }
@@ -104,7 +104,7 @@ fn discover_both_locations() {
 #[test]
 fn show_workflow_parses_metadata() {
     let dir = tempfile::tempdir().unwrap();
-    let wf_path = dir.path().join("alpha.zug");
+    let wf_path = dir.path().join("alpha.zwf");
     fs::write(&wf_path, WORKFLOW_A).unwrap();
 
     let path = wf_path.to_str().unwrap();
@@ -120,7 +120,7 @@ fn show_workflow_parses_metadata() {
 #[test]
 fn delete_workflow_removes_file() {
     let dir = tempfile::tempdir().unwrap();
-    let wf_path = dir.path().join("to-delete.zug");
+    let wf_path = dir.path().join("to-delete.zwf");
     fs::write(&wf_path, WORKFLOW_A).unwrap();
     assert!(wf_path.exists());
 
@@ -131,40 +131,40 @@ fn delete_workflow_removes_file() {
 
 #[test]
 fn delete_workflow_not_found() {
-    let result = delete_workflow("/nonexistent/path/missing.zug");
+    let result = delete_workflow("/nonexistent/path/missing.zwf");
     assert!(result.is_err());
 }
 
 #[test]
 fn show_workflow_not_found() {
-    let result = show_workflow("/nonexistent/path/missing.zug");
+    let result = show_workflow("/nonexistent/path/missing.zwf");
     assert!(result.is_err());
 }
 
 #[test]
-fn discover_zug_files_in_global_style_dir() {
+fn discover_workflow_files_in_global_style_dir() {
     let dir = tempfile::tempdir().unwrap();
     let global_wf_dir = crate::paths::global_workflows_dir_from(dir.path());
     fs::create_dir_all(&global_wf_dir).unwrap();
 
-    fs::write(global_wf_dir.join("global.zug"), WORKFLOW_A).unwrap();
+    fs::write(global_wf_dir.join("global.zwf"), WORKFLOW_A).unwrap();
 
-    let files = discover_zug_files(&global_wf_dir);
+    let files = discover_workflow_files(&global_wf_dir);
     assert_eq!(files.len(), 1);
-    assert!(files[0].to_string_lossy().contains("global.zug"));
+    assert!(files[0].to_string_lossy().contains("global.zwf"));
 }
 
 #[test]
-fn collect_zug_files_finds_files() {
+fn collect_workflow_files_finds_files() {
     let dir = tempfile::tempdir().unwrap();
     let wf_dir = dir.path().join(".zig").join("workflows");
     fs::create_dir_all(&wf_dir).unwrap();
-    fs::write(wf_dir.join("one.zug"), WORKFLOW_A).unwrap();
-    fs::write(wf_dir.join("two.zug"), WORKFLOW_B).unwrap();
+    fs::write(wf_dir.join("one.zwf"), WORKFLOW_A).unwrap();
+    fs::write(wf_dir.join("two.zwf"), WORKFLOW_B).unwrap();
     fs::write(wf_dir.join("readme.txt"), "not a workflow").unwrap();
 
     let mut files = Vec::new();
-    collect_zug_files(&wf_dir, &mut files);
+    collect_workflow_files(&wf_dir, &mut files);
     assert_eq!(files.len(), 2);
-    assert!(files.iter().all(|f| f.extension().unwrap() == "zug"));
+    assert!(files.iter().all(|f| f.extension().unwrap() == "zwf"));
 }

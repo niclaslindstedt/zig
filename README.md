@@ -7,25 +7,25 @@
 
 Describe workflows. Share them. Run them.
 
-`zig` is an orchestration CLI for AI coding agents. It uses [zag](https://github.com/niclaslindstedt/zag) behind the scenes to let you describe a workflow in natural language, capture it as a shareable `.zug` file, and replay it anywhere with a single command.
+`zig` is an orchestration CLI for AI coding agents. It uses [zag](https://github.com/niclaslindstedt/zag) behind the scenes to let you describe a workflow in natural language, capture it as a shareable `.zwf` file, and replay it anywhere with a single command.
 
 ## Why zig?
 
 - **Natural language workflows** — Describe what you want done in plain English; an AI agent creates the orchestration file for you
-- **Shareable `.zug` files** — Workflow definitions are portable files you can commit, share, and version alongside your code
+- **Shareable `.zwf` files** — Workflow definitions are portable files you can commit, share, and version alongside your code
 - **Powered by zag** — Built on zag's battle-tested orchestration primitives (spawn, wait, collect, pipe) without needing to learn them directly
 - **Reproducible automation** — Run the same workflow across projects, teams, and machines with `zig run`
 
 ## How it works
 
-1. **Describe** — Tell `zig` what you want to automate. It launches a zag interactive session where an AI agent helps you design the workflow and produces a `.zug` orchestration file.
+1. **Describe** — Tell `zig` what you want to automate. It launches a zag interactive session where an AI agent helps you design the workflow and produces a `.zwf` orchestration file.
 
-2. **Share** — The `.zug` file is a self-contained workflow definition. Commit it to your repo, send it to a colleague, or publish it.
+2. **Share** — The `.zwf` file is a self-contained workflow definition. Commit it to your repo, send it to a colleague, or publish it.
 
-3. **Run** — Execute the workflow with `zig run <workflow>`. Zig parses the `.zug` file and delegates to zag's orchestration engine to carry out each step.
+3. **Run** — Execute the workflow with `zig run <workflow>`. Zig parses the `.zwf` file and delegates to zag's orchestration engine to carry out each step.
 
 ```bash
-# Describe a workflow — an agent helps you create a .zug file
+# Describe a workflow — an agent helps you create a .zwf file
 zig describe "review all PRs, run tests, and generate a summary report"
 
 # See what workflows are available
@@ -51,7 +51,7 @@ zig serve --web
 starts it prints a `Web UI:` URL with an authentication token baked in —
 open it in a browser to start a workflow creation chat. Submit the first
 message to spawn an interactive zag session, then send follow-up messages
-to collaborate with the agent until your `.zug` file is ready.
+to collaborate with the agent until your `.zwf` file is ready.
 
 ## Prerequisites
 
@@ -82,31 +82,31 @@ cargo install --path zig-cli
 ## Commands
 
 ```
-zig run <workflow>              Execute a .zug workflow file
+zig run <workflow>              Execute a .zwf workflow file
 zig listen [session_id]         Tail a running or completed zig session
 zig workflow list               List available workflows
 zig workflow show <workflow>    Show details of a workflow
 zig workflow create [name]      Create a new workflow interactively with an AI agent
 zig workflow delete <workflow>  Delete a workflow file
-zig workflow pack <path>        Pack a workflow directory into a .zug zip archive
+zig workflow pack <path>        Pack a workflow directory into a .zwfz zip archive
 zig resources list              List discovered resource files (global + cwd tiers)
 zig resources add <file>        Register a file as a global / cwd / per-workflow resource
 zig resources remove <name>     Remove a registered resource
 zig resources show <name>       Print the absolute path and contents of a resource
 zig resources where             Print the directories the collector searches
-zig validate <file>             Validate a .zug workflow file
+zig validate <file>             Validate a .zwf workflow file
 zig man [topic]                 Show manual pages for zig topics
-zig describe <prompt>           Generate a .zug file from a prompt (not yet implemented)
+zig describe <prompt>           Generate a .zwf file from a prompt (not yet implemented)
 zig init                        Initialize a new zig project (not yet implemented)
 ```
 
 ### `zig run`
 
-Execute a `.zug` workflow. Zig resolves the workflow by name or file path, parses the orchestration steps, and delegates execution to zag.
+Execute a `.zwf` workflow. Zig resolves the workflow by name or file path, parses the orchestration steps, and delegates execution to zag.
 
 ```bash
 zig run code-review
-zig run ./workflows/deploy.zug
+zig run ./workflows/deploy.zwf
 zig run code-review "focus on the authentication module"
 ```
 
@@ -123,30 +123,30 @@ zig listen abc123              # tail a specific session by ID or prefix
 
 ### `zig workflow create`
 
-Launch an interactive session where an AI agent guides you through designing a workflow and produces a `.zug` file.
+Launch an interactive session where an AI agent guides you through designing a workflow and produces a `.zwf` file.
 
 ```bash
 zig workflow create my-workflow
 zig workflow create deploy --pattern sequential
-zig workflow create --output workflows/ci.zug
+zig workflow create --output workflows/ci.zwf
 ```
 
 ### `zig workflow delete`
 
-Delete a `.zug` workflow file by name or path.
+Delete a `.zwf` workflow file by name or path.
 
 ```bash
 zig workflow delete my-workflow
-zig workflow delete workflows/old-pipeline.zug
+zig workflow delete workflows/old-pipeline.zwf
 ```
 
 ### `zig workflow pack`
 
-Pack a workflow directory into a `.zug` zip archive. The directory must contain a workflow TOML file and can include prompt files referenced via `system_prompt_file` or `default_file`. The resulting archive works with `zig run` and `zig validate`.
+Pack a workflow directory into a `.zwf` zip archive. The directory must contain a workflow TOML file and can include prompt files referenced via `system_prompt_file` or `default_file`. The resulting archive works with `zig run` and `zig validate`.
 
 ```bash
 zig workflow pack ./my-workflow/
-zig workflow pack ./my-workflow/ --output custom-name.zug
+zig workflow pack ./my-workflow/ --output custom-name.zwf
 ```
 
 ### `zig resources`
@@ -175,18 +175,18 @@ Run `zig man resources` for the full collection model and tier ordering.
 
 ### `zig validate`
 
-Validate a `.zug` workflow file for structural correctness without executing it.
+Validate a `.zwf` workflow file for structural correctness without executing it.
 
 ```bash
-zig validate my-workflow.zug
+zig validate my-workflow.zwf
 ```
 
 ### `zig man`
 
-Show built-in manual pages for zig topics (zig, run, listen, workflow, describe, validate, zug, patterns, variables, conditions, resources).
+Show built-in manual pages for zig topics (zig, run, listen, workflow, describe, validate, zwf, patterns, variables, conditions, resources).
 
 ```bash
-zig man zug
+zig man zwf
 zig man patterns
 ```
 
@@ -205,9 +205,9 @@ zig man patterns
 | `--cwd` | | `resources add/remove/list` | Target the project tier (`<git-root>/.zig/resources/`) |
 | `--workflow <name>` | | `resources` | Restrict to a specific workflow's global tier |
 
-## The `.zug` format
+## The `.zwf` / `.zwfz` format
 
-A `.zug` file is a TOML workflow definition that describes a DAG of AI agent steps with shared variables, conditional routing, and data flow. It is generated by `zig workflow create` and executed by `zig run`. The format captures:
+A `.zwf` file is a TOML workflow definition that describes a DAG of AI agent steps with shared variables, conditional routing, and data flow. It is generated by `zig workflow create` and executed by `zig run`. The format captures:
 
 - **Workflow metadata** — Name, description, tags, version, and default provider/model for all steps
 - **Roles** — Reusable role definitions with system prompts (inline or loaded from files) that steps can reference
@@ -223,13 +223,13 @@ A `.zug` file is a TOML workflow definition that describes a DAG of AI agent ste
 
 Workflows can also be packaged as zip archives (via `zig workflow pack`) that bundle the TOML definition with external prompt files.
 
-Run `zig man zug` for the full format specification, or see `zig man patterns` for common orchestration patterns.
+Run `zig man zwf` for the full format specification, or see `zig man patterns` for common orchestration patterns.
 
 ## Architecture
 
 ```
 zig-core (library crate)
-  .zug file parsing, workflow validation, execution engine,
+  .zwf/.zwfz file parsing, workflow validation, execution engine,
   session tracking, pack/archive support
 
 zig-cli (binary crate)
@@ -239,8 +239,8 @@ zig-cli (binary crate)
 
 `zig` is built as a Rust workspace with two crates:
 
-- **zig-core** — Core library that handles `.zug` file parsing, workflow validation, execution engine, session tracking, and archive packing. Key modules:
-  - `workflow/` — Model, parser, and validator for the `.zug` format
+- **zig-core** — Core library that handles `.zwf` file parsing, workflow validation, execution engine, session tracking, and archive packing. Key modules:
+  - `workflow/` — Model, parser, and validator for the `.zwf`/`.zwfz` format
   - `run` — Workflow execution (DAG resolution, step parallelization, streaming output)
   - `listen` — Real-time session tailing
   - `session` — Session lifecycle and log coordination

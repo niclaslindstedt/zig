@@ -7,7 +7,7 @@ mod pages {
     pub const WORKFLOW: &str = include_str!("../manpages/workflow.md");
     pub const DESCRIBE: &str = include_str!("../manpages/describe.md");
     pub const VALIDATE: &str = include_str!("../manpages/validate.md");
-    pub const ZUG: &str = include_str!("../manpages/zug.md");
+    pub const ZWF: &str = include_str!("../manpages/zwf.md");
     pub const PATTERNS: &str = include_str!("../manpages/patterns.md");
     pub const VARIABLES: &str = include_str!("../manpages/variables.md");
     pub const CONDITIONS: &str = include_str!("../manpages/conditions.md");
@@ -17,16 +17,16 @@ mod pages {
 /// All available manpage topics in display order.
 pub const TOPICS: &[(&str, &str)] = &[
     ("zig", "Overview of the zig CLI"),
-    ("run", "Execute a .zug workflow file"),
+    ("run", "Execute a .zwf/.zwfz workflow file"),
     ("listen", "Tail a running or completed zig session"),
     ("serve", "Start an HTTP API server"),
     (
         "workflow",
-        "Manage workflows (list, show, create, delete, pack)",
+        "Manage workflows (list, show, create, update, delete, pack)",
     ),
-    ("describe", "Generate a .zug file from a prompt"),
-    ("validate", "Validate a .zug workflow file"),
-    ("zug", "The .zug workflow format"),
+    ("describe", "Generate a .zwf file from a prompt"),
+    ("validate", "Validate a .zwf or .zwfz workflow file"),
+    ("zwf", "The .zwf/.zwfz workflow format"),
     ("patterns", "Orchestration patterns"),
     ("variables", "Variable system and data flow"),
     ("conditions", "Condition expressions"),
@@ -45,7 +45,7 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "workflow" => Some(pages::WORKFLOW),
         "describe" => Some(pages::DESCRIBE),
         "validate" => Some(pages::VALIDATE),
-        "zug" => Some(pages::ZUG),
+        "zwf" => Some(pages::ZWF),
         "patterns" => Some(pages::PATTERNS),
         "variables" => Some(pages::VARIABLES),
         "conditions" => Some(pages::CONDITIONS),
