@@ -4,35 +4,39 @@ use super::*;
 
 // =====================================================================
 // expand_path tests
+//
+// Home is resolved via `env_home()` so these tests run on both Unix
+// (where CI runners set `HOME`) and Windows (where runners set
+// `USERPROFILE` instead).
 // =====================================================================
 
 #[test]
 fn expand_path_tilde_slash() {
-    let home = std::env::var("HOME").unwrap();
+    let home = env_home().expect("HOME or USERPROFILE must be set");
     assert_eq!(expand_path("~/foo/bar"), format!("{home}/foo/bar"));
 }
 
 #[test]
 fn expand_path_tilde_alone() {
-    let home = std::env::var("HOME").unwrap();
+    let home = env_home().expect("HOME or USERPROFILE must be set");
     assert_eq!(expand_path("~"), home);
 }
 
 #[test]
 fn expand_path_dollar_home() {
-    let home = std::env::var("HOME").unwrap();
+    let home = env_home().expect("HOME or USERPROFILE must be set");
     assert_eq!(expand_path("$HOME/foo"), format!("{home}/foo"));
 }
 
 #[test]
 fn expand_path_dollar_home_braces() {
-    let home = std::env::var("HOME").unwrap();
+    let home = env_home().expect("HOME or USERPROFILE must be set");
     assert_eq!(expand_path("${HOME}/foo"), format!("{home}/foo"));
 }
 
 #[test]
 fn expand_path_dollar_home_mid_string() {
-    let home = std::env::var("HOME").unwrap();
+    let home = env_home().expect("HOME or USERPROFILE must be set");
     assert_eq!(
         expand_path("prefix/$HOME/suffix"),
         format!("prefix/{home}/suffix")

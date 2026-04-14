@@ -262,19 +262,31 @@ pub fn global_base_dir() -> Option<PathBuf> {
         .map(|h| Path::new(&h).join(".zig"))
 }
 
+/// Resolve the user's home directory from the environment.
+///
+/// Checks `HOME` first (the Unix convention zig workflows are written
+/// against), then falls back to `USERPROFILE` on Windows where `HOME`
+/// is typically not set. Returns `None` if neither variable is set.
+pub(crate) fn env_home() -> Option<String> {
+    std::env::var("HOME")
+        .ok()
+        .or_else(|| std::env::var("USERPROFILE").ok())
+}
+
 /// Expand `~/` and `$HOME` / `${HOME}` in a path string.
 ///
 /// Handles three forms:
-/// - Leading `~/` → replaced with `$HOME/`
-/// - `~` alone     → replaced with `$HOME`
+/// - Leading `~/` → replaced with the home directory
+/// - `~` alone    → replaced with the home directory
 /// - `$HOME` or `${HOME}` anywhere in the string → replaced with the home dir
 ///
-/// Other environment variables and absolute paths are returned unchanged.
-/// Returns the input unchanged if `HOME` is not set.
+/// The home directory is resolved from `HOME`, falling back to `USERPROFILE`
+/// on Windows. Other environment variables and absolute paths are returned
+/// unchanged. Returns the input unchanged if no home variable is set.
 pub fn expand_path(path: &str) -> String {
-    let home = match std::env::var("HOME") {
-        Ok(h) => h,
-        Err(_) => return path.to_string(),
+    let home = match env_home() {
+        Some(h) => h,
+        None => return path.to_string(),
     };
 
     let s = if path == "~" {
