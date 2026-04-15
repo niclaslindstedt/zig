@@ -9,7 +9,7 @@ on:
       - "zig-cli/Cargo.toml"
       - "zig-core/src/workflow/model.rs"
       - "manpages/**"
-      - ".github/workflows/website.yml"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:

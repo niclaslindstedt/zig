@@ -1,17 +1,19 @@
 name: release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    workflows: ['version-bump']
+    types: [completed]
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   update-repo:
     name: update changelog
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       release_notes: ${{ steps.notes.outputs.release_notes }}
       tag: ${{ steps.version.outputs.tag }}
@@ -28,7 +30,7 @@ jobs:
       - name: extract version
         id: version
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          TAG="$(git describe --tags --abbrev=0)"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
       - name: generate changelog
@@ -59,6 +61,8 @@ jobs:
     name: build (${{ matrix.target }})
     needs: update-repo
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
     strategy:
       matrix:
         include:
@@ -80,6 +84,7 @@ jobs:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: '1.94.0'
           targets: ${{ matrix.target }}
       - name: install aarch64 cross linker
         if: matrix.target == 'aarch64-unknown-linux-gnu'
@@ -119,6 +124,8 @@ jobs:
     name: github release
     needs: [update-repo, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@v5
         with:
@@ -145,6 +152,8 @@ jobs:
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.94.0'
       - uses: actions/setup-node@v5
         with:
           node-version: '24'
