@@ -1,4 +1,5 @@
 ---
+name: update-manpages
 description: "Use when manpages may be stale. Discovers commits since the last manpage update, identifies what changed (commands, flags, workflow format, patterns, etc.), and updates the affected manpages/*.md files to match the current implementation."
 ---
 
