@@ -1,4 +1,5 @@
 ---
+name: update-bindings
 description: "Use when the user wants to keep the TypeScript binding in sync with the Rust zig-core and zig-cli source of truth. Guides adding new builder methods, CLI flags, workflow model types, tests, and documentation updates."
 ---
 

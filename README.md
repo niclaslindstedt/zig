@@ -52,7 +52,7 @@ to collaborate with the agent until your `.zwf` file is ready.
 
 ## Prerequisites
 
-- **Rust 1.85+** (edition 2024) — for building from source
+- **Rust 1.94+** (edition 2024) — for building from source
 - **zag CLI** — zig delegates to zag for agent orchestration ([install zag](https://github.com/niclaslindstedt/zag#install))
 - At least one AI agent CLI installed (Claude, Codex, Gemini, Copilot, or Ollama — see [zag docs](https://github.com/niclaslindstedt/zag#agent-clis))
 

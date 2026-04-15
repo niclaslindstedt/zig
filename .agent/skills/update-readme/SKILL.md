@@ -1,4 +1,5 @@
 ---
+name: update-readme
 description: "Use when the README.md may be stale. Discovers commits since the last README update, identifies what changed (commands, flags, workflows, architecture, etc.), and merges updates into README.md."
 ---
 

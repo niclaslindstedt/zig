@@ -1,4 +1,5 @@
 ---
+name: update-website
 description: "Use when the website source data may be stale. Discovers commits since the last website update, identifies what changed (commands, patterns, workflow model, version, etc.), and regenerates the auto-extracted source data to match the current implementation."
 ---
 

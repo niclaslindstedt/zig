@@ -1,4 +1,5 @@
 ---
+name: commit
 description: "Commit, push, and open a PR. Runs quality checks, creates a conventional commit, pushes the branch, and opens or updates a pull request."
 ---
 
