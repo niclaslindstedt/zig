@@ -132,7 +132,7 @@ jobs:
           path: artifacts
           merge-multiple: true
       - name: create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ needs.update-repo.outputs.tag }}
           body: ${{ needs.update-repo.outputs.release_notes }}
