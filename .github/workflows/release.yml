@@ -110,7 +110,7 @@ jobs:
           Compress-Archive -Path "target/${{ matrix.target }}/release/zig.exe" -DestinationPath "zig-${{ matrix.target }}.zip"
           (Get-FileHash "zig-${{ matrix.target }}.zip" -Algorithm SHA256).Hash.ToLower() + "  zig-${{ matrix.target }}.zip" | Out-File "zig-${{ matrix.target }}.zip.sha256" -Encoding ascii
       - name: upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: zig-${{ matrix.target }}
           path: |
