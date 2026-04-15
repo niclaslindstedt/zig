@@ -63,7 +63,7 @@ pub fn get_workflow_list() -> Result<Vec<WorkflowInfo>, ZigError> {
     let mut infos = Vec::new();
 
     for path in &local_entries {
-        let display = path.display().to_string();
+        let display = crate::paths::collapse_home(&path.display().to_string());
         let is_override = path
             .file_name()
             .is_some_and(|n| overridden_filenames.iter().any(|o| o == n));
@@ -90,7 +90,7 @@ pub fn get_workflow_list() -> Result<Vec<WorkflowInfo>, ZigError> {
     }
 
     for path in &global_entries {
-        let display = path.display().to_string();
+        let display = crate::paths::collapse_home(&path.display().to_string());
         match parser::parse_file(path) {
             Ok(wf) => {
                 infos.push(WorkflowInfo {

@@ -54,6 +54,35 @@ fn expand_path_relative_unchanged() {
 }
 
 // =====================================================================
+// collapse_home tests
+// =====================================================================
+
+#[test]
+fn collapse_home_replaces_prefix() {
+    let home = env_home().expect("HOME or USERPROFILE must be set");
+    assert_eq!(
+        collapse_home(&format!("{home}/.zig/workflows/foo.zwf")),
+        "~/.zig/workflows/foo.zwf"
+    );
+}
+
+#[test]
+fn collapse_home_exact_home() {
+    let home = env_home().expect("HOME or USERPROFILE must be set");
+    assert_eq!(collapse_home(&home), "~");
+}
+
+#[test]
+fn collapse_home_non_home_path_unchanged() {
+    assert_eq!(collapse_home("/usr/local/bin"), "/usr/local/bin");
+}
+
+#[test]
+fn collapse_home_relative_unchanged() {
+    assert_eq!(collapse_home("relative/path"), "relative/path");
+}
+
+// =====================================================================
 // Local workflow directory tests
 // =====================================================================
 
