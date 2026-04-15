@@ -25,6 +25,77 @@ pub struct Workflow {
     /// Ordered list of workflow steps. Each step maps to a zag agent invocation.
     #[serde(default, rename = "step")]
     pub steps: Vec<Step>,
+
+    /// Declared storage — structured, writable working data for the run.
+    ///
+    /// Each entry is a named folder or file the workflow's steps can read and
+    /// write. Declaration is a hint to the agent, not a schema — the author
+    /// describes what should live there and steps use their normal file tools
+    /// to access it. Paths resolve relative to `<cwd>/.zig/`; absolute paths
+    /// are used as-is.
+    #[serde(default)]
+    pub storage: HashMap<String, StorageSpec>,
+}
+
+/// A named storage declaration — a place the workflow keeps structured files.
+///
+/// Storage complements `vars` (scalar state) and `resources` (read-only
+/// reference files): it is the designated spot for *writable* working data
+/// that steps build up across a run. The initial backend is filesystem; the
+/// shape is intentionally open to future sqlite/remote backends.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct StorageSpec {
+    /// Whether this entry is a folder (default) or a single file.
+    #[serde(rename = "type", default)]
+    pub kind: StorageKind,
+
+    /// Path to the storage item. Relative paths resolve against `<cwd>/.zig/`;
+    /// absolute paths are used verbatim.
+    pub path: String,
+
+    /// One-line description shown to the agent alongside the path.
+    #[serde(default)]
+    pub description: Option<String>,
+
+    /// Free-form guidance about what this storage should contain — shape of
+    /// files, naming conventions, required fields, etc. Shown to the agent.
+    #[serde(default)]
+    pub hint: Option<String>,
+
+    /// Optional concrete file hints. Only meaningful when `kind = Folder`.
+    /// These describe expected files inside the folder; they are not enforced.
+    #[serde(default)]
+    pub files: Vec<StorageFileHint>,
+}
+
+/// Whether a storage entry is a folder or a single file.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum StorageKind {
+    /// A directory that may contain many files.
+    #[default]
+    Folder,
+    /// A single file.
+    File,
+}
+
+impl std::fmt::Display for StorageKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StorageKind::Folder => write!(f, "folder"),
+            StorageKind::File => write!(f, "file"),
+        }
+    }
+}
+
+/// A hint describing an expected file inside a folder-typed storage entry.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StorageFileHint {
+    /// File name (no path — lives inside the parent folder).
+    pub name: String,
+    /// Optional one-line description of what the file should contain.
+    #[serde(default)]
+    pub description: Option<String>,
 }
 
 /// Workflow-level metadata.
@@ -383,6 +454,17 @@ pub struct Step {
     /// See [`ResourceSpec`] for the accepted shapes.
     #[serde(default)]
     pub resources: Vec<ResourceSpec>,
+
+    /// Which storage entries this step is exposed to.
+    ///
+    /// - `None` (field omitted) → step sees **all** declared storage.
+    /// - `Some(vec![])` → step sees **no** storage (block is suppressed).
+    /// - `Some(names)` → step sees only the named entries.
+    ///
+    /// Names must match keys in the workflow-level `[storage.*]` table;
+    /// unknown names fail validation.
+    #[serde(default)]
+    pub storage: Option<Vec<String>>,
 
     /// Per-step memory override: `"all"`, `"global"`, or `"none"`.
     /// If absent, inherits the workflow-level `memory` setting.

@@ -1725,3 +1725,161 @@ mcp_config = "config.json"
 
     assert!(validate(&wf).is_ok());
 }
+
+// ── storage ─────────────────────────────────────────────────────────────────
+
+#[test]
+fn storage_folder_with_file_hints_is_valid() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "book"
+
+[storage.characters]
+type = "folder"
+path = "./characters"
+description = "Character profiles"
+hint = "One file per character"
+
+[[storage.characters.files]]
+name = "README.md"
+description = "Index"
+
+[[step]]
+name = "write"
+prompt = "Draft character profiles"
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn storage_file_kind_rejects_files_hints() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "book"
+
+[storage.bible]
+type = "file"
+path = "./bible.md"
+
+[[storage.bible.files]]
+name = "illegal.md"
+
+[[step]]
+name = "write"
+prompt = "Draft"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("type = \"file\""))
+    );
+}
+
+#[test]
+fn storage_empty_path_is_rejected() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "book"
+
+[storage.characters]
+type = "folder"
+path = ""
+
+[[step]]
+name = "write"
+prompt = "Draft"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(errors.iter().any(|e| e.to_string().contains("empty path")));
+}
+
+#[test]
+fn storage_file_hint_with_slash_is_rejected() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "book"
+
+[storage.characters]
+type = "folder"
+path = "./characters"
+
+[[storage.characters.files]]
+name = "subdir/alice.md"
+
+[[step]]
+name = "write"
+prompt = "Draft"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("bare filename"))
+    );
+}
+
+#[test]
+fn step_storage_scope_must_reference_declared_names() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "book"
+
+[storage.characters]
+type = "folder"
+path = "./characters"
+
+[[step]]
+name = "write"
+prompt = "Draft"
+storage = ["characters", "nonexistent"]
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("unknown storage 'nonexistent'"))
+    );
+}
+
+#[test]
+fn step_storage_scope_empty_list_is_valid() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "book"
+
+[storage.characters]
+type = "folder"
+path = "./characters"
+
+[[step]]
+name = "write"
+prompt = "Draft"
+storage = []
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
