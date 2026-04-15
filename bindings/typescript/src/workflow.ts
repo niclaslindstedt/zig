@@ -1,5 +1,14 @@
 import { readFile } from "node:fs/promises";
-import type { Workflow, Role, Step, Variable, VarType } from "./types.js";
+import type {
+  Workflow,
+  Role,
+  Step,
+  Variable,
+  VarType,
+  StorageSpec,
+  StorageFileHint,
+  StorageKind,
+} from "./types.js";
 import { ZigError } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -79,13 +88,23 @@ export function parseWorkflow(content: string): Workflow {
     roles: {},
     vars: {},
     steps: [],
+    storage: {},
   };
 
   const lines = content.split("\n");
-  let currentSection: "root" | "workflow" | "roles" | "vars" | "step" = "root";
+  let currentSection:
+    | "root"
+    | "workflow"
+    | "roles"
+    | "vars"
+    | "step"
+    | "storage"
+    | "storage_file" = "root";
   let currentRoleName: string | null = null;
   let currentVarName: string | null = null;
   let currentStep: Partial<Step> | null = null;
+  let currentStorageName: string | null = null;
+  let currentStorageFile: StorageFileHint | null = null;
 
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i];
@@ -129,9 +148,52 @@ export function parseWorkflow(content: string): Workflow {
       continue;
     }
 
+    const storageMatch = /^\[storage\.(\w+)\]$/.exec(trimmed);
+    if (storageMatch) {
+      currentSection = "storage";
+      currentStorageName = storageMatch[1];
+      if (!workflow.storage) workflow.storage = {};
+      if (!workflow.storage[currentStorageName]) {
+        workflow.storage[currentStorageName] = {
+          type: "folder",
+          path: "",
+          files: [],
+        };
+      }
+      currentStorageFile = null;
+      currentRoleName = null;
+      currentVarName = null;
+      currentStep = null;
+      continue;
+    }
+
+    const storageFileMatch = /^\[\[storage\.(\w+)\.files\]\]$/.exec(trimmed);
+    if (storageFileMatch) {
+      currentSection = "storage_file";
+      currentStorageName = storageFileMatch[1];
+      if (!workflow.storage) workflow.storage = {};
+      if (!workflow.storage[currentStorageName]) {
+        workflow.storage[currentStorageName] = {
+          type: "folder",
+          path: "",
+          files: [],
+        };
+      }
+      const spec = workflow.storage[currentStorageName];
+      if (!spec.files) spec.files = [];
+      currentStorageFile = { name: "" };
+      spec.files.push(currentStorageFile);
+      currentRoleName = null;
+      currentVarName = null;
+      currentStep = null;
+      continue;
+    }
+
     if (trimmed === "[[step]]") {
       currentSection = "step";
       currentVarName = null;
+      currentStorageName = null;
+      currentStorageFile = null;
       currentStep = createDefaultStep();
       workflow.steps.push(currentStep as Step);
       continue;
@@ -184,6 +246,23 @@ export function parseWorkflow(content: string): Workflow {
       case "step":
         if (currentStep) {
           assignStepField(currentStep, key, value);
+        }
+        break;
+
+      case "storage":
+        if (currentStorageName && workflow.storage?.[currentStorageName]) {
+          const s = workflow.storage[currentStorageName];
+          if (key === "type") s.type = String(value) as StorageKind;
+          else if (key === "path") s.path = String(value);
+          else if (key === "description") s.description = String(value);
+          else if (key === "hint") s.hint = String(value);
+        }
+        break;
+
+      case "storage_file":
+        if (currentStorageFile) {
+          if (key === "name") currentStorageFile.name = String(value);
+          else if (key === "description") currentStorageFile.description = String(value);
         }
         break;
     }
@@ -266,6 +345,7 @@ function assignStepField(step: Partial<Step>, key: string, value: unknown): void
     case "add_dirs": step.add_dirs = toStringArray(value); break;
     case "files": step.files = toStringArray(value); break;
     case "resources": step.resources = toStringArray(value); break;
+    case "storage": step.storage = toStringArray(value); break;
     case "context": step.context = toStringArray(value); break;
     case "plan": step.plan = String(value); break;
     case "mcp_config": step.mcp_config = String(value); break;

@@ -9,6 +9,44 @@ export interface Workflow {
   roles: Record<string, Role>;
   vars: Record<string, Variable>;
   steps: Step[];
+  /**
+   * Declared storage — structured writable working data for the run. Keys
+   * are storage names; values declare a folder or file the workflow's steps
+   * can read and write. Paths resolve against `<cwd>/.zig/`; absolute paths
+   * pass through unchanged.
+   */
+  storage?: Record<string, StorageSpec>;
+}
+
+/** Whether a storage entry is a folder or a single file. */
+export type StorageKind = "folder" | "file";
+
+/** Optional concrete file hint inside a folder-typed storage entry. */
+export interface StorageFileHint {
+  /** File name (no path — lives inside the parent folder). */
+  name: string;
+  /** One-line description of what the file should contain. */
+  description?: string;
+}
+
+/**
+ * A named storage declaration — a place the workflow keeps structured files.
+ *
+ * Complements `vars` (scalar state) and `resources` (read-only reference
+ * files) by giving steps a designated spot for writable working data that
+ * accumulates across a run.
+ */
+export interface StorageSpec {
+  /** Folder (default) or file. */
+  type?: StorageKind;
+  /** Relative paths resolve against `<cwd>/.zig/`; absolute paths as-is. */
+  path: string;
+  /** One-line description shown to the agent alongside the path. */
+  description?: string;
+  /** Free-form guidance about what should live in this storage. */
+  hint?: string;
+  /** Optional expected-file hints. Only meaningful for folder-typed storage. */
+  files?: StorageFileHint[];
 }
 
 /** A reusable role definition that can be referenced by steps. */
@@ -162,6 +200,17 @@ export interface Step {
    * time. See [WorkflowMeta.resources] for the spec shape.
    */
   resources: ResourceSpec[];
+
+  /**
+   * Which workflow-level storage entries this step can see.
+   *
+   * - `undefined` / omitted → step sees every declared storage entry.
+   * - `[]` → step sees none (the `<storage>` block is suppressed).
+   * - `["name", ...]` → step sees only the listed entries.
+   *
+   * Names must match keys in the workflow-level `storage` table.
+   */
+  storage?: string[];
 
   // --- Context injection ---
   /** Session IDs to inject as context (beyond depends_on). */

@@ -910,3 +910,123 @@ resources = ["./job.md"]
     assert_eq!(wf2.steps[0].resources.len(), 1);
     assert_eq!(wf2.steps[0].resources[0].path(), "./job.md");
 }
+
+#[test]
+fn parse_storage_folder_and_file() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "book"
+
+[storage.characters]
+type = "folder"
+path = "./characters"
+description = "Character profiles"
+hint = "One file per character"
+
+[[storage.characters.files]]
+name = "README.md"
+description = "Index"
+
+[storage.bible]
+type = "file"
+path = "./bible.md"
+
+[[step]]
+name = "write"
+prompt = "Draft"
+storage = ["characters"]
+"#,
+    )
+    .unwrap();
+
+    let characters = wf.storage.get("characters").expect("characters");
+    assert!(matches!(
+        characters.kind,
+        crate::workflow::model::StorageKind::Folder
+    ));
+    assert_eq!(characters.path, "./characters");
+    assert_eq!(
+        characters.description.as_deref(),
+        Some("Character profiles")
+    );
+    assert_eq!(characters.hint.as_deref(), Some("One file per character"));
+    assert_eq!(characters.files.len(), 1);
+    assert_eq!(characters.files[0].name, "README.md");
+
+    let bible = wf.storage.get("bible").expect("bible");
+    assert!(matches!(
+        bible.kind,
+        crate::workflow::model::StorageKind::File
+    ));
+
+    let step_scope = wf.steps[0].storage.as_deref().expect("scope");
+    assert_eq!(step_scope, &["characters".to_string()]);
+}
+
+#[test]
+fn parse_storage_defaults_kind_to_folder() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "wf"
+
+[storage.notes]
+path = "./notes"
+
+[[step]]
+name = "s"
+prompt = "Do"
+"#,
+    )
+    .unwrap();
+    assert!(matches!(
+        wf.storage.get("notes").unwrap().kind,
+        crate::workflow::model::StorageKind::Folder
+    ));
+}
+
+#[test]
+fn parse_step_without_storage_field_is_none() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "wf"
+
+[[step]]
+name = "s"
+prompt = "Do"
+"#,
+    )
+    .unwrap();
+    assert!(wf.steps[0].storage.is_none());
+}
+
+#[test]
+fn roundtrip_workflow_storage() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "rt"
+
+[storage.characters]
+type = "folder"
+path = "./characters"
+description = "Characters"
+
+[[step]]
+name = "s"
+prompt = "Do"
+storage = ["characters"]
+"#,
+    )
+    .unwrap();
+    let toml_str = to_toml(&wf).unwrap();
+    let wf2 = parse(&toml_str).unwrap();
+    assert_eq!(wf2.storage.len(), 1);
+    assert_eq!(wf2.storage.get("characters").unwrap().path, "./characters");
+    assert_eq!(
+        wf2.steps[0].storage.as_deref().unwrap(),
+        &["characters".to_string()]
+    );
+}

@@ -193,6 +193,7 @@ Each step is one zag agent invocation.
 | `env`            | No       | `{}`    | Per-step environment variables           |
 | `files`          | No       | `[]`    | Files to attach to the agent prompt (`~/` and `$HOME` are expanded) |
 | `resources`      | No       | `[]`    | Reference files advertised to this step's agent (see Resources below) |
+| `storage`        | No       |         | Storage entries in scope for this step (omit = all; `[]` = none; list = named — see `zig docs storage`) |
 | `memory`         | No       |         | Memory injection override: `all`, `global`, or `none` (inherits workflow default) |
 
 #### Context Injection
@@ -222,6 +223,42 @@ Each step is one zag agent invocation.
 | `title`          | No       |         | Review title (`command = "review"`)      |
 | `plan_output`    | No       |         | Output path for plan (`command = "plan"`)|
 | `instructions`   | No       |         | Additional plan instructions (`command = "plan"`) |
+
+### `[storage.<name>]` — Storage
+
+Storage declares **writable, structured working data** for the run — the
+place where steps accumulate character sheets, summaries, bible documents,
+or whatever else the workflow author wants to carry between steps. Paths
+resolve against `<cwd>/.zig/`; absolute paths pass through. See
+`zig docs storage` for the full model.
+
+| Field         | Required | Description                                                  |
+|---------------|----------|--------------------------------------------------------------|
+| `type`        | No       | `"folder"` (default) or `"file"`                             |
+| `path`        | Yes      | Relative to `<cwd>/.zig/`; absolute paths allowed            |
+| `description` | No       | One-line description shown to the agent                      |
+| `hint`        | No       | Free-form guidance on what should live in this storage       |
+| `files`       | No       | Expected-file hints (folder-typed storage only)              |
+
+```toml
+[storage.characters]
+type = "folder"
+path = "./characters"
+description = "Character profiles, one file per character"
+hint = "Filename: <slug>.md. Include name, age, background, relationships."
+
+[[storage.characters.files]]
+name = "README.md"
+description = "Character index"
+
+[storage.bible]
+type = "file"
+path = "./bible.md"
+description = "Single source of truth"
+```
+
+Steps narrow their view with `storage = ["name", ...]`. Omitting the field
+exposes every declared entry; `storage = []` suppresses the block entirely.
 
 ## Resources
 

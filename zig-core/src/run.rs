@@ -14,6 +14,7 @@ use crate::memory::{MemoryCollector, render_memory_block};
 use crate::paths::expand_path;
 use crate::resources::{ResourceCollector, render_system_block};
 use crate::session::{OutputStream, SessionCoordinator, SessionStatus, SessionWriter};
+use crate::storage::{FilesystemBackend, StorageManager};
 use crate::workflow::model::{FailurePolicy, MemoryMode, Role, Step, StepCommand, Workflow};
 use crate::workflow::{parser, validate};
 
@@ -257,11 +258,13 @@ fn json_path_lookup(value: &serde_json::Value, path: &str) -> String {
 /// that is prepended to the base prompt. If both the resources set and the
 /// base prompt are empty, returns `None` — keeping the current behavior when
 /// nothing is configured.
+#[allow(clippy::too_many_arguments)]
 fn resolve_role_system_prompt(
     step: &Step,
     roles: &HashMap<String, Role>,
     resources: &ResourceCollector,
     memory: &MemoryCollector,
+    storage: &StorageManager,
     vars: &HashMap<String, String>,
     workflow_dir: &Path,
     workflow_name: &str,
@@ -304,7 +307,16 @@ fn resolve_role_system_prompt(
     let memory_entries = memory.collect_for_step(step.memory.as_deref())?;
     let memory_block = render_memory_block(&memory_entries, workflow_name, Some(&step.name));
 
-    let prefix = format!("{resource_block}{memory_block}");
+    // Render storage block for this step's scope.
+    let storage_block = match storage.render_block(step.storage.as_deref())? {
+        Some(mut s) => {
+            s.push('\n');
+            s
+        }
+        None => String::new(),
+    };
+
+    let prefix = format!("{resource_block}{memory_block}{storage_block}");
 
     match (prefix.is_empty(), base_prompt) {
         (true, None) => Ok(None),
@@ -456,6 +468,7 @@ fn render_step_prompt(
 /// - `Pipe` → `zag pipe <session-ids...> -- <prompt>`
 /// - `Collect` → `zag collect <session-ids...>`
 /// - `Summary` → `zag summary <session-ids...>`
+#[allow(clippy::too_many_arguments)]
 fn build_zag_args(
     step: &Step,
     prompt: &str,
@@ -464,6 +477,7 @@ fn build_zag_args(
     rendered_system_prompt: Option<&str>,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
+    extra_add_dirs: &[std::path::PathBuf],
 ) -> Vec<String> {
     let session_name = |dep: &str| format!("zig-{workflow_name}-{dep}");
 
@@ -567,6 +581,9 @@ fn build_zag_args(
         }
         for dir in &step.add_dirs {
             args.extend(["--add-dir".into(), expand_path(dir)]);
+        }
+        for dir in extra_add_dirs {
+            args.extend(["--add-dir".into(), dir.display().to_string()]);
         }
         for (key, value) in &step.env {
             args.extend(["--env".into(), format!("{key}={value}")]);
@@ -709,6 +726,7 @@ fn execute_step(
     rendered_system_prompt: Option<&str>,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
+    extra_add_dirs: &[std::path::PathBuf],
 ) -> Result<String, ZigError> {
     let args = build_zag_args(
         step,
@@ -718,6 +736,7 @@ fn execute_step(
         rendered_system_prompt,
         workflow_provider,
         workflow_model,
+        extra_add_dirs,
     );
     let (status, stdout) = run_zag_streaming(&args, &step.name, prefix, session)?;
 
@@ -745,6 +764,7 @@ fn run_step_attempts(
     rendered_system_prompt: Option<&str>,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
+    extra_add_dirs: &[std::path::PathBuf],
 ) -> Result<String, ZigError> {
     let mut attempts = 0;
     let max_attempts = if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
@@ -770,6 +790,7 @@ fn run_step_attempts(
             rendered_system_prompt,
             workflow_provider,
             workflow_model,
+            extra_add_dirs,
         ) {
             Ok(output) => return Ok(output),
             Err(e) => {
@@ -850,6 +871,7 @@ fn spawn_step(
     rendered_system_prompt: Option<&str>,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
+    extra_add_dirs: &[std::path::PathBuf],
 ) -> Result<std::process::Child, ZigError> {
     let args = build_zag_args(
         step,
@@ -859,6 +881,7 @@ fn spawn_step(
         rendered_system_prompt,
         workflow_provider,
         workflow_model,
+        extra_add_dirs,
     );
     let mut cmd = Command::new("zag");
     cmd.args(&args)
@@ -883,6 +906,7 @@ fn execute_race_group(
     session: Option<&Arc<SessionWriter>>,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
+    storage_dirs: &HashMap<String, Vec<std::path::PathBuf>>,
 ) -> Result<(String, String), ZigError> {
     if let Some(w) = session {
         for step in steps {
@@ -910,6 +934,8 @@ fn execute_race_group(
         })?;
         eprintln!("  racing step '{}'...", step.name);
         let rendered_sp = system_prompts.get(&step.name).map(|s| s.as_str());
+        let empty: Vec<std::path::PathBuf> = Vec::new();
+        let extra_dirs = storage_dirs.get(&step.name).unwrap_or(&empty);
         let child = spawn_step(
             step,
             prompt,
@@ -917,6 +943,7 @@ fn execute_race_group(
             rendered_sp,
             workflow_provider,
             workflow_model,
+            extra_dirs,
         )?;
         children.push((step.name.clone(), child));
     }
@@ -996,6 +1023,7 @@ fn execute_sequential_step(
     roles: &HashMap<String, Role>,
     resources: &ResourceCollector,
     memory: &MemoryCollector,
+    storage: &StorageManager,
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
@@ -1021,10 +1049,12 @@ fn execute_sequential_step(
         roles,
         resources,
         memory,
+        storage,
         vars,
         workflow_dir,
         workflow_name,
     )?;
+    let storage_dirs = storage.add_dirs_for_step(step.storage.as_deref());
     if let Some(w) = session {
         let zag_session_id = format!("zig-{workflow_name}-{}", step.name);
         let _ = w.step_started(
@@ -1046,6 +1076,7 @@ fn execute_sequential_step(
         rendered_sp.as_deref(),
         workflow_provider,
         workflow_model,
+        &storage_dirs,
     );
 
     match result {
@@ -1110,6 +1141,7 @@ fn execute_parallel_tier(
     roles: &HashMap<String, Role>,
     resources: &ResourceCollector,
     memory: &MemoryCollector,
+    storage: &StorageManager,
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
@@ -1119,6 +1151,7 @@ fn execute_parallel_tier(
     let mut active: Vec<&Step> = Vec::new();
     let mut prompts: HashMap<String, String> = HashMap::new();
     let mut rendered_sps: HashMap<String, String> = HashMap::new();
+    let mut storage_dirs_map: HashMap<String, Vec<std::path::PathBuf>> = HashMap::new();
     for step in steps {
         if let Some(condition) = &step.condition {
             if !evaluate_condition(condition, vars)? {
@@ -1139,12 +1172,17 @@ fn execute_parallel_tier(
             roles,
             resources,
             memory,
+            storage,
             vars,
             workflow_dir,
             workflow_name,
         )? {
             rendered_sps.insert(step.name.clone(), sp);
         }
+        storage_dirs_map.insert(
+            step.name.clone(),
+            storage.add_dirs_for_step(step.storage.as_deref()),
+        );
         active.push(*step);
     }
 
@@ -1178,6 +1216,7 @@ fn execute_parallel_tier(
         let session_clone = session.cloned();
         let wf_provider = workflow_provider.map(String::from);
         let wf_model = workflow_model.map(String::from);
+        let storage_dirs = storage_dirs_map.remove(&step.name).unwrap_or_default();
         let handle = thread::spawn(move || {
             let res = run_step_attempts(
                 &step_clone,
@@ -1188,6 +1227,7 @@ fn execute_parallel_tier(
                 rendered_sp.as_deref(),
                 wf_provider.as_deref(),
                 wf_model.as_deref(),
+                &storage_dirs,
             );
             (name, res)
         });
@@ -1301,6 +1341,16 @@ fn execute(
         &config,
         disable_memory,
     );
+
+    // Build storage manager for this run. Paths resolve against <cwd>/.zig/;
+    // absolute paths pass through. `ensure` is called on every declared item
+    // so step agents can trust the paths exist before they run.
+    let storage_manager = if workflow.storage.is_empty() {
+        StorageManager::empty()
+    } else {
+        let backend = FilesystemBackend::from_cwd()?;
+        StorageManager::build(&workflow.storage, backend)?
+    };
 
     // Load file-backed variable defaults before prompt binding.
     load_file_defaults(&mut vars, &workflow.vars, workflow_dir)?;
@@ -1416,6 +1466,7 @@ fn execute(
                         &workflow.roles,
                         &resource_collector,
                         &memory_collector,
+                        &storage_manager,
                         workflow_dir,
                         wf_provider,
                         wf_model,
@@ -1434,6 +1485,7 @@ fn execute(
                     &workflow.roles,
                     &resource_collector,
                     &memory_collector,
+                    &storage_manager,
                     workflow_dir,
                     wf_provider,
                     wf_model,
@@ -1447,6 +1499,8 @@ fn execute(
                 // Build prompts for all racers (conditions evaluated here)
                 let mut prompts = HashMap::new();
                 let mut race_sps: HashMap<String, String> = HashMap::new();
+                let mut race_storage_dirs: HashMap<String, Vec<std::path::PathBuf>> =
+                    HashMap::new();
                 let mut active_steps: Vec<&Step> = Vec::new();
                 for step in race_steps {
                     if let Some(condition) = &step.condition {
@@ -1466,12 +1520,17 @@ fn execute(
                         &workflow.roles,
                         &resource_collector,
                         &memory_collector,
+                        &storage_manager,
                         &vars,
                         workflow_dir,
                         &workflow.workflow.name,
                     )? {
                         race_sps.insert(step.name.clone(), sp);
                     }
+                    race_storage_dirs.insert(
+                        step.name.clone(),
+                        storage_manager.add_dirs_for_step(step.storage.as_deref()),
+                    );
                     active_steps.push(step);
                 }
 
@@ -1488,6 +1547,7 @@ fn execute(
                     session_ref,
                     wf_provider,
                     wf_model,
+                    &race_storage_dirs,
                 ) {
                     Ok((winner_name, output)) => {
                         // Find the winning step to process saves/next

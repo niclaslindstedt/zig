@@ -8,6 +8,7 @@ mod pages {
     pub const VARIABLES: &str = include_str!("../docs/variables.md");
     pub const CONDITIONS: &str = include_str!("../docs/conditions.md");
     pub const MEMORY: &str = include_str!("../docs/memory.md");
+    pub const STORAGE: &str = include_str!("../docs/storage.md");
 }
 
 /// All available docs topics in display order.
@@ -17,6 +18,10 @@ pub const TOPICS: &[(&str, &str)] = &[
     ("variables", "Variable system and data flow"),
     ("conditions", "Condition expressions"),
     ("memory", "Memory scratch pad and the `<memory>` block"),
+    (
+        "storage",
+        "Workflow storage — structured writable working data",
+    ),
 ];
 
 /// Look up a docs page by topic name.
@@ -29,6 +34,7 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "variables" => Some(pages::VARIABLES),
         "conditions" => Some(pages::CONDITIONS),
         "memory" => Some(pages::MEMORY),
+        "storage" => Some(pages::STORAGE),
         _ => None,
     }
 }

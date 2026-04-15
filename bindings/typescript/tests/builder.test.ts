@@ -568,4 +568,40 @@ prompt = "Hello"
     assert.equal(wf.workflow.provider, undefined);
     assert.equal(wf.workflow.model, undefined);
   });
+
+  it("should parse storage declarations and step scoping", () => {
+    const toml = `
+[workflow]
+name = "book"
+
+[storage.characters]
+type = "folder"
+path = "./characters"
+description = "Character profiles"
+hint = "One file per character"
+
+[[storage.characters.files]]
+name = "README.md"
+description = "Index"
+
+[storage.bible]
+type = "file"
+path = "./bible.md"
+
+[[step]]
+name = "write"
+prompt = "Draft"
+storage = ["characters"]
+`;
+    const wf = parseWorkflow(toml);
+    assert.ok(wf.storage);
+    assert.equal(wf.storage!.characters.type, "folder");
+    assert.equal(wf.storage!.characters.path, "./characters");
+    assert.equal(wf.storage!.characters.description, "Character profiles");
+    assert.equal(wf.storage!.characters.hint, "One file per character");
+    assert.equal(wf.storage!.characters.files?.length, 1);
+    assert.equal(wf.storage!.characters.files![0].name, "README.md");
+    assert.equal(wf.storage!.bible.type, "file");
+    assert.deepStrictEqual(wf.steps[0].storage, ["characters"]);
+  });
 });

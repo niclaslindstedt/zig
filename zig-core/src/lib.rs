@@ -18,5 +18,6 @@ pub mod resources;
 pub mod resources_manage;
 pub mod run;
 pub mod session;
+pub mod storage;
 pub mod update;
 pub mod workflow;

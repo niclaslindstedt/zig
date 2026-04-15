@@ -3,7 +3,9 @@ use std::collections::{HashMap, HashSet};
 use regex::Regex;
 
 use crate::error::ZigError;
-use crate::workflow::model::{FailurePolicy, StepCommand, VarType, Variable, Workflow};
+use crate::workflow::model::{
+    FailurePolicy, StepCommand, StorageKind, VarType, Variable, Workflow,
+};
 
 /// Validate a parsed workflow for structural correctness.
 ///
@@ -29,6 +31,30 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
     let step_names: HashSet<&str> = workflow.steps.iter().map(|s| s.name.as_str()).collect();
     let var_names: HashSet<&str> = workflow.vars.keys().map(|k| k.as_str()).collect();
     let role_names: HashSet<&str> = workflow.roles.keys().map(|k| k.as_str()).collect();
+    let storage_names: HashSet<&str> = workflow.storage.keys().map(|k| k.as_str()).collect();
+
+    // Storage-level checks — spec-internal consistency.
+    for (name, spec) in &workflow.storage {
+        if spec.path.trim().is_empty() {
+            errors.push(ZigError::Validation(format!(
+                "storage '{name}' has an empty path"
+            )));
+        }
+        if matches!(spec.kind, StorageKind::File) && !spec.files.is_empty() {
+            errors.push(ZigError::Validation(format!(
+                "storage '{name}' has type = \"file\" but also declares 'files' hints \
+                 (the 'files' subtable is only valid for type = \"folder\")"
+            )));
+        }
+        for file in &spec.files {
+            if file.name.contains('/') || file.name.contains('\\') {
+                errors.push(ZigError::Validation(format!(
+                    "storage '{name}' file hint '{}' must be a bare filename, not a path",
+                    file.name
+                )));
+            }
+        }
+    }
 
     // Check unique step names
     let mut seen_names = HashSet::new();
@@ -84,6 +110,18 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
                 if !var_names.contains(var_ref.as_str()) {
                     errors.push(ZigError::Validation(format!(
                         "step '{}' system_prompt references unknown variable '${{{var_ref}}}'",
+                        step.name
+                    )));
+                }
+            }
+        }
+
+        // Check storage scoping references
+        if let Some(scope) = &step.storage {
+            for name in scope {
+                if !storage_names.contains(name.as_str()) {
+                    errors.push(ZigError::Validation(format!(
+                        "step '{}' storage scope references unknown storage '{name}'",
                         step.name
                     )));
                 }

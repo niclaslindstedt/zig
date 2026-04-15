@@ -365,6 +365,7 @@ fn init_vars_with_defaults() {
             ),
         ]),
         steps: vec![],
+        storage: Default::default(),
     };
 
     let vars = init_vars(&workflow);
@@ -515,6 +516,7 @@ fn prompt_var_binding_populates_variable() {
             },
         )]),
         steps: vec![],
+        storage: Default::default(),
     };
 
     let mut vars = init_vars(&workflow);
@@ -568,6 +570,7 @@ fn prompt_var_with_default_uses_default_when_no_prompt() {
             },
         )]),
         steps: vec![],
+        storage: Default::default(),
     };
 
     let vars = init_vars(&workflow);
@@ -596,6 +599,7 @@ fn build_zag_args_basic() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
 
     assert!(args.contains(&"run".to_string()));
@@ -628,6 +632,7 @@ fn build_zag_args_auto_approve() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--auto-approve".to_string()));
 
@@ -640,6 +645,7 @@ fn build_zag_args_auto_approve() {
         s2.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(!args2.contains(&"--auto-approve".to_string()));
 }
@@ -656,6 +662,7 @@ fn build_zag_args_env() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--env".to_string()));
     assert!(args.contains(&"MODE=strict".to_string()));
@@ -674,6 +681,7 @@ fn build_zag_args_isolation() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--worktree".to_string()));
     assert!(args.contains(&"--sandbox".to_string()));
@@ -693,6 +701,7 @@ fn build_zag_args_files_and_dirs() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
 
     let file_count = args.iter().filter(|a| *a == "--file").count();
@@ -715,6 +724,7 @@ fn build_zag_args_description() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--description".to_string()));
     assert!(args.contains(&"Analyze the code".to_string()));
@@ -729,6 +739,7 @@ fn build_zag_args_description() {
         s2.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(!args2.contains(&"--description".to_string()));
 }
@@ -745,6 +756,7 @@ fn build_zag_args_json_schema() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--json-schema".to_string()));
     assert!(args.contains(&r#"{"type":"object"}"#.to_string()));
@@ -762,6 +774,7 @@ fn build_zag_args_root() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--root".to_string()));
     assert!(args.contains(&"/tmp/work".to_string()));
@@ -779,6 +792,7 @@ fn build_zag_args_model_override() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     // Override should take precedence
     let model_idx = args.iter().position(|a| a == "--model").unwrap();
@@ -797,6 +811,7 @@ fn build_zag_args_model_no_override() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     let model_idx = args.iter().position(|a| a == "--model").unwrap();
     assert_eq!(args[model_idx + 1], "sonnet");
@@ -813,6 +828,7 @@ fn build_zag_args_no_model() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(!args.contains(&"--model".to_string()));
 }
@@ -888,6 +904,7 @@ fn build_zag_args_context() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     let ctx_count = args.iter().filter(|a| *a == "--context").count();
     assert_eq!(ctx_count, 2);
@@ -907,6 +924,7 @@ fn build_zag_args_plan() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--plan".to_string()));
     assert!(args.contains(&"plan.md".to_string()));
@@ -924,6 +942,7 @@ fn build_zag_args_mcp_config() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--mcp-config".to_string()));
     assert!(args.contains(&"config.json".to_string()));
@@ -940,6 +959,7 @@ fn build_zag_args_no_context_by_default() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(!args.contains(&"--context".to_string()));
     assert!(!args.contains(&"--plan".to_string()));
@@ -960,6 +980,7 @@ fn build_zag_args_output_format() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"-o".to_string()));
     assert!(args.contains(&"stream-json".to_string()));
@@ -979,6 +1000,7 @@ fn build_zag_args_output_overrides_json() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"-o".to_string()));
     assert!(args.contains(&"text".to_string()));
@@ -997,6 +1019,7 @@ fn build_zag_args_json_fallback() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--json".to_string()));
     assert!(!args.contains(&"-o".to_string()));
@@ -1020,6 +1043,7 @@ fn build_zag_args_command_review() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert_eq!(args[0], "review");
     assert!(args.contains(&"focus on auth".to_string()));
@@ -1046,6 +1070,7 @@ fn build_zag_args_command_plan() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert_eq!(args[0], "plan");
     assert_eq!(args[1], "Design auth system");
@@ -1068,6 +1093,7 @@ fn build_zag_args_command_pipe() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert_eq!(args[0], "pipe");
     assert!(args.contains(&"zig-wf-analyze".to_string()));
@@ -1081,7 +1107,16 @@ fn build_zag_args_command_collect() {
     let mut s = step("gather");
     s.command = Some(StepCommand::Collect);
     s.depends_on = vec!["worker-a".into(), "worker-b".into()];
-    let args = build_zag_args(&s, "", "wf", None, s.system_prompt.as_deref(), None, None);
+    let args = build_zag_args(
+        &s,
+        "",
+        "wf",
+        None,
+        s.system_prompt.as_deref(),
+        None,
+        None,
+        &[],
+    );
     assert_eq!(args[0], "collect");
     assert!(args.contains(&"zig-wf-worker-a".to_string()));
     assert!(args.contains(&"zig-wf-worker-b".to_string()));
@@ -1094,7 +1129,16 @@ fn build_zag_args_command_summary() {
     let mut s = step("stats");
     s.command = Some(StepCommand::Summary);
     s.depends_on = vec!["worker".into()];
-    let args = build_zag_args(&s, "", "wf", None, s.system_prompt.as_deref(), None, None);
+    let args = build_zag_args(
+        &s,
+        "",
+        "wf",
+        None,
+        s.system_prompt.as_deref(),
+        None,
+        None,
+        &[],
+    );
     assert_eq!(args[0], "summary");
     assert!(args.contains(&"zig-wf-worker".to_string()));
 }
@@ -1107,7 +1151,16 @@ fn build_zag_args_collect_no_agent_args() {
     s.provider = Some("claude".into());
     s.model = Some("sonnet".into());
     s.auto_approve = true;
-    let args = build_zag_args(&s, "", "wf", None, s.system_prompt.as_deref(), None, None);
+    let args = build_zag_args(
+        &s,
+        "",
+        "wf",
+        None,
+        s.system_prompt.as_deref(),
+        None,
+        None,
+        &[],
+    );
     // These agent args should NOT appear for collect
     assert!(!args.contains(&"--provider".to_string()));
     assert!(!args.contains(&"--model".to_string()));
@@ -1128,6 +1181,7 @@ fn build_zag_args_review_accepts_agent_args() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--provider".to_string()));
     assert!(args.contains(&"claude".to_string()));
@@ -1146,6 +1200,7 @@ fn build_zag_args_default_command_unchanged() {
         s.system_prompt.as_deref(),
         None,
         None,
+        &[],
     );
     assert_eq!(args[0], "run");
     assert_eq!(args[1], "do stuff");
@@ -1160,7 +1215,16 @@ fn build_zag_args_session_metadata_on_all_commands() {
     s.description = "Gather results".into();
     s.tags = vec!["custom".into()];
     s.timeout = Some("5m".into());
-    let args = build_zag_args(&s, "", "wf", None, s.system_prompt.as_deref(), None, None);
+    let args = build_zag_args(
+        &s,
+        "",
+        "wf",
+        None,
+        s.system_prompt.as_deref(),
+        None,
+        None,
+        &[],
+    );
     assert!(args.contains(&"--name".to_string()));
     assert!(args.contains(&"zig-wf-gather".to_string()));
     assert!(args.contains(&"--description".to_string()));
@@ -1186,6 +1250,7 @@ fn build_zag_args_rendered_system_prompt() {
         Some("You are a cardiologist"),
         None,
         None,
+        &[],
     );
     assert!(args.contains(&"--system-prompt".to_string()));
     assert!(args.contains(&"You are a cardiologist".to_string()));
@@ -1195,7 +1260,7 @@ fn build_zag_args_rendered_system_prompt() {
 #[test]
 fn build_zag_args_no_system_prompt() {
     let s = step("test");
-    let args = build_zag_args(&s, "do stuff", "wf", None, None, None, None);
+    let args = build_zag_args(&s, "do stuff", "wf", None, None, None, None, &[]);
     assert!(!args.contains(&"--system-prompt".to_string()));
 }
 
@@ -1205,7 +1270,7 @@ fn build_zag_args_no_system_prompt() {
 fn build_zag_args_workflow_provider_fallback() {
     let s = step("test");
     // Step has no provider, workflow provides default
-    let args = build_zag_args(&s, "prompt", "wf", None, None, Some("claude"), None);
+    let args = build_zag_args(&s, "prompt", "wf", None, None, Some("claude"), None, &[]);
     assert!(args.contains(&"--provider".to_string()));
     assert!(args.contains(&"claude".to_string()));
 }
@@ -1214,7 +1279,7 @@ fn build_zag_args_workflow_provider_fallback() {
 fn build_zag_args_workflow_model_fallback() {
     let s = step("test");
     // Step has no model, workflow provides default
-    let args = build_zag_args(&s, "prompt", "wf", None, None, None, Some("sonnet"));
+    let args = build_zag_args(&s, "prompt", "wf", None, None, None, Some("sonnet"), &[]);
     assert!(args.contains(&"--model".to_string()));
     assert!(args.contains(&"sonnet".to_string()));
 }
@@ -1223,7 +1288,7 @@ fn build_zag_args_workflow_model_fallback() {
 fn build_zag_args_step_provider_overrides_workflow() {
     let mut s = step("test");
     s.provider = Some("gemini".into());
-    let args = build_zag_args(&s, "prompt", "wf", None, None, Some("claude"), None);
+    let args = build_zag_args(&s, "prompt", "wf", None, None, Some("claude"), None, &[]);
     assert!(args.contains(&"--provider".to_string()));
     assert!(args.contains(&"gemini".to_string()));
     assert!(!args.contains(&"claude".to_string()));
@@ -1233,7 +1298,7 @@ fn build_zag_args_step_provider_overrides_workflow() {
 fn build_zag_args_step_model_overrides_workflow() {
     let mut s = step("test");
     s.model = Some("opus".into());
-    let args = build_zag_args(&s, "prompt", "wf", None, None, None, Some("sonnet"));
+    let args = build_zag_args(&s, "prompt", "wf", None, None, None, Some("sonnet"), &[]);
     assert!(args.contains(&"--model".to_string()));
     assert!(args.contains(&"opus".to_string()));
     assert!(!args.contains(&"sonnet".to_string()));
@@ -1242,7 +1307,7 @@ fn build_zag_args_step_model_overrides_workflow() {
 #[test]
 fn build_zag_args_no_provider_no_workflow_provider() {
     let s = step("test");
-    let args = build_zag_args(&s, "prompt", "wf", None, None, None, None);
+    let args = build_zag_args(&s, "prompt", "wf", None, None, None, None, &[]);
     assert!(!args.contains(&"--provider".to_string()));
     assert!(!args.contains(&"--model".to_string()));
 }
@@ -1251,7 +1316,16 @@ fn build_zag_args_no_provider_no_workflow_provider() {
 fn build_zag_args_model_override_beats_workflow_model() {
     let s = step("test");
     // model_override (retry escalation) should beat workflow model
-    let args = build_zag_args(&s, "prompt", "wf", Some("opus"), None, None, Some("sonnet"));
+    let args = build_zag_args(
+        &s,
+        "prompt",
+        "wf",
+        Some("opus"),
+        None,
+        None,
+        Some("sonnet"),
+        &[],
+    );
     assert!(args.contains(&"--model".to_string()));
     assert!(args.contains(&"opus".to_string()));
     assert!(!args.contains(&"sonnet".to_string()));
@@ -1276,6 +1350,7 @@ fn resolve_direct_system_prompt() {
         &roles,
         &empty_collector(dir),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         dir,
         "test-wf",
@@ -1301,6 +1376,7 @@ fn resolve_direct_system_prompt_with_var_substitution() {
         &roles,
         &empty_collector(dir),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         dir,
         "test-wf",
@@ -1332,6 +1408,7 @@ fn resolve_static_role_reference() {
         &roles,
         &empty_collector(dir),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         dir,
         "test-wf",
@@ -1363,6 +1440,7 @@ fn resolve_dynamic_role_reference() {
         &roles,
         &empty_collector(dir),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         dir,
         "test-wf",
@@ -1394,6 +1472,7 @@ fn resolve_role_with_var_in_prompt() {
         &roles,
         &empty_collector(dir),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         dir,
         "test-wf",
@@ -1419,6 +1498,7 @@ fn resolve_unknown_role_returns_error() {
         &roles,
         &empty_collector(dir),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         dir,
         "test-wf",
@@ -1443,6 +1523,7 @@ fn resolve_no_system_prompt_or_role() {
         &roles,
         &empty_collector(dir),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         dir,
         "test-wf",
@@ -1477,6 +1558,7 @@ fn resolve_role_with_system_prompt_file() {
         &roles,
         &empty_collector(tmp.path()),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         tmp.path(),
         "test-wf",
@@ -1511,6 +1593,7 @@ fn resolve_role_file_with_var_substitution() {
         &roles,
         &empty_collector(tmp.path()),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         tmp.path(),
         "test-wf",
@@ -1539,6 +1622,7 @@ fn resolve_prepends_resources_block_to_direct_system_prompt() {
         &roles,
         &inline_collector(&workflow_resources, tmp.path()),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         tmp.path(),
         "test-wf",
@@ -1570,6 +1654,7 @@ fn resolve_returns_only_resources_block_when_no_base_prompt() {
         &roles,
         &inline_collector(&workflow_resources, tmp.path()),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         tmp.path(),
         "test-wf",
@@ -1603,6 +1688,7 @@ fn resolve_merges_step_resources_with_workflow_resources() {
         &roles,
         &inline_collector(&workflow_resources, tmp.path()),
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         tmp.path(),
         "test-wf",
@@ -1643,6 +1729,7 @@ fn resolve_disabled_collector_does_not_emit_resources_block() {
         &roles,
         &collector,
         &empty_memory_collector(),
+        &crate::storage::StorageManager::empty(),
         &vars,
         tmp.path(),
         "test-wf",
