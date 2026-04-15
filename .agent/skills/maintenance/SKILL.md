@@ -1,3 +1,8 @@
+---
+name: maintenance
+description: "Periodic repository health checks and housekeeping — symlinks, config files, Makefile targets, CI workflow conventions, and skill file completeness."
+---
+
 # maintenance
 
 Periodic repository health checks and housekeeping.

@@ -4,7 +4,7 @@ Thank you for your interest in contributing to zig! This document covers the dev
 
 ## Prerequisites
 
-- **Rust 1.85+** (edition 2024)
+- **Rust 1.94+** (edition 2024)
 - **zag CLI** — zig uses zag behind the scenes
 - **GNU Make** — for build automation
 
@@ -32,7 +32,7 @@ make build && make test && make clippy && make fmt
 3. Make your changes
 4. Add tests for new functionality
 5. Run all quality checks (see above)
-6. Update documentation if needed (README.md, AGENTS.md)
+6. Update documentation if needed (README.md, manpages/*.md, docs/ topic files, AGENTS.md) — see the sync-points table in AGENTS.md for which surfaces need updating per change type
 7. Commit using conventional commit messages
 8. Open a pull request
 
@@ -89,6 +89,10 @@ make coverage
 make coverage-report
 # Open .coverage/html/index.html
 ```
+
+## Pull request process
+
+PRs require **one approving review** before merge. The CODEOWNERS file routes reviews automatically based on changed paths. Only repository maintainers (currently [@niclaslindstedt](https://github.com/niclaslindstedt)) have merge rights. All PRs are squash-merged — the PR title becomes the commit message.
 
 ## Release process
 

@@ -1,4 +1,5 @@
 ---
+name: update-docs
 description: "Use when docs may be stale. Discovers commits since the last docs update, identifies what changed (workflow format, execution engine, patterns, zag integration, etc.), and updates the affected docs/*.md files to match the current implementation."
 ---
 
