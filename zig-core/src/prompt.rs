@@ -14,14 +14,14 @@ pub mod templates {
     /// System prompt for `zig workflow create` — the interactive workflow design agent.
     pub fn create() -> &'static str {
         static STRIPPED: LazyLock<&'static str> =
-            LazyLock::new(|| super::strip_front_matter(include_str!("../prompts/create/2_0.md")));
+            LazyLock::new(|| super::strip_front_matter(include_str!("../prompts/create/2_1.md")));
         *STRIPPED
     }
 
     /// System prompt for `zig workflow update` — the interactive workflow revision agent.
     pub fn update() -> &'static str {
         static STRIPPED: LazyLock<&'static str> =
-            LazyLock::new(|| super::strip_front_matter(include_str!("../prompts/update/1_1.md")));
+            LazyLock::new(|| super::strip_front_matter(include_str!("../prompts/update/1_2.md")));
         *STRIPPED
     }
 
