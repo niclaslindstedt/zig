@@ -28,28 +28,24 @@
 #     the registry during packaging, and [patch.crates-io] does not
 #     apply there) which is a lot of machinery for no real coverage.
 #
-# Note: on a version-bump PR that bumps all three crates at once,
-# the new zig-core version isn't on crates.io yet, so a plain
-# `cargo package -p zig-serve` would fail at dep resolution. We
-# work around this by temporarily injecting a `[patch.crates-io]`
-# into the workspace `Cargo.toml` that points zig-core at the
-# extracted packaged copy from the previous step — same trick the
-# verify step already uses for the extracted tarball.
+# Note: this script assumes the previous workspace crate is already
+# available on crates.io at the current in-tree version, which is the
+# common case on PRs between releases. On a version-bump commit the
+# new zig-core version isn't published yet and `cargo package -p
+# zig-serve` will fail at dep resolution — we can't work around it
+# because cargo's "prepare for uploading" step does an independent
+# registry resolve that ignores `[patch.crates-io]`. The `ci.yml`
+# workflow skips this job on version-bump commits for that reason;
+# the real release pipeline (`release.yml`) publishes zig-core first
+# and sleeps before publishing zig-serve, so publish ordering is
+# handled there.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 WORK="$(mktemp -d)"
-WORKSPACE_TOML="$ROOT/Cargo.toml"
-WORKSPACE_TOML_BAK="$WORK/Cargo.toml.bak"
-cp "$WORKSPACE_TOML" "$WORKSPACE_TOML_BAK"
-restore_workspace_toml() {
-    if [[ -f "$WORKSPACE_TOML_BAK" ]]; then
-        cp "$WORKSPACE_TOML_BAK" "$WORKSPACE_TOML"
-    fi
-}
-trap 'restore_workspace_toml; rm -rf "$WORK"' EXIT
+trap 'rm -rf "$WORK"' EXIT
 
 echo "==> building web UI"
 make web-build
@@ -64,7 +60,7 @@ package_and_extract() {
     echo "==> packaging $crate"
     cargo package --allow-dirty "$@" -p "$crate"
     local tarball
-    tarball="$(ls "target/package/${crate}-"*.crate | head -1)"
+    tarball="$(ls -t "target/package/${crate}-"*.crate | head -1)"
     tar -xzf "$tarball" -C "$WORK"
     EXTRACTED_DIR="$(find "$WORK" -maxdepth 1 -type d -name "${crate}-*" | head -1)"
     if [[ -z "$EXTRACTED_DIR" ]]; then
@@ -90,24 +86,16 @@ verify_extracted() {
 }
 
 # zig-core: no workspace deps, full verify exercises the real path.
+# Clear any stale tarballs from previous runs first so we pick up the
+# freshly built one.
+rm -rf target/package
 package_and_extract zig-core
 CORE_DIR="$EXTRACTED_DIR"
-
-# Patch the workspace so packaging zig-serve resolves zig-core
-# against our just-packaged copy instead of crates.io. Without this,
-# version-bump PRs fail because the new zig-core version isn't
-# published yet. The patch is reverted by the EXIT trap.
-{
-    echo
-    echo "[patch.crates-io]"
-    echo "zig-core = { path = \"$CORE_DIR\" }"
-} >> "$WORKSPACE_TOML"
 
 # zig-serve: package without verify, then manually check against
 # the extracted zig-core.
 package_and_extract zig-serve --no-verify
 SERVE_DIR="$EXTRACTED_DIR"
-restore_workspace_toml
 verify_extracted "$SERVE_DIR" \
     "zig-core = { path = \"$CORE_DIR\" }"
 

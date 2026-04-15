@@ -69,6 +69,16 @@ jobs:
     # (e.g. `#[folder = "../web/dist/"]`) that compile fine under
     # `cargo check` but break at publish time because the tarball is
     # extracted in isolation. See scripts/verify-publish.sh.
+    #
+    # Skipped on version-bump commits because the new zig-core
+    # version isn't on crates.io yet, and cargo's "prepare for
+    # uploading" step does an independent registry resolve when
+    # packaging zig-serve that ignores `[patch.crates-io]`. The
+    # source changes already ran through this check on the PR that
+    # landed before the bump, and `release.yml` publishes zig-core
+    # before zig-serve with a sleep in between, so publish ordering
+    # is handled at release time.
+    if: ${{ !startsWith(github.event.head_commit.message, 'chore: bump version to') && !startsWith(github.event.pull_request.title, 'chore: bump version to') }}
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
