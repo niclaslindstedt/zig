@@ -76,6 +76,19 @@ cd zig
 cargo install --path zig-cli
 ```
 
+## Quick start
+
+```bash
+# 1. Install
+cargo install zig-cli
+
+# 2. Create a workflow (an AI agent helps you design it)
+zig workflow create demo
+
+# 3. Run it
+zig run demo
+```
+
 ## Commands
 
 ```
@@ -378,6 +391,30 @@ make release        # optimized build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow.
+
+## Configuration
+
+Configuration file locations and key names:
+
+| Path | Purpose |
+|------|---------|
+| `~/.zig/serve.toml` | `zig serve` settings — `[server]` section with `port`, `host`, `token`, `tls`, `rate_limit`, `shutdown_timeout` keys |
+| `~/.zig/resources/_shared/` | Global resources advertised to every workflow's step agents |
+| `~/.zig/resources/<workflow>/` | Per-workflow global resource tier |
+| `~/.zig/memory/` | Global and per-workflow memory scratch-pad entries |
+| `<git-root>/.zig/resources/` | Project-local resource tier |
+| `<git-root>/.zig/memory/` | Project-local memory tier |
+| `<git-root>/.zig/workflows/` | Project-local workflow storage directory |
+
+Environment variables:
+
+| Variable | Scope | Description |
+|----------|-------|-------------|
+| `ZIG_SERVE_TOKEN` | `zig serve` | Bearer token for API authentication (alternative to `--token`) |
+
+Precedence for `zig serve` settings: CLI flag > environment variable > `serve.toml` > built-in default.
+
+Run `zig man serve` for the complete flag and config-file reference.
 
 ## Examples
 

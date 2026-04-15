@@ -128,6 +128,18 @@ Open an issue on [GitHub Issues](https://github.com/niclaslindstedt/zig/issues) 
 - Your zag version (`zag --version`)
 - Steps to reproduce the problem
 
+## Governance
+
+**Decision-making.** This project operates as a BDFL (Benevolent Dictator For Life) model. [@niclaslindstedt](https://github.com/niclaslindstedt) makes final decisions on direction, feature acceptance, and breaking changes. Proposals are discussed openly in GitHub Issues and PRs; consensus is preferred but not required.
+
+**Merge rights.** Only [@niclaslindstedt](https://github.com/niclaslindstedt) has merge rights on the main branch.
+
+**Maintainer onboarding.** New maintainers may be nominated by the current maintainer based on sustained, high-quality contribution. Nomination is at the sole discretion of the current maintainer and is formalized by granting repository write access and adding the maintainer to CODEOWNERS.
+
+**Conflict resolution.** Disagreements about technical direction should be raised as GitHub Issues or PR comments. If a discussion reaches an impasse, the current maintainer makes the final call. Decisions are documented in the relevant issue or PR for future reference.
+
+**Project transfer and forking.** If this project is abandoned (no activity for 12+ months, no response to issues), interested parties are encouraged to fork under a new name. The MIT license explicitly permits this. If the maintainer wishes to transfer stewardship, they will post a public announcement in GitHub Discussions and transfer repository ownership to a willing successor.
+
 ## License
 
 All contributions are licensed under [MIT](LICENSE).

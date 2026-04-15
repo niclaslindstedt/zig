@@ -13,13 +13,24 @@ cd "$(git rev-parse --show-toplevel)"
 
 # --- determine commit range ---
 if [ -z "$PREV_TAG" ]; then
-    PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    # If the new version's tag already exists (script ran after tagging),
+    # find the tag immediately before it so the range covers the right commits.
+    if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
+        PREV_TAG=$(git describe --tags --abbrev=0 "v${NEW_VERSION}^" 2>/dev/null || echo "")
+    else
+        PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+    fi
+fi
+
+RANGE_END="HEAD"
+if git rev-parse "v${NEW_VERSION}" >/dev/null 2>&1; then
+    RANGE_END="v${NEW_VERSION}"
 fi
 
 if [ -n "$PREV_TAG" ]; then
-    COMMITS=$(git log "$PREV_TAG"..HEAD --pretty=format:"%s" --no-merges)
+    COMMITS=$(git log "$PREV_TAG".."$RANGE_END" --pretty=format:"%s" --no-merges)
 else
-    COMMITS=$(git log --pretty=format:"%s" --no-merges)
+    COMMITS=$(git log "$RANGE_END" --pretty=format:"%s" --no-merges)
 fi
 
 # --- categorize commits ---
