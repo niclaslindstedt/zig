@@ -145,7 +145,7 @@ jobs:
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
       - uses: dtolnay/rust-toolchain@stable
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
       - name: build web UI
@@ -183,7 +183,7 @@ jobs:
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
