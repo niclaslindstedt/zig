@@ -4,11 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "Version bump type (leave blank to auto-detect from commits)"
+        description: "Version bump type"
         required: false
+        default: 'auto'
         type: choice
         options:
-          - ""
+          - auto
           - patch
           - minor
           - major
@@ -28,8 +29,10 @@ jobs:
           # A PAT (or GitHub App token) is required so that the tag push
           # triggers the release workflow. The default GITHUB_TOKEN
           # deliberately does not trigger downstream workflows.
-          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.85.0'
       - name: configure git
         run: |
           git config user.name "github-actions[bot]"
@@ -37,4 +40,4 @@ jobs:
       - name: checkout main
         run: git checkout main
       - name: run release script
-        run: scripts/release.sh ${{ inputs.bump }}
+        run: scripts/release.sh ${{ inputs.bump != 'auto' && inputs.bump || '' }}

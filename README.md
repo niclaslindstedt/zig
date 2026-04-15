@@ -372,12 +372,42 @@ Under the hood, `zig-core` delegates to zag's orchestration primitives (`spawn`,
 ```bash
 make build          # dev build
 make test           # run tests
-make clippy         # lint (zero warnings)
+make lint           # lint (zero warnings)
 make fmt            # format
 make release        # optimized build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow.
+
+## Examples
+
+Ready-to-use workflow files are in [`prompts/examples/`](prompts/examples/). Each file demonstrates one of the supported orchestration patterns and can be run directly with `zig run`.
+
+## Troubleshooting
+
+**`zig: command not found`** — make sure `~/.cargo/bin` is in your `PATH` after `cargo install zig-cli`.
+
+**`zag: command not found`** — install zag first; see the [zag install guide](https://github.com/niclaslindstedt/zag#install).
+
+**Workflow fails immediately** — run `zig validate <workflow>` to check the `.zwf` file for structural errors before executing it.
+
+**Build fails with web UI errors** — ensure Node 24+ is installed; the `make build` target builds the embedded React UI first.
+
+## Documentation
+
+Conceptual and reference docs live in [`docs/`](docs/):
+
+- [`docs/zwf.md`](docs/zwf.md) — full `.zwf`/`.zwfz` format specification
+- [`docs/patterns.md`](docs/patterns.md) — orchestration pattern guide
+- [`docs/variables.md`](docs/variables.md) — variables and data flow
+- [`docs/conditions.md`](docs/conditions.md) — conditional step routing
+- [`docs/memory.md`](docs/memory.md) — memory scratch pad model
+
+Built-in docs are also available at runtime via `zig docs <topic>` and `zig man <topic>`.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow, commit conventions, and code standards. Please read [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before participating.
 
 ## License
 

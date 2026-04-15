@@ -32,7 +32,7 @@ make build && make test && make clippy && make fmt
 3. Make your changes
 4. Add tests for new functionality
 5. Run all quality checks (see above)
-6. Update documentation if needed (README.md, CLAUDE.md)
+6. Update documentation if needed (README.md, AGENTS.md)
 7. Commit using conventional commit messages
 8. Open a pull request
 
@@ -98,6 +98,23 @@ Releases are automated via `scripts/release.sh`, which bumps the version, create
 make release-tag              # auto-detect bump from commits
 make release-tag BUMP=minor   # explicit bump
 ```
+
+## Branch naming
+
+Use `<type>/<slug>` following the same types as commit conventions:
+
+- `feat/my-feature`
+- `fix/some-bug`
+- `docs/update-readme`
+- `chore/bump-deps`
+
+## Code of conduct
+
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). By participating you agree to abide by its terms. Instances of unacceptable behavior may be reported as described in that document.
+
+## Security
+
+Do not open public issues for security vulnerabilities. Instead, use [GitHub's private vulnerability reporting](https://github.com/niclaslindstedt/zig/security/advisories/new). See [SECURITY.md](SECURITY.md) for the full policy.
 
 ## Reporting issues
 

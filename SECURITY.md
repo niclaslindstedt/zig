@@ -29,6 +29,10 @@ We support security research conducted in good faith. You are authorized to test
 - Only test on accounts you own or have explicit consent for
 - Disclose findings promptly and allow reasonable remediation time
 
+## Disclosure policy
+
+We follow a 90-day coordinated disclosure window. Once a patch is released we will publish a GitHub security advisory. Researchers who report privately are credited in the advisory unless they prefer to remain anonymous. If a fix requires longer than 90 days we will communicate that directly with the reporter.
+
 ## Supported versions
 
 Only the latest release is fully supported. Older versions receive best-effort attention. We recommend keeping your installation up to date.
