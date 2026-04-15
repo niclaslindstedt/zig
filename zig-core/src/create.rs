@@ -128,7 +128,7 @@ pub fn prepare_create(
         let filename = name
             .map(|n| format!("{n}.zwf"))
             .unwrap_or_else(|| "workflow.zwf".to_string());
-        global_dir.join(&filename).to_string_lossy().to_string()
+        crate::paths::collapse_home(&global_dir.join(&filename).to_string_lossy())
     };
 
     let mut initial_prompt = if let Some(n) = name {

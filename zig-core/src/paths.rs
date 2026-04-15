@@ -300,6 +300,26 @@ pub fn expand_path(path: &str) -> String {
     s.replace("${HOME}", &home).replace("$HOME", &home)
 }
 
+/// Replace the home directory prefix with `~` for display purposes.
+///
+/// This is the inverse of [`expand_path`]: given an absolute path like
+/// `/Users/alice/.zig/workflows/foo.zwf`, returns `~/.zig/workflows/foo.zwf`.
+/// Paths that don't start with the home directory are returned unchanged.
+pub fn collapse_home(path: &str) -> String {
+    let home = match env_home() {
+        Some(h) => h,
+        None => return path.to_string(),
+    };
+
+    if path == home {
+        "~".to_string()
+    } else if let Some(rest) = path.strip_prefix(&format!("{home}/")) {
+        format!("~/{rest}")
+    } else {
+        path.to_string()
+    }
+}
+
 /// Sanitize an absolute path into a directory name.
 ///
 /// Strips leading `/` and replaces remaining `/` with `-`. Mirrors zag's
