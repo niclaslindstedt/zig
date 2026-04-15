@@ -64,8 +64,8 @@ jobs:
   publish-verify:
     name: publish verify
     runs-on: ubuntu-latest
-    # Simulates `cargo publish` for each workspace crate without
-    # hitting crates.io. Catches bugs like relative-path references
+    # Runs `cargo package --workspace` to simulate publishing every
+    # crate. Catches bugs like relative-path references
     # (e.g. `#[folder = "../web/dist/"]`) that compile fine under
     # `cargo check` but break at publish time because the tarball is
     # extracted in isolation. See scripts/verify-publish.sh.
