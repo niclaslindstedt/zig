@@ -1,6 +1,7 @@
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
-use axum::extract::Request;
+use axum::extract::{ConnectInfo, Request};
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
@@ -8,11 +9,17 @@ use governor::clock::DefaultClock;
 use governor::state::keyed::DashMapStateStore;
 use governor::{Quota, RateLimiter};
 
-/// Keyed rate limiter using remote IP addresses as keys.
+/// Keyed rate limiter. The key is the client's real peer IP (or a configured
+/// fallback) — **never** a client-supplied header value, so attackers cannot
+/// rotate the key per request to bypass the limit or inflate the state store
+/// to exhaust memory.
 pub type KeyedRateLimiter = RateLimiter<String, DashMapStateStore<String>, DefaultClock>;
 
-/// Build a keyed rate limiter that allows `per_second` requests per second
-/// per unique client key, with a burst equal to the per-second rate.
+/// Maximum number of keys held in the bucket store before we aggressively
+/// prune. This is a soft upper bound — `retain_recent` only evicts entries
+/// whose bucket has fully refilled, so active clients survive a prune.
+const MAX_BUCKETS: usize = 10_000;
+
 pub fn build_rate_limiter(per_second: u64) -> Arc<KeyedRateLimiter> {
     let quota = Quota::per_second(
         std::num::NonZeroU32::new(per_second as u32).unwrap_or(std::num::NonZeroU32::MIN),
@@ -22,10 +29,6 @@ pub fn build_rate_limiter(per_second: u64) -> Arc<KeyedRateLimiter> {
     Arc::new(RateLimiter::dashmap(quota))
 }
 
-/// Rate-limiting middleware. Checks the client key (from `x-forwarded-for`
-/// header, falling back to a default key) against the rate limiter.
-///
-/// Returns `429 Too Many Requests` when the limit is exceeded.
 pub async fn rate_limit_middleware(
     request: Request,
     next: Next,
@@ -33,27 +36,37 @@ pub async fn rate_limit_middleware(
 ) -> Response {
     let key = extract_client_key(&request);
 
+    // Opportunistic bounded growth: if the key store has grown past the soft
+    // cap, prune buckets that have fully refilled. Active clients are kept.
+    if limiter.len() > MAX_BUCKETS {
+        limiter.retain_recent();
+    }
+
     match limiter.check_key(&key) {
         Ok(_) => next.run(request).await,
         Err(_) => (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded").into_response(),
     }
 }
 
-/// Extract a client key from the request for rate limiting purposes.
+/// Derive the rate-limit key from the TCP peer address. Client-supplied
+/// headers (`x-forwarded-for` and friends) are intentionally ignored: any
+/// client could otherwise rotate the value per request to bypass the limiter,
+/// or inflate its state map by supplying random values.
+///
+/// Proxied deployments should run zig-serve bound to localhost with the
+/// reverse proxy enforcing rate limits there.
 fn extract_client_key(request: &Request) -> String {
-    // Try x-forwarded-for first (for reverse proxies).
-    if let Some(forwarded) = request
-        .headers()
-        .get("x-forwarded-for")
-        .and_then(|v| v.to_str().ok())
-    {
-        if let Some(first_ip) = forwarded.split(',').next() {
-            return first_ip.trim().to_string();
-        }
+    if let Some(ConnectInfo(addr)) = request.extensions().get::<ConnectInfo<SocketAddr>>() {
+        return ip_key(addr.ip());
     }
+    // Only reachable in tests that build the router without the make-service
+    // connect-info layer. Returning a constant key means the test sees
+    // deterministic behavior rather than an accidental bypass.
+    "unknown".to_string()
+}
 
-    // Fall back to a shared default key (rate limits all non-proxied clients together).
-    "default".to_string()
+fn ip_key(ip: IpAddr) -> String {
+    ip.to_string()
 }
 
 #[cfg(test)]

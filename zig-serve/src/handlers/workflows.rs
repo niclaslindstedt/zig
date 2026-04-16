@@ -4,6 +4,35 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::ServeError;
 
+#[cfg(test)]
+#[path = "workflows_tests.rs"]
+mod tests;
+
+/// Reject workflow names that include path separators, traversal segments,
+/// absolute-path markers, or control characters. API callers must use a
+/// plain workflow name — filesystem paths are CLI-only.
+fn validate_workflow_name(name: &str) -> Result<(), ServeError> {
+    if name.is_empty() {
+        return Err(ServeError::bad_request("workflow name must not be empty"));
+    }
+    if name.len() > 255 {
+        return Err(ServeError::bad_request("workflow name is too long"));
+    }
+    if name.contains('/')
+        || name.contains('\\')
+        || name.contains('\0')
+        || name == "."
+        || name == ".."
+        || name.starts_with('-')
+        || name.chars().any(|c| c.is_control())
+    {
+        return Err(ServeError::bad_request(
+            "workflow name must not contain path separators, traversal segments, or control characters",
+        ));
+    }
+    Ok(())
+}
+
 // -- List workflows --
 
 pub async fn list() -> Result<Json<Vec<zig_core::manage::WorkflowInfo>>, ServeError> {
@@ -19,6 +48,7 @@ pub async fn list() -> Result<Json<Vec<zig_core::manage::WorkflowInfo>>, ServeEr
 pub async fn show(
     Path(name): Path<String>,
 ) -> Result<Json<zig_core::workflow::model::Workflow>, ServeError> {
+    validate_workflow_name(&name)?;
     let workflow =
         tokio::task::spawn_blocking(move || zig_core::manage::get_workflow_detail(&name))
             .await
@@ -30,6 +60,7 @@ pub async fn show(
 // -- Delete workflow --
 
 pub async fn delete(Path(name): Path<String>) -> Result<axum::http::StatusCode, ServeError> {
+    validate_workflow_name(&name)?;
     tokio::task::spawn_blocking(move || zig_core::manage::delete_workflow(&name))
         .await
         .map_err(|e| ServeError::bad_request(format!("task join error: {e}")))?
@@ -60,15 +91,7 @@ pub async fn validate(
 ) -> Result<Json<ValidateResponse>, ServeError> {
     let result: Result<ValidateResponse, zig_core::error::ZigError> =
         tokio::task::spawn_blocking(move || {
-            // Write content to a temp file so we can parse it
-            let tmp = tempfile::NamedTempFile::with_suffix(".toml").map_err(|e| {
-                zig_core::error::ZigError::Io(format!("failed to create temp file: {e}"))
-            })?;
-            std::fs::write(tmp.path(), &req.content).map_err(|e| {
-                zig_core::error::ZigError::Io(format!("failed to write temp file: {e}"))
-            })?;
-
-            let workflow = zig_core::workflow::parser::parse_file(tmp.path())?;
+            let workflow = zig_core::workflow::parser::parse(&req.content)?;
 
             match zig_core::workflow::validate::validate(&workflow) {
                 Ok(()) => Ok(ValidateResponse {
@@ -104,6 +127,7 @@ pub struct RunResponse {
 }
 
 pub async fn run(Json(req): Json<RunRequest>) -> Result<Json<RunResponse>, ServeError> {
+    validate_workflow_name(&req.workflow)?;
     // We need to run the workflow and capture the session ID.
     // The current run_workflow doesn't return it, so we'll read the session
     // index before/after to find the new session.

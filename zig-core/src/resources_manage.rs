@@ -17,6 +17,27 @@ use std::path::{Path, PathBuf};
 use crate::error::ZigError;
 use crate::paths;
 
+/// Reject resource names that include path separators or traversal
+/// segments. API/CLI callers must only supply plain filenames — otherwise
+/// `dir.join(name)` lets `../../` escape the tier directory.
+fn validate_resource_filename(name: &str) -> Result<(), ZigError> {
+    if name.is_empty() {
+        return Err(ZigError::Validation("name must not be empty".into()));
+    }
+    if name.contains('/')
+        || name.contains('\\')
+        || name.contains('\0')
+        || name == "."
+        || name == ".."
+        || name.starts_with('-')
+    {
+        return Err(ZigError::Validation(format!(
+            "name '{name}' must not contain path separators or traversal segments"
+        )));
+    }
+    Ok(())
+}
+
 /// Which tier(s) a `list` or `where` command should consider.
 ///
 /// `Both` (the default when neither `--global` nor `--cwd` is passed) walks
@@ -326,6 +347,7 @@ pub fn add_to_dir(src: &Path, dir: &Path, name: Option<&str>) -> Result<PathBuf,
                 src.display()
             ))
         })?;
+    validate_resource_filename(&dest_name)?;
 
     let dest = dir.join(&dest_name);
     if dest.exists() {
@@ -363,6 +385,7 @@ pub fn delete_resource(name: &str, target: ResourceTarget) -> Result<(), ZigErro
 
 /// Lower-level helper: delete a single resource from an explicit directory.
 pub fn delete_from_dir(name: &str, dir: &Path) -> Result<PathBuf, ZigError> {
+    validate_resource_filename(name)?;
     if !dir.is_dir() {
         return Err(ZigError::Io(format!(
             "tier directory does not exist: {}",
@@ -384,6 +407,7 @@ pub fn delete_from_dir(name: &str, dir: &Path) -> Result<PathBuf, ZigError> {
 
 /// Print the absolute path and contents of a resource discovered in any tier.
 pub fn show_resource(name: &str, workflow: Option<&str>) -> Result<(), ZigError> {
+    validate_resource_filename(name)?;
     let candidates = candidate_dirs(workflow);
     for (label, dir) in &candidates {
         let path = dir.join(name);

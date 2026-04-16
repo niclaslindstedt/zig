@@ -24,6 +24,28 @@ use crate::error::ZigError;
 use crate::paths;
 use crate::workflow::model::MemoryMode;
 
+/// Reject filenames that include path separators or traversal segments,
+/// so `--name ../../etc/passwd` can't escape the tier directory on `add`
+/// or `update`. Same rule already enforced for `StorageFileHint` in
+/// `workflow/validate.rs` — kept in sync here for the memory/resource CLI.
+fn validate_entry_filename(name: &str) -> Result<(), ZigError> {
+    if name.is_empty() {
+        return Err(ZigError::Validation("name must not be empty".into()));
+    }
+    if name.contains('/')
+        || name.contains('\\')
+        || name.contains('\0')
+        || name == "."
+        || name == ".."
+        || name.starts_with('-')
+    {
+        return Err(ZigError::Validation(format!(
+            "name '{name}' must not contain path separators or traversal segments"
+        )));
+    }
+    Ok(())
+}
+
 // =====================================================================
 // Data structures
 // =====================================================================
@@ -265,6 +287,7 @@ pub fn add(
         .map(str::to_string)
         .or_else(|| src.file_name().map(|n| n.to_string_lossy().into_owned()))
         .ok_or_else(|| ZigError::Io(format!("could not derive a name from {}", src.display())))?;
+    validate_entry_filename(&file_name)?;
 
     let dest = dir.join(&file_name);
     if dest.exists() {
@@ -331,6 +354,7 @@ pub fn update(
         .ok_or_else(|| ZigError::Io(format!("memory entry {id} vanished during update")))?;
 
     if let Some(n) = name {
+        validate_entry_filename(n)?;
         // Rename the file on disk if the name changed.
         let old_path = dir.join(&entry.file);
         let new_path = dir.join(n);

@@ -80,21 +80,48 @@ fn is_zip_archive(path: &Path) -> Result<bool, ZigError> {
     }
 }
 
+/// Hard caps for zip extraction. A malicious archive can compress trivially
+/// to many gigabytes ("zip bomb") — these limits bound the damage an
+/// untrusted `.zwfz` can cause the host.
+const MAX_ZIP_ENTRIES: usize = 10_000;
+const MAX_ZIP_TOTAL_BYTES: u64 = 100 * 1024 * 1024; // 100 MiB
+
 /// Extract a zip archive into a destination directory.
 ///
 /// Used by both [`parse_zip`] (into a temp directory) and
 /// `update::run_update` (into a staging directory for in-place editing).
-/// Returns an error if any entry has an invalid path or cannot be written.
+/// Returns an error if any entry has an invalid path, is a symlink, or
+/// if the cumulative extracted size exceeds [`MAX_ZIP_TOTAL_BYTES`].
 pub fn extract_zip(archive_path: &Path, dest: &Path) -> Result<(), ZigError> {
     let file = std::fs::File::open(archive_path)
         .map_err(|e| ZigError::Io(format!("failed to open {}: {e}", archive_path.display())))?;
     let mut archive = zip::ZipArchive::new(file)
         .map_err(|e| ZigError::Parse(format!("failed to read zip archive: {e}")))?;
 
+    if archive.len() > MAX_ZIP_ENTRIES {
+        return Err(ZigError::Parse(format!(
+            "zip archive has {} entries (max {})",
+            archive.len(),
+            MAX_ZIP_ENTRIES
+        )));
+    }
+
+    let mut total_written: u64 = 0;
+
     for i in 0..archive.len() {
         let mut entry = archive
             .by_index(i)
             .map_err(|e| ZigError::Parse(format!("failed to read zip entry: {e}")))?;
+
+        // Reject symlink entries up-front: they can escape `dest` on
+        // extraction and shift the whole tree out from under us.
+        if let Some(mode) = entry.unix_mode() {
+            if mode & 0o170000 == 0o120000 {
+                return Err(ZigError::Parse(
+                    "zip archive contains a symlink entry (rejected)".into(),
+                ));
+            }
+        }
 
         let out_path = dest.join(
             entry
@@ -121,9 +148,22 @@ pub fn extract_zip(archive_path: &Path, dest: &Path) -> Result<(), ZigError> {
             let mut outfile = std::fs::File::create(&out_path).map_err(|e| {
                 ZigError::Io(format!("failed to create file {}: {e}", out_path.display()))
             })?;
-            std::io::copy(&mut entry, &mut outfile).map_err(|e| {
+
+            // Enforce the cumulative-size cap by using a `take` reader —
+            // stop reading once we hit the remaining budget so decompressed
+            // bombs can't blow past the limit.
+            let remaining = MAX_ZIP_TOTAL_BYTES.saturating_sub(total_written);
+            let mut limited = std::io::Read::take(&mut entry, remaining + 1);
+            let written = std::io::copy(&mut limited, &mut outfile).map_err(|e| {
                 ZigError::Io(format!("failed to extract {}: {e}", out_path.display()))
             })?;
+            total_written = total_written.saturating_add(written);
+            if total_written > MAX_ZIP_TOTAL_BYTES {
+                return Err(ZigError::Parse(format!(
+                    "zip archive expands to more than {} bytes (zip bomb protection)",
+                    MAX_ZIP_TOTAL_BYTES
+                )));
+            }
         }
     }
 
