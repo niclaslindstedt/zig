@@ -17,6 +17,12 @@ description = "Hospital triage simulation with nurse intake and specialist refer
 tags = ["healthcare", "simulation", "roles"]
 version = "1.0.0"
 provider = "claude"
+memory = "all"
+resources = [
+  { path = "./resources/patient-profile.md", name = "patient-profile", description = "Your personal health information — allergies, medications, conditions", required = false },
+  { path = "./resources/dropbox", name = "dropbox", description = "Drop any relevant files here — lab results, imaging reports, doctor's letters, insurance docs", required = false },
+  { path = "./resources/triage-guidelines.md", name = "triage-guidelines", description = "ESI triage reference and severity classification guide" },
+]
 
 # ── Roles ────────────────────────────────────────────────────────────────────
 
@@ -80,6 +86,20 @@ system_prompt_file = "prompts/nephrologist.md"
 [roles.emergency-physician]
 system_prompt_file = "prompts/emergency-physician.md"
 
+# ── Storage ─────────────────────────────────────────────────────────────────
+
+[storage.patient_records]
+type = "folder"
+path = "./patient-records"
+description = "Visit records from each consultation, one file per visit"
+hint = "Filename: <date>-<specialist>.md. Include chief complaint, assessment, plan."
+
+[storage.treatment_plans]
+type = "folder"
+path = "./treatment-plans"
+description = "Treatment plans produced by specialists"
+hint = "Filename: <date>-<diagnosis-slug>.md. Include diagnosis, medications, follow-up."
+
 # ── Variables ────────────────────────────────────────────────────────────────
 
 [vars.symptoms]
@@ -118,6 +138,16 @@ type = "string"
 default = ""
 description = "Accumulated notes from all specialist visits so far"
 
+[vars.severity_level]
+type = "string"
+default = ""
+description = "ESI severity level (1-5) assigned by the triage nurse"
+
+[vars.treatment_plan]
+type = "string"
+default = ""
+description = "Treatment plan set by the specialist upon diagnosis"
+
 # ── Steps ────────────────────────────────────────────────────────────────────
 
 [[step]]
@@ -126,12 +156,19 @@ prompt = """Patient presents with the following complaints:
 
 ${symptoms}
 
-Conduct a triage assessment. Ask clarifying questions mentally (simulate the interview), assess severity, and determine which specialist the patient should see.
+Check the patient profile resource for known allergies, medications, and medical history. Check the dropbox for any additional documents the patient brought (lab results, imaging, referral letters).
+
+Review any prior visit records in storage for relevant history.
+
+Conduct a triage assessment. Ask clarifying questions mentally (simulate the interview), assess severity using the ESI guidelines, and determine which specialist the patient should see.
+
+Save a visit record to storage summarizing this triage encounter.
 
 Respond in JSON format."""
 role = "nurse-triage"
 json = true
-saves = { specialist_type = "$.specialist_type", triage_notes = "$.triage_notes" }
+saves = { specialist_type = "$.specialist_type", triage_notes = "$.triage_notes", severity_level = "$.severity_level" }
+storage = ["patient_records"]
 description = "Triage nurse interviews the patient and determines specialist referral"
 
 [[step]]
@@ -140,15 +177,24 @@ prompt = """You are seeing a patient referred to you.
 
 **Triage Notes:** ${triage_notes}
 
+**ESI Severity Level:** ${severity_level}
+
 **Patient Symptoms:** ${symptoms}
 
 **Previous Visit Notes:** ${visit_history}
 
 **Referral Reason:** ${referral_reason}
 
+Check the patient profile resource and dropbox for relevant medical history, lab results, or other documents.
+
+Review prior visit records and treatment plans in storage for context.
+
 Examine the patient. Based on the symptoms and history:
 1. Conduct a focused assessment within your specialty
 2. Either set a diagnosis or refer to another specialist
+3. If diagnosing, produce a treatment plan
+
+Save a visit record and, if diagnosing, a treatment plan to storage.
 
 Respond in JSON format."""
 role = "${specialist_type}"
@@ -156,7 +202,8 @@ depends_on = ["triage"]
 model = "large"
 json = true
 condition = "specialist_type"
-saves = { diagnosis = "$.diagnosis", needs_referral = "$.needs_referral", specialist_type = "$.next_specialist", referral_reason = "$.referral_reason", visit_history = "$.visit_notes" }
+saves = { diagnosis = "$.diagnosis", needs_referral = "$.needs_referral", specialist_type = "$.next_specialist", referral_reason = "$.referral_reason", visit_history = "$.visit_notes", treatment_plan = "$.treatment_plan" }
+storage = ["patient_records", "treatment_plans"]
 next = "specialist"
 description = "Specialist examines the patient and either diagnoses or refers"
 max_turns = 5

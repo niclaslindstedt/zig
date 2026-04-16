@@ -47,7 +47,7 @@ For ambiguous cases, route to the specialist most likely to address the primary 
 Respond with a JSON object:
 ```json
 {
-  "esi_level": 3,
+  "severity_level": "ESI-2",
   "specialist_type": "cardiologist",
   "triage_notes": "55yo presenting with substernal chest pressure radiating to left arm, onset 2 hours ago. Diaphoretic. Simulated vitals: BP 155/95, HR 98, RR 22, SpO2 96%. History suggests possible ACS. ESI-2 — urgent cardiology evaluation needed.",
   "vital_signs": {
