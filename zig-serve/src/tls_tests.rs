@@ -40,6 +40,36 @@ fn resolve_tls_returns_none_when_disabled() {
     assert!(super::resolve_tls(&config).unwrap().is_none());
 }
 
+#[cfg(unix)]
+#[test]
+fn write_secret_file_is_mode_0600() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("secret.txt");
+
+    // First write creates the file with 0600.
+    super::write_secret_file(&path, b"first").unwrap();
+    let meta = std::fs::metadata(&path).unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o600,
+        "new file should be mode 0600",
+    );
+
+    // Loosen perms then rewrite — should re-tighten back to 0600.
+    let mut perms = meta.permissions();
+    perms.set_mode(0o644);
+    std::fs::set_permissions(&path, perms).unwrap();
+    super::write_secret_file(&path, b"second").unwrap();
+    let meta = std::fs::metadata(&path).unwrap();
+    assert_eq!(
+        meta.permissions().mode() & 0o777,
+        0o600,
+        "rewritten file should be mode 0600",
+    );
+}
+
 #[test]
 fn resolve_tls_uses_custom_cert_paths() {
     let config = ServeConfig {

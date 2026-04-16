@@ -12,6 +12,10 @@ use serde::Serialize;
 
 use crate::error::ServeError;
 
+#[cfg(test)]
+#[path = "sessions_tests.rs"]
+mod tests;
+
 // -- List sessions --
 
 pub async fn list() -> Result<Json<Vec<zig_core::session::SessionLogIndexEntry>>, ServeError> {
@@ -75,7 +79,10 @@ async fn handle_stream(mut socket: WebSocket, log_path: PathBuf) {
         };
 
         let lines: Vec<&str> = events.lines().collect();
-        let new_lines = &lines[last_line..];
+        // Clamp so a truncated log (or a client-supplied oversize last_line
+        // on SSE) can never panic at the slice boundary.
+        let start = last_line.min(lines.len());
+        let new_lines = &lines[start..];
 
         for line in new_lines {
             let line = line.trim();
@@ -93,15 +100,33 @@ async fn handle_stream(mut socket: WebSocket, log_path: PathBuf) {
 
         last_line = lines.len();
 
-        // Check if the session has ended (look for ZigSessionEnded event)
-        if let Some(last) = lines.last() {
-            if last.contains("\"zig_session_ended\"") {
-                return;
-            }
+        if session_ended(&lines) {
+            return;
         }
 
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
+}
+
+/// Returns true if the last non-empty JSONL line parses to a
+/// `ZigSessionEnded` event. Substring-only matching is avoided so an agent
+/// that echoes the literal string "zig_session_ended" doesn't close the
+/// stream prematurely.
+fn session_ended(lines: &[&str]) -> bool {
+    for line in lines.iter().rev() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        return matches!(
+            serde_json::from_str::<zig_core::session::SessionLogEvent>(trimmed),
+            Ok(event) if matches!(
+                event.kind,
+                zig_core::session::SessionEventKind::ZigSessionEnded { .. }
+            )
+        );
+    }
+    false
 }
 
 // -- SSE stream (alternative to WebSocket) --
@@ -141,13 +166,17 @@ pub async fn stream_sse(
             };
 
             let lines: Vec<&str> = content.lines().collect();
+            // Clamp the start index — Last-Event-ID is client-supplied, and
+            // the log can be truncated between polls. `&lines[start..]` must
+            // never index past the end.
+            let start = last_line.min(lines.len());
 
-            for (i, line) in lines[last_line..].iter().enumerate() {
+            for (i, line) in lines[start..].iter().enumerate() {
                 let line = line.trim();
                 if line.is_empty() {
                     continue;
                 }
-                let event_id = last_line + i + 1;
+                let event_id = start + i + 1;
                 yield Ok(Event::default()
                     .data(line)
                     .id(event_id.to_string()));
@@ -155,10 +184,8 @@ pub async fn stream_sse(
 
             last_line = lines.len();
 
-            if let Some(last) = lines.last() {
-                if last.contains("\"zig_session_ended\"") {
-                    return;
-                }
+            if session_ended(&lines) {
+                return;
             }
 
             tokio::time::sleep(Duration::from_millis(100)).await;

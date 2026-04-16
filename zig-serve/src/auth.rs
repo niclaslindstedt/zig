@@ -5,8 +5,15 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use subtle::ConstantTimeEq;
 
 use crate::state::AppState;
+
+/// Compare two byte strings in constant time so a timing side channel can't
+/// leak a prefix of the expected value to a repeating attacker.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    a.ct_eq(b).into()
+}
 
 /// Decode a percent-encoded query value. Returns `None` if any escape is
 /// malformed so we don't silently accept a corrupted token.
@@ -20,7 +27,13 @@ fn urlencoding_decode(input: &str) -> Option<String> {
                 out.push(b' ');
                 i += 1;
             }
-            b'%' if i + 2 < bytes.len() => {
+            b'%' => {
+                // A `%` must be followed by exactly two hex digits. Anything
+                // else (truncated escape or non-hex characters) is malformed
+                // — reject the input rather than silently pass the `%` through.
+                if i + 3 > bytes.len() {
+                    return None;
+                }
                 let hi = (bytes[i + 1] as char).to_digit(16)?;
                 let lo = (bytes[i + 2] as char).to_digit(16)?;
                 out.push((hi * 16 + lo) as u8);
@@ -46,6 +59,18 @@ pub struct UserContext {
 /// Marker inserted into request extensions when the legacy token is used.
 #[derive(Debug, Clone)]
 pub struct LegacyTokenContext;
+
+/// Admin gate: allow only requests authenticated with the legacy/super token.
+///
+/// Session-token users (user-account mode) are rejected with 403. Must be
+/// layered AFTER [`auth_middleware`] so the context is already populated.
+pub async fn require_admin(request: Request, next: Next) -> Response {
+    if request.extensions().get::<LegacyTokenContext>().is_some() {
+        next.run(request).await
+    } else {
+        (StatusCode::FORBIDDEN, "Admin token required").into_response()
+    }
+}
 
 /// Authentication middleware supporting two modes:
 ///
@@ -104,11 +129,13 @@ pub async fn auth_middleware(
                     let username = username.to_string();
                     drop(ts);
                     if let Some(ref user_store) = state.user_store {
-                        if let Some(user) = user_store.find_user(&username) {
+                        let store = user_store.read().await;
+                        if let Some(user) = store.find_user(&username) {
                             let ctx = UserContext {
                                 username,
                                 home_dir: PathBuf::from(&user.home_dir),
                             };
+                            drop(store);
                             let mut request = request;
                             request.extensions_mut().insert(ctx);
                             return next.run(request).await;
@@ -118,8 +145,10 @@ pub async fn auth_middleware(
                 // Fall through to check legacy token before rejecting.
             }
 
-            // Legacy token: acts as a super token in both modes.
-            if token == state.config.token {
+            // Legacy token: acts as a super token in both modes. Use a
+            // constant-time comparison so we don't leak a prefix of the
+            // configured token via request-timing side channels.
+            if constant_time_eq(token.as_bytes(), state.config.token.as_bytes()) {
                 let mut request = request;
                 request.extensions_mut().insert(LegacyTokenContext);
                 return next.run(request).await;

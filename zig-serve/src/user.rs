@@ -42,14 +42,15 @@ impl UserStore {
         Ok(store)
     }
 
-    /// Save user store to disk.
+    /// Save user store to disk. File is written with mode 0600 on Unix so
+    /// the bcrypt hashes are not world-readable.
     pub fn save(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let path = Self::path();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let content = serde_json::to_string_pretty(self)?;
-        std::fs::write(&path, content)?;
+        crate::tls::write_secret_file(&path, content.as_bytes())?;
         Ok(())
     }
 

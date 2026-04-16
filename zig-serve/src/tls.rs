@@ -53,12 +53,36 @@ pub fn ensure_self_signed_cert(
     let cert = params.self_signed(&key_pair)?;
 
     std::fs::write(&cert_path, cert.pem())?;
-    std::fs::write(&key_path, key_pair.serialize_pem())?;
+    write_secret_file(&key_path, key_pair.serialize_pem().as_bytes())?;
 
     Ok((
         cert_path.to_string_lossy().into_owned(),
         key_path.to_string_lossy().into_owned(),
     ))
+}
+
+/// Write secret material (TLS key, user database) with the tightest
+/// permissions the platform supports — on Unix, mode `0600`.
+pub fn write_secret_file(path: &std::path::Path, bytes: &[u8]) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        opts.mode(0o600);
+    }
+    let mut file = opts.open(path)?;
+    file.write_all(bytes)?;
+    // Re-assert mode on Unix in case the file already existed and had
+    // wider permissions. `OpenOptions::mode` only applies on create.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let perms = std::fs::Permissions::from_mode(0o600);
+        std::fs::set_permissions(path, perms)?;
+    }
+    Ok(())
 }
 
 /// Resolve TLS parameters from the serve config.

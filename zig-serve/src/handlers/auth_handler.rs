@@ -40,15 +40,22 @@ pub async fn login(
         }
     };
 
-    match user_store.authenticate(&req.username, &req.password) {
-        Some(user) => {
-            let token = token_store.write().await.create_token(&req.username);
+    let authenticated = {
+        let store = user_store.read().await;
+        store
+            .authenticate(&req.username, &req.password)
+            .map(|u| (u.username.clone(), u.home_dir.clone()))
+    };
+
+    match authenticated {
+        Some((username, home_dir)) => {
+            let token = token_store.write().await.create_token(&username);
             (
                 StatusCode::OK,
                 Json(LoginResponse {
                     token,
-                    username: user.username.clone(),
-                    home_dir: user.home_dir.clone(),
+                    username,
+                    home_dir,
                 }),
             )
                 .into_response()

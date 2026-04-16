@@ -36,6 +36,9 @@ hex = "0.4"
 # Rate limiting
 governor = "0.8"
 
+# Constant-time byte comparison for token checks.
+subtle = "2"
+
 # SSE streaming
 tokio-stream = { version = "0.1", features = ["sync"] }
 async-stream = "0.3"

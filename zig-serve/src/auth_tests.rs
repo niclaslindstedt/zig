@@ -124,6 +124,80 @@ async fn skips_auth_for_health() {
     assert_eq!(resp.status(), StatusCode::OK);
 }
 
+fn admin_router(state: AppState) -> Router {
+    Router::new()
+        .route("/admin", get(dummy_handler))
+        .layer(axum::middleware::from_fn(super::require_admin))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            super::auth_middleware,
+        ))
+        .with_state(state)
+}
+
+#[tokio::test]
+async fn admin_gate_accepts_legacy_token() {
+    let state = test_state("secret");
+    let app = admin_router(state);
+
+    let req = Request::builder()
+        .uri("/admin")
+        .header("authorization", "Bearer secret")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn admin_gate_rejects_session_token() {
+    use crate::session_token::TokenStore;
+    use crate::user::{UserEntry, UserStore};
+    use tokio::sync::RwLock;
+
+    let mut token_store = TokenStore::new();
+    let session_token = token_store.create_token("alice");
+
+    let user_store = UserStore {
+        users: vec![UserEntry {
+            username: "alice".into(),
+            password_hash: "unused".into(),
+            home_dir: "/home/alice".into(),
+            created_at: "2026-01-01T00:00:00Z".into(),
+            enabled: true,
+        }],
+    };
+
+    let state = AppState {
+        config: Arc::new(ServeConfig {
+            host: "127.0.0.1".into(),
+            port: 3000,
+            token: "legacy-token".into(),
+            shutdown_timeout: Duration::from_secs(30),
+            tls: false,
+            tls_cert: None,
+            tls_key: None,
+            rate_limit: None,
+            web: false,
+        }),
+        user_store: Some(Arc::new(RwLock::new(user_store))),
+        token_store: Some(Arc::new(RwLock::new(token_store))),
+        web_chats: Arc::new(Mutex::new(HashMap::new())),
+    };
+
+    let app = admin_router(state);
+
+    let req = Request::builder()
+        .uri("/admin")
+        .header("authorization", format!("Bearer {session_token}"))
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = app.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+}
+
 #[tokio::test]
 async fn user_account_mode_validates_session_token() {
     use crate::session_token::TokenStore;
@@ -156,7 +230,7 @@ async fn user_account_mode_validates_session_token() {
             rate_limit: None,
             web: false,
         }),
-        user_store: Some(Arc::new(user_store)),
+        user_store: Some(Arc::new(RwLock::new(user_store))),
         token_store: Some(Arc::new(RwLock::new(token_store))),
         web_chats: Arc::new(Mutex::new(HashMap::new())),
     };

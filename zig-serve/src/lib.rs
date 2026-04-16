@@ -13,11 +13,16 @@ pub mod user;
 mod web;
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use config::ServeConfig;
 use state::AppState;
 use tokio::sync::{Mutex, RwLock};
+
+/// How often the background task prunes expired session tokens.
+const TOKEN_CLEANUP_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 /// Start the zig API server.
 pub async fn start_server(
@@ -32,7 +37,7 @@ pub async fn start_server(
         let store = user::UserStore::load()?;
         eprintln!("user accounts mode: loaded {} user(s)", store.users.len());
         (
-            Some(Arc::new(store)),
+            Some(Arc::new(RwLock::new(store))),
             Some(Arc::new(RwLock::new(session_token::TokenStore::new()))),
         )
     } else {
@@ -46,9 +51,23 @@ pub async fn start_server(
     let state = AppState {
         config: Arc::new(config),
         user_store,
-        token_store,
+        token_store: token_store.clone(),
         web_chats: Arc::new(Mutex::new(HashMap::new())),
     };
+
+    // Background task: prune expired session tokens so a long-running server
+    // cannot accumulate dead entries indefinitely (memory-exhaustion DoS).
+    if let Some(ts) = token_store {
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(TOKEN_CLEANUP_INTERVAL);
+            // Skip the immediate first tick so startup isn't slowed.
+            tick.tick().await;
+            loop {
+                tick.tick().await;
+                ts.write().await.cleanup_expired();
+            }
+        });
+    }
 
     let router = router::build_router(state);
 
@@ -59,11 +78,10 @@ pub async fn start_server(
     };
     let print_web_url = || {
         if web_enabled {
+            eprintln!("Web UI:  {scheme}://{addr}/");
             eprintln!(
-                "Web UI:  {scheme}://{addr}/?token={token}",
-                scheme = scheme,
-                addr = addr,
-                token = token,
+                "         (sign in via the UI; token is printed once below \
+                 and not embedded in the URL)"
             );
         }
     };
@@ -85,7 +103,7 @@ pub async fn start_server(
 
         axum_server::bind_rustls(addr.parse()?, tls_config)
             .handle(handle)
-            .serve(router.into_make_service())
+            .serve(router.into_make_service_with_connect_info::<SocketAddr>())
             .await?;
     } else {
         eprintln!("zig serve listening on http://{addr}");
@@ -93,9 +111,12 @@ pub async fn start_server(
         print_web_url();
 
         let listener = tokio::net::TcpListener::bind(&addr).await?;
-        axum::serve(listener, router)
-            .with_graceful_shutdown(shutdown::shutdown_signal())
-            .await?;
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .with_graceful_shutdown(shutdown::shutdown_signal())
+        .await?;
     }
 
     eprintln!("server stopped");

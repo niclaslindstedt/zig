@@ -1,19 +1,77 @@
 use std::sync::Arc;
 
 use axum::Router;
+use axum::http::{HeaderValue, Method, header};
 use axum::middleware;
 use axum::routing::{get, post};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::auth;
+use crate::config::ServeConfig;
 use crate::handlers::{auth_handler, chat, health, man, sessions, user_handler, workflows};
 use crate::rate_limit;
 use crate::state::AppState;
 use crate::web;
 
+/// Build the CORS layer. We intentionally do **not** use
+/// [`CorsLayer::permissive`] because the API is authenticated: any origin
+/// that can read an `Authorization` bearer response would otherwise be able
+/// to issue authenticated cross-origin requests on behalf of the user.
+///
+/// Allowed origins default to the server's own http/https host + localhost
+/// variants so the bundled web UI works out of the box.
+fn build_cors_layer(config: &ServeConfig) -> CorsLayer {
+    let mut origins: Vec<HeaderValue> = Vec::new();
+    let port = config.port;
+
+    for host in ["127.0.0.1", "localhost", "[::1]"] {
+        for scheme in ["http", "https"] {
+            if let Ok(v) = HeaderValue::from_str(&format!("{scheme}://{host}:{port}")) {
+                origins.push(v);
+            }
+        }
+    }
+
+    if !matches!(
+        config.host.as_str(),
+        "127.0.0.1" | "localhost" | "0.0.0.0" | "::" | "[::]" | "[::1]"
+    ) {
+        let scheme = if config.tls || config.tls_cert.is_some() {
+            "https"
+        } else {
+            "http"
+        };
+        if let Ok(v) = HeaderValue::from_str(&format!("{scheme}://{}:{}", config.host, port)) {
+            origins.push(v);
+        }
+    }
+
+    CorsLayer::new()
+        .allow_origin(origins)
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+        .allow_credentials(true)
+}
+
 pub fn build_router(state: AppState) -> Router {
     let web_enabled = state.config.web;
+
+    // User management routes are gated with an extra admin middleware so
+    // that only the legacy/super token can touch them (session-token users
+    // get 403).
+    let user_routes: Router<AppState> = Router::new()
+        .route("/api/v1/users", get(user_handler::list))
+        .route("/api/v1/users/add", post(user_handler::add))
+        .route("/api/v1/users/remove", post(user_handler::remove))
+        .route("/api/v1/users/passwd", post(user_handler::passwd))
+        .layer(middleware::from_fn(auth::require_admin));
 
     let mut app = Router::new()
         // Health (no auth)
@@ -41,11 +99,7 @@ pub fn build_router(state: AppState) -> Router {
         // Manpages
         .route("/api/v1/man", get(man::list))
         .route("/api/v1/man/{topic}", get(man::show))
-        // User management
-        .route("/api/v1/users", get(user_handler::list))
-        .route("/api/v1/users/add", post(user_handler::add))
-        .route("/api/v1/users/remove", post(user_handler::remove))
-        .route("/api/v1/users/passwd", post(user_handler::passwd));
+        .merge(user_routes);
 
     // Web-chat routes (only when --web is enabled).
     if web_enabled {
@@ -79,7 +133,9 @@ pub fn build_router(state: AppState) -> Router {
             .route("/{*path}", get(web::asset));
     }
 
-    app.layer(CorsLayer::permissive())
+    let cors = build_cors_layer(&state.config);
+
+    app.layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
