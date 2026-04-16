@@ -127,6 +127,7 @@ zig run ./workflows/deploy.zwf
 zig run code-review "focus on the authentication module"
 zig run code-review --no-resources   # skip injecting the <resources> block
 zig run code-review --no-memory      # skip injecting the <memory> block
+zig run code-review --no-storage     # skip injecting the <storage> block
 ```
 
 ### `zig listen`
@@ -307,6 +308,7 @@ zig docs patterns
 | `--active` | | `listen` | Tail the most recently active (still-running) session |
 | `--no-resources` | | `run` | Skip the `<resources>` block injected into each step's system prompt |
 | `--no-memory` | | `run` | Skip the `<memory>` block injected into each step's system prompt |
+| `--no-storage` | | `run` | Skip the `<storage>` block and do not create storage directories |
 | `--global` | | `resources add/delete/list` | Target the global tier (`~/.zig/resources/_shared/`) |
 | `--cwd` | | `resources add/delete/list` | Target the project tier (`<git-root>/.zig/resources/`) |
 | `--workflow <name>` | | `resources`, `memory` | Restrict to a specific workflow's tier |
@@ -337,7 +339,7 @@ A `.zwf` file is a TOML workflow definition that describes a DAG of AI agent ste
 - **Variables & data flow** — Shared state between steps via `${var}` references, `saves` selectors, input bindings (`from = "prompt"`), and variable constraints (required, min/max, patterns, allowed values)
 - **Resources** — Reference files advertised to step agents through the system prompt (paths only — agents read them on demand). Inline `resources = [...]` is merged with global (`~/.zig/resources/`) and project (`<git-root>/.zig/resources/`) tiers at run time
 - **Memory** — A managed scratch pad of prior notes, summaries, and artifacts exposed to steps via a `<memory>` block in the system prompt. Entries live under `~/.zig/memory/` (global / per-workflow) and `<git-root>/.zig/memory/` (project), and can be injected, searched, or skipped per run with `--no-memory`
-- **Storage** — Writable working data that steps build up across a run. Each `[storage.<name>]` entry declares a folder or file with a path, description, and optional file hints. Paths resolve relative to `<cwd>/.zig/`; absolute paths are used verbatim. Steps see all declared storage by default, or can scope to a subset with `storage = ["name1", "name2"]`. Complements `vars` (scalar state) and `resources` (read-only reference files)
+- **Storage** — Structured output files that steps produce and consume across a run. Each `[storage.<name>]` entry declares a folder or file with a path, description, and optional file hints. Paths resolve relative to `<cwd>/.zig/`; absolute paths are used verbatim. Steps see all declared storage by default, or can scope to a subset with `storage = ["name1", "name2"]`. Skip with `--no-storage`
 - **Conditions** — Expressions that control whether steps run (`var < 8`, `status == "done"`)
 - **Step commands** — Steps can invoke different zag commands: `run` (default), `review`, `plan`, `pipe`, `collect`, `summary`
 - **Isolation** — Steps can run in isolated git worktrees or Docker sandboxes

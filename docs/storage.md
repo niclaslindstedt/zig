@@ -1,15 +1,30 @@
 # Storage
 
 Storage is a first-class workflow concept for **writable, structured working
-data** that a workflow's steps produce and consume. It sits alongside:
+data** that a workflow's steps produce and consume — essentially the output
+files an agent creates over the course of a run.
 
-- **`vars`** — small scalar state flowing between steps.
-- **`resources`** — read-only reference files advertised to the agent.
+## How storage fits with other data concepts
 
-Neither fits the case where a workflow wants a growing body of files that
-later steps build on. A book-writing workflow, for example, wants to keep
-character sheets, world-building notes, summaries, and a consistency bible
-around as the run progresses — that is what storage is for.
+Zig has four distinct data concepts, each serving a different purpose:
+
+| Concept | Purpose | Lifetime | Read/Write |
+|---------|---------|----------|------------|
+| **Variables** | Short-lived scalar state passed between steps | Single run | Read/Write |
+| **Resources** | Read-only reference files advertised to agents | Permanent (ship with workflow) | Read-only |
+| **Storage** | Structured files that agents produce and consume | Persists across runs | Read/Write |
+| **Memory** | Anything agents want to remember across runs | Persists across runs | Read/Write |
+
+- **Variables** are small key-value pairs (`${var}`) used to pass state between steps within a single run — a score, a status, a file path.
+- **Resources** are read-only reference files (a style guide, API docs, a CV) that agents are told about so they can read them on demand. They ship with the workflow.
+- **Storage** is the structured output — folders and files that steps create, grow, and build upon. A book workflow's `chapters/` folder, a research workflow's `summaries/` folder, a code review's `reports/` directory.
+- **Memory** is a scratch pad of accumulated knowledge — notes, observations, and lessons learned that agents carry from one run to the next.
+
+Neither variables (too small) nor resources (read-only) fit the case where a
+workflow wants a growing body of files that later steps build on. A
+book-writing workflow, for example, wants to keep character sheets,
+world-building notes, summaries, and a consistency bible around as the run
+progresses — that is what storage is for.
 
 ## Declaring storage
 
@@ -142,6 +157,24 @@ interpose.
   previous runs' data persists across invocations by default.
 - There is no automatic cleanup. If you want a clean slate, delete the
   relevant paths under `.zig/` yourself.
+
+## Disabling storage at runtime
+
+Pass `--no-storage` to `zig run` to suppress storage entirely for a single
+invocation:
+
+```bash
+zig run my-workflow --no-storage
+```
+
+When `--no-storage` is active:
+
+- Storage directories and files are **not** created on disk.
+- The `<storage>` block is omitted from every step's system prompt.
+- Step sandbox directories are not expanded for storage paths.
+
+This is useful for dry runs, debugging, or when you want to run a workflow
+that declares storage without actually writing to disk.
 
 ## Backends
 
