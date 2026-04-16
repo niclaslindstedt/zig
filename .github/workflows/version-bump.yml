@@ -14,12 +14,13 @@ on:
           - minor
           - major
 
-permissions:
-  contents: write
+permissions: {}
 
 jobs:
   create-release-tag:
     name: create release tag
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
