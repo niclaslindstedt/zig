@@ -19,4 +19,4 @@ thiserror = "2"
 toml = "0.8"
 tempfile = "3"
 uuid = { version = "1", features = ["v4"] }
-zip = "2"
+zip = "7"
