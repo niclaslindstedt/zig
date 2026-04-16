@@ -75,6 +75,12 @@ export interface WorkflowMeta {
    * form.
    */
   resources: ResourceSpec[];
+  /**
+   * Memory injection mode: `"all"` (default), `"global"`, or `"none"`.
+   * Controls which memory tiers are injected into step system prompts.
+   * Individual steps can override this with their own `memory` field.
+   */
+  memory?: string;
 }
 
 /**
@@ -211,6 +217,12 @@ export interface Step {
    * Names must match keys in the workflow-level `storage` table.
    */
   storage?: string[];
+
+  /**
+   * Per-step memory override: `"all"`, `"global"`, or `"none"`.
+   * If absent, inherits the workflow-level `memory` setting.
+   */
+  memory?: string;
 
   // --- Context injection ---
   /** Session IDs to inject as context (beyond depends_on). */

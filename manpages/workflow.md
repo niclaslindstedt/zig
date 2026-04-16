@@ -59,6 +59,7 @@ zig workflow show workflows/deploy.zwf
 - **Name** and **description**
 - **Tags** for discovery and filtering
 - **Variables** with types and defaults
+- **Storage** entries with types, paths, and descriptions
 - **Steps** with dependencies, conditions, and provider info
 
 ## zig workflow create
@@ -174,6 +175,30 @@ zig workflow delete my-workflow
 zig workflow delete workflows/old-workflow.zwf
 ```
 
+## Storage Fields
+
+Workflows can declare `[storage.<name>]` entries for writable, structured
+working data that steps produce and consume across a run. Storage complements
+`vars` (scalar state) and `resources` (read-only reference files).
+
+| Field         | Required | Description                                                  |
+|---------------|----------|--------------------------------------------------------------|
+| `type`        | No       | `"folder"` (default) or `"file"`                             |
+| `path`        | Yes      | Relative to `<cwd>/.zig/`; absolute paths (`~/`, `$HOME`) allowed |
+| `description` | No       | One-line description shown to the agent                      |
+| `hint`        | No       | Free-form guidance on what should live in this storage       |
+| `files`       | No       | Expected-file hints (folder-typed storage only)              |
+
+### Step-Level Scoping
+
+Steps can narrow their storage view with the `storage` field:
+
+- **Omitted** — step sees all declared storage entries.
+- `storage = []` — step sees none (the `<storage>` block is suppressed).
+- `storage = ["characters", "bible"]` — step sees only the named entries.
+
+Unknown names fail validation. See `zig docs storage` for the full model.
+
 ## Workflow Discovery
 
 Workflows are discovered in these locations:
@@ -224,3 +249,4 @@ zig workflow delete old-workflow
 
 - `zig docs zwf` — the `.zwf`/`.zwfz` file format
 - `zig docs patterns` — orchestration patterns
+- `zig docs storage` — writable structured working data for workflows

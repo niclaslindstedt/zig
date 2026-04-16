@@ -215,6 +215,7 @@ export function parseWorkflow(content: string): Workflow {
         else if (key === "provider") workflow.workflow.provider = String(value);
         else if (key === "model") workflow.workflow.model = String(value);
         else if (key === "resources") workflow.workflow.resources = toStringArray(value);
+        else if (key === "memory") workflow.workflow.memory = String(value);
         break;
 
       case "roles":
@@ -346,6 +347,7 @@ function assignStepField(step: Partial<Step>, key: string, value: unknown): void
     case "files": step.files = toStringArray(value); break;
     case "resources": step.resources = toStringArray(value); break;
     case "storage": step.storage = toStringArray(value); break;
+    case "memory": step.memory = String(value); break;
     case "context": step.context = toStringArray(value); break;
     case "plan": step.plan = String(value); break;
     case "mcp_config": step.mcp_config = String(value); break;
