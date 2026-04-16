@@ -55,6 +55,18 @@ Dependency flow: `zig-core ← zig-cli`
 
 Zig uses `zag` (specifically `zag-orch` orchestration primitives) behind the scenes. The `zig workflow create` command invokes zag in interactive mode to generate `.zwf` workflow files. The `zig run` command parses and executes `.zwf` / `.zwfz` files by delegating to zag orchestration.
 
+## Related repositories
+
+If you need to reference the source code of `zag` or `oss-spec` (the project structure spec this repo adheres to), clone them to a temporary folder:
+
+```bash
+git clone https://github.com/niclaslindstedt/zag.git /tmp/zag
+git clone https://github.com/niclaslindstedt/oss-spec.git /tmp/oss-spec
+```
+
+- **zag** — the orchestration engine that zig delegates to for agent interactions and workflow execution.
+- **oss-spec** — the project structure and conventions specification this repository follows.
+
 ## Development workflow
 
 1. Write code
