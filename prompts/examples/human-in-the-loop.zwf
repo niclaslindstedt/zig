@@ -13,6 +13,27 @@ name = "migration-review"
 description = "Generate a database migration plan with human approval before execution"
 tags = ["database", "migration", "human-in-the-loop"]
 version = "1.0.0"
+memory = "all"
+
+[[workflow.resources]]
+path = "./schema.sql"
+description = "Current database schema"
+required = true
+
+[[workflow.resources]]
+path = "./migration-conventions.md"
+description = "Migration naming and safety conventions"
+
+[storage.migrations]
+type = "folder"
+path = "./migrations"
+description = "Generated migration SQL files"
+hint = "Filename: NNNN_description.sql"
+
+[storage.runbooks]
+type = "file"
+path = "./runbook.md"
+description = "Execution checklist and rollback plan"
 
 [vars.change]
 type = "string"
@@ -52,6 +73,7 @@ Produce:
 Use PostgreSQL syntax. Prefer non-blocking operations (CREATE INDEX CONCURRENTLY, etc.)."""
 system_prompt = "You are a database reliability engineer who writes safe, reversible migrations. Always prefer online DDL operations that avoid table locks."
 auto_approve = true
+storage = ["migrations"]
 description = "Generate the migration plan and SQL"
 
 [[step]]
@@ -70,6 +92,7 @@ inject_context = true
 interactive = true
 json = true
 saves = { approved = "$.approved", review_notes = "$.review_notes" }
+memory = "none"
 description = "Human reviews and approves or rejects the migration"
 
 [[step]]
@@ -88,4 +111,5 @@ Generate:
 depends_on = ["human-review"]
 condition = "approved"
 system_prompt = "You are a database reliability engineer preparing a runbook for a production migration."
+storage = ["runbooks"]
 description = "Prepare the execution checklist (only runs if approved)"

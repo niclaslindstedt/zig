@@ -12,6 +12,16 @@ name = "feature-planner"
 description = "Decompose a feature request into sub-tasks, analyze each, and produce an implementation plan"
 tags = ["planning", "architecture", "hierarchical-decomposition"]
 version = "1.0.0"
+memory = "all"
+resources = [
+  "./architecture.md",
+  { path = "./adrs/", name = "adrs", description = "Architecture Decision Records" },
+]
+
+[storage.plans]
+type = "folder"
+path = "./plans"
+description = "Implementation plan artifacts and analysis outputs"
 
 [vars.feature]
 type = "string"
@@ -40,6 +50,7 @@ The sub-tasks should be:
 
 Format each sub-task clearly so a separate engineer could work on it independently."""
 system_prompt = "You are a staff engineer who excels at decomposing complex features into well-scoped, parallelizable work streams."
+storage = []
 description = "Break the feature into independent sub-tasks"
 
 [[step]]
@@ -57,6 +68,7 @@ Produce a concrete technical plan with specific recommendations."""
 depends_on = ["decompose"]
 inject_context = true
 system_prompt = "You are a database engineer specializing in schema design, migrations, and data architecture."
+storage = ["plans"]
 description = "Analyze data layer requirements"
 
 [[step]]
@@ -74,6 +86,7 @@ Produce a concrete technical plan with specific recommendations."""
 depends_on = ["decompose"]
 inject_context = true
 system_prompt = "You are a backend engineer specializing in API design, service architecture, and system integration."
+storage = ["plans"]
 description = "Analyze backend requirements"
 
 [[step]]
@@ -91,6 +104,7 @@ Produce a concrete technical plan with specific recommendations."""
 depends_on = ["decompose"]
 inject_context = true
 system_prompt = "You are a frontend engineer specializing in UI architecture, interaction design, and accessibility."
+storage = ["plans"]
 description = "Analyze frontend and UX requirements"
 
 [[step]]
@@ -109,4 +123,5 @@ Produce:
 depends_on = ["analyze-data", "analyze-backend", "analyze-frontend"]
 inject_context = true
 system_prompt = "You are a technical program manager who synthesizes engineering analyses into actionable implementation plans."
+memory = "global"
 description = "Combine all analyses into a unified implementation plan"

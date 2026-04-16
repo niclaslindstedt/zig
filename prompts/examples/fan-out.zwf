@@ -11,6 +11,12 @@ name = "pr-review"
 description = "Multi-perspective code review with parallel analysis and synthesis"
 tags = ["review", "code-quality", "fan-out"]
 version = "1.0.0"
+memory = "all"
+
+[storage.reports]
+type = "folder"
+path = "./reports"
+description = "Review reports from each analysis perspective"
 
 [vars.context]
 type = "string"
@@ -36,6 +42,7 @@ Focus on:
 Rate severity of each finding as critical, high, medium, or low."""
 system_prompt = "You are a senior application security engineer specializing in secure code review."
 auto_approve = true
+resources = ["./security-checklist.md"]
 description = "Review for security vulnerabilities"
 
 [[step]]
@@ -72,6 +79,7 @@ Focus on:
 Rate each finding as must-fix, should-fix, or nice-to-have."""
 system_prompt = "You are a staff engineer focused on long-term code health, API design, and developer experience."
 auto_approve = true
+resources = ["./coding-standards.md"]
 description = "Review for maintainability and code health"
 
 [[step]]
@@ -91,4 +99,6 @@ De-duplicate overlapping findings. When reviewers disagree, note the tension."""
 depends_on = ["security-review", "performance-review", "maintainability-review"]
 inject_context = true
 system_prompt = "You are a tech lead synthesizing feedback from multiple expert reviewers into a clear, actionable review."
+storage = ["reports"]
+memory = "none"
 description = "Combine all review findings into a unified report"
