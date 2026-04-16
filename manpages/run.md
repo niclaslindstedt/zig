@@ -5,7 +5,7 @@ Execute a `.zwf` or `.zwfz` workflow file.
 ## Synopsis
 
 ```
-zig run <workflow> [prompt] [--no-resources] [--no-memory]
+zig run <workflow> [prompt] [--no-resources] [--no-memory] [--no-storage]
 ```
 
 ## Description
@@ -28,6 +28,7 @@ run concurrently when their dependencies are satisfied.
 |------------------|----------------------------------------------------------------------------------------------|
 | `--no-resources` | Disable the `<resources>` block normally injected into each step's system prompt. Useful when you want a workflow to run with no global / cwd / inline resource advertisements at all. See `zig man resources`. |
 | `--no-memory`    | Disable the `<memory>` block normally injected into each step's system prompt. Suppresses all tiers of the memory scratch pad for this invocation. See `zig man memory`. |
+| `--no-storage`   | Disable the `<storage>` block normally injected into each step's system prompt. Storage directories are not created and no storage listings are shown to agents. See `zig docs storage`. |
 
 ## Workflow Resolution
 
@@ -105,6 +106,9 @@ zig run code-review --no-resources
 
 # Run without injecting memory scratch pad entries
 zig run code-review --no-memory
+
+# Run without injecting storage block or creating storage directories
+zig run code-review --no-storage
 ```
 
 ## Prerequisites

@@ -1,11 +1,26 @@
 # Memory
 
-Memory is a scratch pad of reference files that zig injects into each step's
-system prompt via a `<memory>` block so agents can accumulate and reuse
-knowledge across workflow runs. Unlike `step.files`, memory entries are never
-inlined into the user message — only their absolute paths, display names, and
-descriptions are advertised, and the agent decides which to read with its file
-tools on demand.
+Memory is a scratch pad for anything agents want to remember across workflow
+runs — notes, observations, lessons learned, summaries, and accumulated
+knowledge. Zig injects memory entries into each step's system prompt via a
+`<memory>` block so agents can reuse prior knowledge without the workflow
+author wiring it up explicitly.
+
+## How memory fits with other data concepts
+
+Zig has four distinct data concepts, each serving a different purpose:
+
+| Concept | Purpose | Lifetime | Read/Write |
+|---------|---------|----------|------------|
+| **Variables** | Short-lived scalar state passed between steps | Single run | Read/Write |
+| **Resources** | Read-only reference files advertised to agents | Permanent (ship with workflow) | Read-only |
+| **Storage** | Structured files that agents produce and consume | Persists across runs | Read/Write |
+| **Memory** | Anything agents want to remember across runs | Persists across runs | Read/Write |
+
+- **Variables** are small key-value pairs (`${var}`) used to pass state between steps within a single run — a score, a status, a file path.
+- **Resources** are read-only reference files (a style guide, API docs, a CV) that agents are told about so they can read them on demand. They ship with the workflow.
+- **Storage** is the structured output — folders and files that steps create, grow, and build upon. A book workflow's `chapters/` folder, a research workflow's `summaries/` folder.
+- **Memory** is a scratch pad of accumulated knowledge — notes, observations, and lessons learned that agents carry from one run to the next. Unlike storage (which is structured output), memory is for anything the agent finds worth remembering.
 
 Each memory entry has an **id**, metadata (name, description, tags, optional
 step scope), and a file on disk. Metadata is stored in a `.manifest` JSON file

@@ -14,7 +14,7 @@ pub mod templates {
     /// System prompt for `zig workflow create` — the interactive workflow design agent.
     pub fn create() -> &'static str {
         static STRIPPED: LazyLock<&'static str> =
-            LazyLock::new(|| super::strip_front_matter(include_str!("../prompts/create/2_1.md")));
+            LazyLock::new(|| super::strip_front_matter(include_str!("../prompts/create/2_2.md")));
         *STRIPPED
     }
 
@@ -29,7 +29,7 @@ pub mod templates {
     /// that need to produce or reason about `.zwf` files.
     pub fn config_sidecar() -> &'static str {
         static STRIPPED: LazyLock<&'static str> = LazyLock::new(|| {
-            super::strip_front_matter(include_str!("../prompts/config-sidecar/1_3.md"))
+            super::strip_front_matter(include_str!("../prompts/config-sidecar/1_4.md"))
         });
         *STRIPPED
     }

@@ -16,8 +16,15 @@ fn main() -> Result<()> {
             prompt,
             no_resources,
             no_memory,
+            no_storage,
         } => {
-            zig_core::run::run_workflow(&workflow, prompt.as_deref(), no_resources, no_memory)?;
+            zig_core::run::run_workflow(
+                &workflow,
+                prompt.as_deref(),
+                no_resources,
+                no_memory,
+                no_storage,
+            )?;
         }
         Command::Resources { command } => match command {
             ResourcesCommand::List {

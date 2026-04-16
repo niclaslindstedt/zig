@@ -33,11 +33,15 @@ const MAX_LOOP_ITERATIONS: usize = 100;
 ///
 /// Memory injection (the `<memory>` block) is similarly enabled by default;
 /// pass `disable_memory = true` to opt out via `zig run --no-memory`.
+///
+/// Storage injection (the `<storage>` block) is similarly enabled by default;
+/// pass `disable_storage = true` to opt out via `zig run --no-storage`.
 pub fn run_workflow(
     workflow_path: &str,
     user_prompt: Option<&str>,
     disable_resources: bool,
     disable_memory: bool,
+    disable_storage: bool,
 ) -> Result<(), ZigError> {
     check_zag()?;
 
@@ -56,6 +60,7 @@ pub fn run_workflow(
         source.dir(),
         disable_resources,
         disable_memory,
+        disable_storage,
     )
 }
 
@@ -1323,6 +1328,7 @@ fn execute(
     workflow_dir: &Path,
     disable_resources: bool,
     disable_memory: bool,
+    disable_storage: bool,
 ) -> Result<(), ZigError> {
     let mut vars = init_vars(workflow);
 
@@ -1345,7 +1351,9 @@ fn execute(
     // Build storage manager for this run. Paths resolve against <cwd>/.zig/;
     // absolute paths pass through. `ensure` is called on every declared item
     // so step agents can trust the paths exist before they run.
-    let storage_manager = if workflow.storage.is_empty() {
+    // When `--no-storage` is passed, skip building entirely so storage dirs
+    // are not created and the `<storage>` block is omitted from prompts.
+    let storage_manager = if disable_storage || workflow.storage.is_empty() {
         StorageManager::empty()
     } else {
         let backend = FilesystemBackend::from_cwd()?;

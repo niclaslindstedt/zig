@@ -37,6 +37,10 @@ pub enum Command {
         /// Disable the `<memory>` block injected into each step's system prompt
         #[arg(long)]
         no_memory: bool,
+
+        /// Disable the `<storage>` block injected into each step's system prompt
+        #[arg(long)]
+        no_storage: bool,
     },
 
     /// Manage workflows (list, show, create, delete)
@@ -402,11 +406,13 @@ mod tests {
                 prompt,
                 no_resources,
                 no_memory,
+                no_storage,
             } => {
                 assert_eq!(workflow, "my-workflow");
                 assert!(prompt.is_none());
                 assert!(!no_resources);
                 assert!(!no_memory);
+                assert!(!no_storage);
             }
             _ => panic!("expected Run command"),
         }
@@ -704,6 +710,15 @@ mod tests {
         let cli = Cli::try_parse_from(["zig", "run", "wf", "--no-memory"]).unwrap();
         match cli.command {
             Command::Run { no_memory, .. } => assert!(no_memory),
+            _ => panic!("expected Run command"),
+        }
+    }
+
+    #[test]
+    fn parse_run_with_no_storage() {
+        let cli = Cli::try_parse_from(["zig", "run", "wf", "--no-storage"]).unwrap();
+        match cli.command {
+            Command::Run { no_storage, .. } => assert!(no_storage),
             _ => panic!("expected Run command"),
         }
     }
