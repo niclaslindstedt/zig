@@ -604,4 +604,25 @@ storage = ["characters"]
     assert.equal(wf.storage!.bible.type, "file");
     assert.deepStrictEqual(wf.steps[0].storage, ["characters"]);
   });
+
+  it("should parse workflow-level and step-level memory", () => {
+    const toml = `
+[workflow]
+name = "mem-test"
+memory = "global"
+
+[[step]]
+name = "s1"
+prompt = "Do something"
+memory = "none"
+
+[[step]]
+name = "s2"
+prompt = "Do more"
+`;
+    const wf = parseWorkflow(toml);
+    assert.equal(wf.workflow.memory, "global");
+    assert.equal(wf.steps[0].memory, "none");
+    assert.equal(wf.steps[1].memory, undefined);
+  });
 });

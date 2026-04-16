@@ -287,7 +287,7 @@ zig man workflow
 
 ### `zig docs`
 
-Show conceptual documentation (zwf, patterns, variables, conditions, memory).
+Show conceptual documentation (zwf, patterns, variables, conditions, memory, storage).
 
 ```bash
 zig docs zwf
@@ -337,9 +337,11 @@ A `.zwf` file is a TOML workflow definition that describes a DAG of AI agent ste
 - **Variables & data flow** — Shared state between steps via `${var}` references, `saves` selectors, input bindings (`from = "prompt"`), and variable constraints (required, min/max, patterns, allowed values)
 - **Resources** — Reference files advertised to step agents through the system prompt (paths only — agents read them on demand). Inline `resources = [...]` is merged with global (`~/.zig/resources/`) and project (`<git-root>/.zig/resources/`) tiers at run time
 - **Memory** — A managed scratch pad of prior notes, summaries, and artifacts exposed to steps via a `<memory>` block in the system prompt. Entries live under `~/.zig/memory/` (global / per-workflow) and `<git-root>/.zig/memory/` (project), and can be injected, searched, or skipped per run with `--no-memory`
+- **Storage** — Writable working data that steps build up across a run. Each `[storage.<name>]` entry declares a folder or file with a path, description, and optional file hints. Paths resolve relative to `<cwd>/.zig/`; absolute paths are used verbatim. Steps see all declared storage by default, or can scope to a subset with `storage = ["name1", "name2"]`. Complements `vars` (scalar state) and `resources` (read-only reference files)
 - **Conditions** — Expressions that control whether steps run (`var < 8`, `status == "done"`)
 - **Step commands** — Steps can invoke different zag commands: `run` (default), `review`, `plan`, `pipe`, `collect`, `summary`
 - **Isolation** — Steps can run in isolated git worktrees or Docker sandboxes
+- **Path expansion** — `~/` and `$HOME` are expanded at runtime in `root`, `add_dirs`, `files`, `plan_output`, `mcp_config`, `plan`, and storage paths
 - **Advanced orchestration** — Race groups (first-to-finish cancels siblings), retry with model escalation, interactive sessions, file injection
 
 Workflows can also be packaged as zip archives (via `zig workflow pack`) that bundle the TOML definition with external prompt files.
@@ -371,6 +373,7 @@ zig-cli (binary crate)
   - `manage` — Workflow listing, display, and deletion (with `.zig/workflows/` discovery)
   - `resources` / `resources_manage` — Reference-file discovery and tier management
   - `memory` — Memory scratch pad (metadata store, search, and `<memory>` injection)
+  - `storage` — Storage provisioning and `<storage>` block injection for writable working data
   - `prompt` — Versioned prompt templates for workflow generation
   - `config` — Shared configuration (e.g. `~/.zig/serve.toml`)
   - `man` — Built-in manpage system
@@ -439,6 +442,7 @@ Conceptual and reference docs live in [`docs/`](docs/):
 - [`docs/variables.md`](docs/variables.md) — variables and data flow
 - [`docs/conditions.md`](docs/conditions.md) — conditional step routing
 - [`docs/memory.md`](docs/memory.md) — memory scratch pad model
+- [`docs/storage.md`](docs/storage.md) — writable storage declarations
 
 Built-in docs are also available at runtime via `zig docs <topic>` and `zig man <topic>`.
 

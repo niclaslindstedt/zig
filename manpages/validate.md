@@ -44,6 +44,9 @@ The validator performs the following checks:
 - **Plan fields** — `plan_output`, `instructions` require `command = "plan"`
 - **Pipe/collect/summary** — require `depends_on` (they operate on prior session outputs)
 - **Race groups** — steps in the same `race_group` must not depend on each other
+- **Storage paths** — every `[storage.*]` entry must have a non-empty `path`
+- **Storage file hints** — `files` hints are only valid for `type = "folder"` entries; file hint names must be bare filenames (no path separators)
+- **Storage scoping** — step `storage` entries must reference names declared in `[storage.*]`
 
 ## Exit Codes
 
@@ -66,3 +69,4 @@ zig validate workflows/deploy.zwf && echo "Valid!"
 
 - `zig docs zwf` — the `.zwf`/`.zwfz` file format
 - `zig docs variables` — variable declarations and references
+- `zig docs storage` — writable structured working data for workflows

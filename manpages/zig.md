@@ -74,10 +74,12 @@ zig docs patterns    # Orchestration patterns
 zig docs variables   # Variable system and data flow
 zig docs conditions  # Condition expressions
 zig docs memory      # Memory scratch pad and the <memory> block
+zig docs storage     # Writable structured working data for workflows
 ```
 
 ## See Also
 
 - `zig docs zwf` — the `.zwf`/`.zwfz` workflow format
 - `zig docs patterns` — orchestration patterns
+- `zig docs storage` — writable structured working data
 - zag documentation: https://github.com/niclaslindstedt/zag

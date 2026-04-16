@@ -43,18 +43,20 @@ The `workflow` argument is resolved in this order:
 ## Execution Model
 
 1. The workflow file is parsed and validated
-2. Variable constraints are checked before execution begins
-3. Steps are sorted into tiers using Kahn's algorithm (topological sort)
-4. Steps within the same tier run concurrently (auto-parallelized); a single-step tier runs sequentially with live output streaming
-5. Race groups within a tier run in parallel; the first to finish wins and the rest are cancelled
-6. Variable substitution (`${var}`) is applied to prompts and system prompts before execution
-7. Step outputs are captured and can be:
+2. Storage directories and files declared in `[storage.*]` are created on demand (idempotent — existing data is preserved)
+3. Variable constraints are checked before execution begins
+4. Steps are sorted into tiers using Kahn's algorithm (topological sort)
+5. Steps within the same tier run concurrently (auto-parallelized); a single-step tier runs sequentially with live output streaming
+6. Race groups within a tier run in parallel; the first to finish wins and the rest are cancelled
+7. Variable substitution (`${var}`) is applied to prompts and system prompts before execution
+8. A `<storage>` block listing in-scope storage entries is prepended to each step's system prompt (contents are refreshed per step so later steps see files written by earlier ones)
+9. Step outputs are captured and can be:
    - Injected into dependent steps via `inject_context`
    - Extracted into variables via `saves` selectors
-8. Conditions are evaluated to determine whether steps should run or be skipped
-9. The `next` field enables loops by jumping back to earlier steps
-10. A maximum of 100 loop iterations is enforced to prevent infinite loops
-11. Each run is logged as a zig session under `~/.zig/` — use `zig listen` to tail
+10. Conditions are evaluated to determine whether steps should run or be skipped
+11. The `next` field enables loops by jumping back to earlier steps
+12. A maximum of 100 loop iterations is enforced to prevent infinite loops
+13. Each run is logged as a zig session under `~/.zig/` — use `zig listen` to tail
 
 ## Failure Handling
 
@@ -65,6 +67,23 @@ Each step can configure its failure behavior with `on_failure`:
 | `fail`     | Abort the entire workflow (default)              |
 | `continue` | Skip the failed step and continue                |
 | `retry`    | Retry the step up to `max_retries` times         |
+
+## Storage
+
+When a workflow declares `[storage.*]` entries, zig creates the corresponding
+directories and files under `<cwd>/.zig/` before the first step executes
+(absolute paths like `~/books/current` are used verbatim). Creation is
+idempotent — existing data from previous runs is preserved.
+
+Each step receives a `<storage>` block in its system prompt listing the entries
+it can see. Steps can narrow their view with `storage = ["name", ...]`; omitting
+the field exposes all entries, and `storage = []` suppresses the block entirely.
+The `<storage>` block includes a live `<contents>` listing refreshed per step,
+so later steps see files that earlier steps just wrote. Agents read and write
+storage with their normal file tools — zig does not interpose.
+
+See `zig docs storage` for the full model (types, path resolution, hints, and
+step-level scoping).
 
 ## Examples
 
@@ -99,3 +118,4 @@ zig run code-review --no-memory
 - `zig docs conditions` — condition expressions
 - `zig man resources` — managing reference files for agents
 - `zig man memory` — managing the memory scratch pad for workflows
+- `zig docs storage` — writable structured working data for workflows

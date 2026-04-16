@@ -27,7 +27,7 @@ export interface StepField {
 
 // --- Data ---
 
-export const version = "0.6.0";
+export const version = "0.7.1";
 
 export const commands: CommandData[] = [
   {
@@ -270,6 +270,11 @@ export const stepFields: StepField[] = [
     "description": "Step-level reference files advertised in the system prompt. These are appended to the workflow-level `resources` for this specific step. Paths are resolved relative to the `.zwf` file's directory. See [`ResourceSpec`] for the accepted shapes."
   },
   {
+    "name": "storage",
+    "type": "Vec<String>?",
+    "description": "Which storage entries this step is exposed to. - `None` (field omitted) → step sees **all** declared storage. - `Some(vec![])` → step sees **no** storage (block is suppressed). - `Some(names)` → step sees only the named entries. Names must match keys in the workflow-level `[storage.*]` table; unknown names fail validation."
+  },
+  {
     "name": "memory",
     "type": "String?",
     "description": "Per-step memory override: `\"all\"`, `\"global\"`, or `\"none\"`. If absent, inherits the workflow-level `memory` setting."
@@ -348,4 +353,4 @@ export const stepFields: StepField[] = [
 
 export const varTypes: string[] = ["string","number","bool","json"];
 
-export const manpageTopics: string[] = ["listen","resources","run","serve","validate","workflow","zig"];
+export const manpageTopics: string[] = ["listen","memory","resources","run","serve","validate","workflow","zig"];
