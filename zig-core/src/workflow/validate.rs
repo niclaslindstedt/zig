@@ -282,6 +282,76 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
                 _ => {}
             }
         }
+
+        // Interactive-step guards. An interactive step hands the TTY to the
+        // agent for the duration of the step; anything that requires captured
+        // output, replay, or sibling execution is incompatible.
+        if step.interactive {
+            if step.race_group.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' is interactive and also sets race_group \
+                     (interactive steps cannot race — one human, one tty)",
+                    step.name
+                )));
+            }
+            if !step.saves.is_empty() {
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' is interactive but also sets saves \
+                     (interactive steps stream directly to the terminal — \
+                     nothing is captured to extract from)",
+                    step.name
+                )));
+            }
+            if step.on_failure.as_ref() == Some(&FailurePolicy::Retry) {
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' is interactive but also sets on_failure = \"retry\" \
+                     (interactive steps cannot be retried — human input can't be replayed)",
+                    step.name
+                )));
+            }
+            if step.max_retries.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' is interactive but also sets max_retries \
+                     (interactive steps cannot be retried)",
+                    step.name
+                )));
+            }
+            if step.json {
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' is interactive but also sets json = true \
+                     (json mode forces non-interactive execution in zag)",
+                    step.name
+                )));
+            }
+            if step.output.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' is interactive but also sets output \
+                     (an output format forces non-interactive execution in zag)",
+                    step.name
+                )));
+            }
+            if step.json_schema.is_some() {
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' is interactive but also sets json_schema \
+                     (json_schema implies non-interactive execution)",
+                    step.name
+                )));
+            }
+            if let Some(ref cmd) = step.command {
+                let cmd_name = match cmd {
+                    StepCommand::Review => "review",
+                    StepCommand::Plan => "plan",
+                    StepCommand::Pipe => "pipe",
+                    StepCommand::Collect => "collect",
+                    StepCommand::Summary => "summary",
+                };
+                errors.push(ZigError::Validation(format!(
+                    "step '{}' is interactive but also sets command = \"{cmd_name}\" \
+                     (only the default run command has an interactive TUI)",
+                    step.name
+                )));
+            }
+        }
     }
 
     // Check role definitions
@@ -338,11 +408,40 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
     validate_var_constraints(&workflow.vars, &mut errors);
 
     // Check for dependency cycles
-    if let Some(cycle) = detect_cycle(&workflow.steps) {
+    let has_cycle = if let Some(cycle) = detect_cycle(&workflow.steps) {
         errors.push(ZigError::Validation(format!(
             "dependency cycle detected: {}",
             cycle.join(" -> ")
         )));
+        true
+    } else {
+        false
+    };
+
+    // Interactive tier-isolation: any tier containing an interactive step
+    // must contain exactly one step. Only run this once we know the DAG is
+    // acyclic, since topological_sort errors on cycles.
+    if !has_cycle && workflow.steps.iter().any(|s| s.interactive) {
+        if let Ok(tiers) = crate::run::topological_sort(&workflow.steps) {
+            for tier in &tiers {
+                let has_interactive = tier.iter().any(|s| s.interactive);
+                if has_interactive && tier.len() > 1 {
+                    let names: Vec<&str> = tier.iter().map(|s| s.name.as_str()).collect();
+                    let interactive_names: Vec<&str> = tier
+                        .iter()
+                        .filter(|s| s.interactive)
+                        .map(|s| s.name.as_str())
+                        .collect();
+                    errors.push(ZigError::Validation(format!(
+                        "interactive step(s) [{}] share a tier with sibling(s) [{}] \
+                         (an interactive step must be alone in its tier — add a \
+                         depends_on chain so siblings run before or after it)",
+                        interactive_names.join(", "),
+                        names.join(", ")
+                    )));
+                }
+            }
+        }
     }
 
     if errors.is_empty() {

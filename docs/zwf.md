@@ -186,7 +186,7 @@ Each step is one zag agent invocation.
 
 | Field            | Required | Default | Description                              |
 |------------------|----------|---------|------------------------------------------|
-| `interactive`    | No       | `false` | Spawn a long-lived interactive session   |
+| `interactive`    | No       | `false` | Hand the terminal to the agent for this step (see below) |
 | `auto_approve`   | No       | `false` | Auto-approve all agent actions           |
 | `root`           | No       |         | Working directory override (`~/` and `$HOME` are expanded) |
 | `add_dirs`       | No       | `[]`    | Additional directories in agent scope (`~/` and `$HOME` are expanded) |
@@ -195,6 +195,48 @@ Each step is one zag agent invocation.
 | `resources`      | No       | `[]`    | Reference files advertised to this step's agent (see Resources below) |
 | `storage`        | No       |         | Storage entries in scope for this step (omit = all; `[]` = none; list = named — see `zig docs storage`) |
 | `memory`         | No       |         | Memory injection override: `all`, `global`, or `none` (inherits workflow default) |
+
+##### Interactive Steps
+
+Setting `interactive = true` hands the terminal to the agent for that step:
+stdin, stdout, and stderr are all inherited, so the agent's TUI can render
+normally and you can chat with it. The workflow pauses until you exit the
+session (e.g. `/exit` or `Ctrl+D`), then resumes with downstream steps.
+
+An interactive step **must be alone in its tier**. Because the step occupies
+the terminal and waits for human input, it cannot share a tier with sibling
+steps, run in a `race_group`, be retried on failure, or produce captured
+output.
+
+The following combinations are rejected at validation time:
+
+- `race_group = "..."` — one human, one tty
+- `saves = { ... }` — interactive output streams to the terminal, not a buffer
+- `on_failure = "retry"` / `max_retries = N` — human input can't be replayed
+- `json = true`, `output = "..."`, `json_schema = "..."` — these force
+  non-interactive mode in `zag`
+- `command = "review" | "plan" | "pipe" | "collect" | "summary"` — only the
+  default `run` command has an interactive TUI
+
+If another step shares the same tier (i.e. the same dependency set), add a
+`depends_on` chain so it runs before or after the interactive step.
+
+```toml
+[[step]]
+name = "plan"
+prompt = "Draft a plan for ${goal}"
+
+[[step]]
+name = "review"
+prompt = "Let's talk through the plan before executing"
+depends_on = ["plan"]
+interactive = true
+
+[[step]]
+name = "execute"
+prompt = "Carry out the plan"
+depends_on = ["review"]
+```
 
 #### Context Injection
 

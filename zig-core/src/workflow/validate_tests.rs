@@ -1883,3 +1883,221 @@ storage = []
 
     assert!(validate(&wf).is_ok());
 }
+
+// ---------- Interactive step validation ----------
+
+#[test]
+fn valid_interactive_step_alone_in_tier() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "hitl"
+
+[[step]]
+name = "plan"
+prompt = "Draft a plan"
+
+[[step]]
+name = "review"
+prompt = "Let me weigh in"
+depends_on = ["plan"]
+interactive = true
+
+[[step]]
+name = "execute"
+prompt = "Execute the plan"
+depends_on = ["review"]
+"#,
+    )
+    .unwrap();
+
+    assert!(validate(&wf).is_ok());
+}
+
+#[test]
+fn error_interactive_with_race_group() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad"
+
+[[step]]
+name = "a"
+prompt = "A"
+interactive = true
+race_group = "x"
+
+[[step]]
+name = "b"
+prompt = "B"
+race_group = "x"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.to_string().contains("cannot race")),
+        "expected race_group rejection, got: {errors:?}"
+    );
+}
+
+#[test]
+fn error_interactive_with_saves() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad"
+
+[vars.plan]
+type = "string"
+
+[[step]]
+name = "a"
+prompt = "A"
+interactive = true
+saves = { plan = "$" }
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("nothing is captured")),
+        "expected saves rejection, got: {errors:?}"
+    );
+}
+
+#[test]
+fn error_interactive_with_retry() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad"
+
+[[step]]
+name = "a"
+prompt = "A"
+interactive = true
+on_failure = "retry"
+max_retries = 2
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    let joined = errors
+        .iter()
+        .map(|e| e.to_string())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        joined.contains("cannot be retried"),
+        "expected retry rejection, got:\n{joined}"
+    );
+}
+
+#[test]
+fn error_interactive_with_json() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad"
+
+[[step]]
+name = "a"
+prompt = "A"
+interactive = true
+json = true
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("json mode forces")),
+        "expected json rejection, got: {errors:?}"
+    );
+}
+
+#[test]
+fn error_interactive_with_output_format() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad"
+
+[[step]]
+name = "a"
+prompt = "A"
+interactive = true
+output = "json"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("output format")),
+        "expected output-format rejection, got: {errors:?}"
+    );
+}
+
+#[test]
+fn error_interactive_with_non_default_command() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad"
+
+[[step]]
+name = "a"
+prompt = "A"
+interactive = true
+command = "review"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("only the default run command")),
+        "expected command rejection, got: {errors:?}"
+    );
+}
+
+#[test]
+fn error_interactive_shares_tier_with_sibling() {
+    let wf = parse(
+        r#"
+[workflow]
+name = "bad"
+
+[[step]]
+name = "chat"
+prompt = "Chat"
+interactive = true
+
+[[step]]
+name = "other"
+prompt = "Also runs at the start"
+"#,
+    )
+    .unwrap();
+
+    let errors = validate(&wf).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.to_string().contains("alone in its tier")),
+        "expected tier-sharing rejection, got: {errors:?}"
+    );
+}
