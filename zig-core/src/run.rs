@@ -9,6 +9,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::config::ZigConfig;
+use crate::dry_run::{DryRunContext, DryRunFormat};
 use crate::error::ZigError;
 use crate::memory::{MemoryCollector, render_memory_block};
 use crate::paths::expand_path;
@@ -36,14 +37,25 @@ const MAX_LOOP_ITERATIONS: usize = 100;
 ///
 /// Storage injection (the `<storage>` block) is similarly enabled by default;
 /// pass `disable_storage = true` to opt out via `zig run --no-storage`.
+///
+/// When `dry_run = true`, the workflow is parsed, validated, and its plan is
+/// printed in the requested `format` — no `zag` invocation, session log,
+/// storage creation, or memory write occurs. The three `disable_*` flags are
+/// respected and surface in the plan output. `check_zag()` is skipped so a
+/// dry run is produceable on machines without `zag` installed.
+#[allow(clippy::too_many_arguments)]
 pub fn run_workflow(
     workflow_path: &str,
     user_prompt: Option<&str>,
     disable_resources: bool,
     disable_memory: bool,
     disable_storage: bool,
+    dry_run: bool,
+    dry_run_format: DryRunFormat,
 ) -> Result<(), ZigError> {
-    check_zag()?;
+    if !dry_run {
+        check_zag()?;
+    }
 
     let path = resolve_workflow_path(workflow_path)?;
     let (workflow, source) = parser::parse_workflow(&path)?;
@@ -61,6 +73,8 @@ pub fn run_workflow(
         disable_resources,
         disable_memory,
         disable_storage,
+        dry_run,
+        dry_run_format,
     )
 }
 
@@ -191,7 +205,7 @@ fn topological_sort(steps: &[Step]) -> Result<Vec<Vec<&Step>>, ZigError> {
 /// Supports dotted paths like `${result.score}` — the root variable name is
 /// looked up, and if its value is valid JSON, the nested path is traversed.
 /// Unknown variables are left as-is.
-fn substitute_vars(template: &str, vars: &HashMap<String, String>) -> String {
+pub(crate) fn substitute_vars(template: &str, vars: &HashMap<String, String>) -> String {
     let mut result = String::with_capacity(template.len());
     let mut rest = template;
 
@@ -264,7 +278,7 @@ fn json_path_lookup(value: &serde_json::Value, path: &str) -> String {
 /// base prompt are empty, returns `None` — keeping the current behavior when
 /// nothing is configured.
 #[allow(clippy::too_many_arguments)]
-fn resolve_role_system_prompt(
+pub(crate) fn resolve_role_system_prompt(
     step: &Step,
     roles: &HashMap<String, Role>,
     resources: &ResourceCollector,
@@ -363,7 +377,10 @@ fn load_file_defaults(
 /// - Numeric comparisons: `score < 8`, `retries <= max_retries`
 /// - String equality: `status == "done"`, `status != "pending"`
 /// - Truthy checks: `approved` (true if value is "true" or non-empty and non-zero)
-fn evaluate_condition(condition: &str, vars: &HashMap<String, String>) -> Result<bool, ZigError> {
+pub(crate) fn evaluate_condition(
+    condition: &str,
+    vars: &HashMap<String, String>,
+) -> Result<bool, ZigError> {
     let condition = condition.trim();
 
     // Try comparison operators (ordered by length to match `<=` before `<`)
@@ -432,7 +449,7 @@ fn is_truthy(value: &str) -> bool {
 
 /// Build the final prompt for a step, incorporating variable substitution,
 /// dependency outputs, and the user's context prompt.
-fn render_step_prompt(
+pub(crate) fn render_step_prompt(
     step: &Step,
     vars: &HashMap<String, String>,
     user_prompt: Option<&str>,
@@ -474,7 +491,7 @@ fn render_step_prompt(
 /// - `Collect` → `zag collect <session-ids...>`
 /// - `Summary` → `zag summary <session-ids...>`
 #[allow(clippy::too_many_arguments)]
-fn build_zag_args(
+pub(crate) fn build_zag_args(
     step: &Step,
     prompt: &str,
     workflow_name: &str,
@@ -1321,6 +1338,7 @@ fn init_vars(workflow: &Workflow) -> HashMap<String, String> {
 }
 
 /// Main execution loop for a validated workflow.
+#[allow(clippy::too_many_arguments)]
 fn execute(
     workflow: &Workflow,
     workflow_path: &std::path::Path,
@@ -1329,6 +1347,8 @@ fn execute(
     disable_resources: bool,
     disable_memory: bool,
     disable_storage: bool,
+    dry_run: bool,
+    dry_run_format: DryRunFormat,
 ) -> Result<(), ZigError> {
     let mut vars = init_vars(workflow);
 
@@ -1353,8 +1373,13 @@ fn execute(
     // so step agents can trust the paths exist before they run.
     // When `--no-storage` is passed, skip building entirely so storage dirs
     // are not created and the `<storage>` block is omitted from prompts.
+    // When `--dry-run` is passed, build the manager without `ensure` so the
+    // block still renders with correct paths but nothing touches disk.
     let storage_manager = if disable_storage || workflow.storage.is_empty() {
         StorageManager::empty()
+    } else if dry_run {
+        let backend = FilesystemBackend::from_cwd()?;
+        StorageManager::build_dry(&workflow.storage, backend)
     } else {
         let backend = FilesystemBackend::from_cwd()?;
         StorageManager::build(&workflow.storage, backend)?
@@ -1395,6 +1420,26 @@ fn execute(
     let wf_model = workflow.workflow.model.as_deref();
 
     let tiers = topological_sort(&workflow.steps)?;
+
+    if dry_run {
+        let ctx = DryRunContext {
+            workflow,
+            workflow_path,
+            workflow_dir,
+            vars: &vars,
+            user_prompt: effective_user_prompt,
+            roles: &workflow.roles,
+            resources: &resource_collector,
+            memory: &memory_collector,
+            storage: &storage_manager,
+            wf_provider,
+            wf_model,
+            disable_resources,
+            disable_memory,
+            disable_storage,
+        };
+        return crate::dry_run::print_plan(&ctx, &tiers, dry_run_format);
+    }
 
     eprintln!(
         "running workflow '{}' ({} steps in {} tiers)",

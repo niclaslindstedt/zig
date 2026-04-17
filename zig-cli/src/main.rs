@@ -17,6 +17,8 @@ fn main() -> Result<()> {
             no_resources,
             no_memory,
             no_storage,
+            dry_run,
+            format,
         } => {
             zig_core::run::run_workflow(
                 &workflow,
@@ -24,6 +26,8 @@ fn main() -> Result<()> {
                 no_resources,
                 no_memory,
                 no_storage,
+                dry_run,
+                format.to_core(),
             )?;
         }
         Command::Resources { command } => match command {

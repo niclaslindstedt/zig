@@ -6,6 +6,7 @@
 pub mod config;
 pub mod create;
 pub mod docs;
+pub mod dry_run;
 pub mod error;
 pub mod listen;
 pub mod man;
