@@ -41,6 +41,16 @@ pub enum Command {
         /// Disable the `<storage>` block injected into each step's system prompt
         #[arg(long)]
         no_storage: bool,
+
+        /// Print the plan of what would run — resolved prompts, conditions, and
+        /// the `zag` command line for each step — without invoking `zag` or
+        /// creating any session/storage/memory side effects
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Output format for `--dry-run`. Ignored unless `--dry-run` is set.
+        #[arg(long, value_enum, default_value_t = DryRunFormat::Text, requires = "dry_run")]
+        format: DryRunFormat,
     },
 
     /// Manage workflows (list, show, create, delete)
@@ -358,6 +368,28 @@ pub enum MemoryCommand {
     },
 }
 
+/// Output format for `zig run --dry-run`. Mirrors
+/// [`zig_core::dry_run::DryRunFormat`]; kept separate so `zig-core` doesn't
+/// need to depend on `clap`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum DryRunFormat {
+    /// Human-readable, grouped per tier and step
+    #[default]
+    Text,
+    /// Pretty-printed JSON (stable schema — see `docs/dry-run.md`)
+    Json,
+}
+
+impl DryRunFormat {
+    /// Map to the core enum used by `zig-core::run::run_workflow`.
+    pub fn to_core(self) -> zig_core::dry_run::DryRunFormat {
+        match self {
+            DryRunFormat::Text => zig_core::dry_run::DryRunFormat::Text,
+            DryRunFormat::Json => zig_core::dry_run::DryRunFormat::Json,
+        }
+    }
+}
+
 /// Orchestration pattern for workflow creation.
 #[derive(Clone, Debug, ValueEnum)]
 pub enum Pattern {
@@ -407,15 +439,55 @@ mod tests {
                 no_resources,
                 no_memory,
                 no_storage,
+                dry_run,
+                format,
             } => {
                 assert_eq!(workflow, "my-workflow");
                 assert!(prompt.is_none());
                 assert!(!no_resources);
                 assert!(!no_memory);
                 assert!(!no_storage);
+                assert!(!dry_run);
+                assert_eq!(format, DryRunFormat::Text);
             }
             _ => panic!("expected Run command"),
         }
+    }
+
+    #[test]
+    fn parse_run_with_dry_run() {
+        let cli = Cli::try_parse_from(["zig", "run", "wf", "--dry-run"]).unwrap();
+        match cli.command {
+            Command::Run {
+                dry_run, format, ..
+            } => {
+                assert!(dry_run);
+                assert_eq!(format, DryRunFormat::Text);
+            }
+            _ => panic!("expected Run command"),
+        }
+    }
+
+    #[test]
+    fn parse_run_with_dry_run_json() {
+        let cli =
+            Cli::try_parse_from(["zig", "run", "wf", "--dry-run", "--format", "json"]).unwrap();
+        match cli.command {
+            Command::Run {
+                dry_run, format, ..
+            } => {
+                assert!(dry_run);
+                assert_eq!(format, DryRunFormat::Json);
+            }
+            _ => panic!("expected Run command"),
+        }
+    }
+
+    #[test]
+    fn parse_run_format_without_dry_run_errors() {
+        // --format requires --dry-run
+        let result = Cli::try_parse_from(["zig", "run", "wf", "--format", "json"]);
+        assert!(result.is_err());
     }
 
     #[test]

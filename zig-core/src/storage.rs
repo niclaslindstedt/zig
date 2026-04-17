@@ -235,6 +235,31 @@ impl StorageManager {
         Ok(Self { items })
     }
 
+    /// Build a manager without calling `ensure` on its backends.
+    ///
+    /// Used by `--dry-run`: the `<storage>` block still renders with the
+    /// correct absolute paths, but no directories or files are created on
+    /// disk. The live `<contents>` listing will reflect whatever happens to
+    /// be on disk already (or be empty) rather than the state a real run
+    /// would produce — an acceptable trade-off for a preview.
+    pub fn build_dry(
+        storage: &std::collections::HashMap<String, StorageSpec>,
+        backend: FilesystemBackend,
+    ) -> Self {
+        let mut items = Vec::with_capacity(storage.len());
+        let mut names: Vec<&String> = storage.keys().collect();
+        names.sort();
+        for name in names {
+            let spec = storage[name].clone();
+            items.push(StorageItem {
+                name: name.clone(),
+                spec,
+                backend: Box::new(backend.clone()),
+            });
+        }
+        Self { items }
+    }
+
     /// Empty manager — used when a workflow declares no storage.
     pub fn empty() -> Self {
         Self { items: Vec::new() }

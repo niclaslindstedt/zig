@@ -128,7 +128,14 @@ zig run code-review "focus on the authentication module"
 zig run code-review --no-resources   # skip injecting the <resources> block
 zig run code-review --no-memory      # skip injecting the <memory> block
 zig run code-review --no-storage     # skip injecting the <storage> block
+zig run code-review --dry-run        # preview steps, prompts, and zag args without invoking zag
+zig run code-review --dry-run --format json | jq .   # stable JSON plan for tooling
 ```
+
+`--dry-run` prints the fully-resolved plan — rendered prompts, condition
+outcomes, the exact `zag` command line that would be spawned — without
+recording a session, creating storage, or invoking `zag`. See
+[`docs/dry-run.md`](docs/dry-run.md).
 
 ### `zig listen`
 

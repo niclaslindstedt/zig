@@ -9,6 +9,7 @@ mod pages {
     pub const CONDITIONS: &str = include_str!("../docs/conditions.md");
     pub const MEMORY: &str = include_str!("../docs/memory.md");
     pub const STORAGE: &str = include_str!("../docs/storage.md");
+    pub const DRY_RUN: &str = include_str!("../docs/dry-run.md");
 }
 
 /// All available docs topics in display order.
@@ -22,6 +23,7 @@ pub const TOPICS: &[(&str, &str)] = &[
         "storage",
         "Workflow storage — structured writable working data",
     ),
+    ("dry-run", "Preview a workflow run without invoking zag"),
 ];
 
 /// Look up a docs page by topic name.
@@ -35,6 +37,7 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "conditions" => Some(pages::CONDITIONS),
         "memory" => Some(pages::MEMORY),
         "storage" => Some(pages::STORAGE),
+        "dry-run" => Some(pages::DRY_RUN),
         _ => None,
     }
 }

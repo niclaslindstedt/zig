@@ -587,7 +587,7 @@ pub fn validate_var_values(
 }
 
 /// Extract `${var_name}` references from a prompt template.
-fn extract_var_refs(template: &str) -> Vec<String> {
+pub(crate) fn extract_var_refs(template: &str) -> Vec<String> {
     let mut refs = Vec::new();
     let mut rest = template;
     while let Some(start) = rest.find("${") {
@@ -609,7 +609,7 @@ fn extract_var_refs(template: &str) -> Vec<String> {
 ///
 /// Simple heuristic: split on whitespace and operators, keep identifiers
 /// that are not numeric literals, string literals, or comparison operators.
-fn extract_condition_vars(condition: &str) -> Vec<String> {
+pub(crate) fn extract_condition_vars(condition: &str) -> Vec<String> {
     let operators = ["==", "!=", "<", ">", "<=", ">=", "&&", "||", "!"];
     let keywords = ["true", "false"];
 

@@ -6,6 +6,7 @@ Execute a `.zwf` or `.zwfz` workflow file.
 
 ```
 zig run <workflow> [prompt] [--no-resources] [--no-memory] [--no-storage]
+                              [--dry-run] [--format <text|json>]
 ```
 
 ## Description
@@ -29,6 +30,8 @@ run concurrently when their dependencies are satisfied.
 | `--no-resources` | Disable the `<resources>` block normally injected into each step's system prompt. Useful when you want a workflow to run with no global / cwd / inline resource advertisements at all. See `zig man resources`. |
 | `--no-memory`    | Disable the `<memory>` block normally injected into each step's system prompt. Suppresses all tiers of the memory scratch pad for this invocation. See `zig man memory`. |
 | `--no-storage`   | Disable the `<storage>` block normally injected into each step's system prompt. Storage directories are not created and no storage listings are shown to agents. See `zig docs storage`. |
+| `--dry-run`      | Preview what the workflow would do without invoking `zag`. Prints each step's resolved prompt, system prompt, condition outcome, and the exact `zag` command-line that would be spawned. No sessions are recorded, no storage directories are created, and `zag` itself is not required on PATH. See `zig docs dry-run`. |
+| `--format <fmt>` | Output format for `--dry-run`: `text` (default, human-readable) or `json` (stable schema suitable for piping into `jq`). Only meaningful with `--dry-run`. |
 
 ## Workflow Resolution
 
@@ -109,11 +112,17 @@ zig run code-review --no-memory
 
 # Run without injecting storage block or creating storage directories
 zig run code-review --no-storage
+
+# Preview what the workflow would do, without invoking zag
+zig run code-review --dry-run
+
+# Emit a stable JSON plan for tooling / CI
+zig run code-review --dry-run --format json | jq '.tiers[].steps[].name'
 ```
 
 ## Prerequisites
 
-- `zag` must be installed and available on PATH
+- `zag` must be installed and available on PATH (not required for `--dry-run`)
 
 ## See Also
 
@@ -123,3 +132,4 @@ zig run code-review --no-storage
 - `zig man resources` — managing reference files for agents
 - `zig man memory` — managing the memory scratch pad for workflows
 - `zig docs storage` — writable structured working data for workflows
+- `zig docs dry-run` — preview workflow execution without running `zag`
