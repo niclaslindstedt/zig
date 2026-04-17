@@ -1,9 +1,5 @@
 /target
 
-# Agent CLI state directory — ignore runtime state, track skills
-.agent/*
-!.agent/skills
-
 .DS_Store
 
 # Coverage output
@@ -11,3 +7,5 @@
 
 .claude/*
 !.claude/skills
+
+CLAUDE.local.md
