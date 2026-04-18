@@ -145,7 +145,7 @@ pub fn resolve_workflow_path(workflow: &str) -> Result<PathBuf, ZigError> {
 /// Each tier contains steps whose dependencies are all in earlier tiers,
 /// meaning steps within a tier can (in principle) run in parallel.
 /// Uses Kahn's algorithm.
-fn topological_sort(steps: &[Step]) -> Result<Vec<Vec<&Step>>, ZigError> {
+pub(crate) fn topological_sort(steps: &[Step]) -> Result<Vec<Vec<&Step>>, ZigError> {
     let step_index: HashMap<&str, usize> = steps
         .iter()
         .enumerate()
@@ -651,6 +651,30 @@ pub(crate) fn build_zag_args(
     args
 }
 
+/// Spawn `zag` with all three stdio streams inherited so the agent's
+/// interactive TUI can take over the terminal. No output is captured,
+/// so `saves` cannot apply — validation rejects that combination.
+fn run_zag_interactive(
+    args: &[String],
+    step_name: &str,
+) -> Result<std::process::ExitStatus, ZigError> {
+    let mut cmd = Command::new("zag");
+    cmd.args(args)
+        .stdin(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+
+    let mut child = cmd.spawn().map_err(|e| {
+        ZigError::Zag(format!(
+            "failed to launch zag (interactive) for step '{step_name}': {e}"
+        ))
+    })?;
+
+    child
+        .wait()
+        .map_err(|e| ZigError::Execution(format!("failed to wait for child: {e}")))
+}
+
 /// Spawn `zag` and stream its stdout/stderr live to our stderr while
 /// also accumulating stdout into a buffer for `saves` extraction.
 ///
@@ -760,6 +784,18 @@ fn execute_step(
         workflow_model,
         extra_add_dirs,
     );
+
+    if step.interactive {
+        let status = run_zag_interactive(&args, &step.name)?;
+        if !status.success() {
+            return Err(ZigError::Execution(format!(
+                "step '{}' failed (exit {})",
+                step.name, status,
+            )));
+        }
+        return Ok(String::new());
+    }
+
     let (status, stdout) = run_zag_streaming(&args, &step.name, prefix, session)?;
 
     if !status.success() {
@@ -895,6 +931,12 @@ fn spawn_step(
     workflow_model: Option<&str>,
     extra_add_dirs: &[std::path::PathBuf],
 ) -> Result<std::process::Child, ZigError> {
+    debug_assert!(
+        !step.interactive,
+        "spawn_step called for interactive step '{}' — validation should reject \
+         interactive steps in parallel tiers and race groups",
+        step.name
+    );
     let args = build_zag_args(
         step,
         prompt,

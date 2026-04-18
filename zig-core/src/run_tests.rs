@@ -1803,3 +1803,28 @@ fn load_file_defaults_missing_file_returns_error() {
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("nonexistent.txt"));
 }
+
+#[test]
+fn build_zag_args_interactive_keeps_run_subcommand_and_omits_json() {
+    let mut s = step("chat");
+    s.interactive = true;
+    let args = build_zag_args(
+        &s,
+        "hello",
+        "wf",
+        None,
+        s.system_prompt.as_deref(),
+        None,
+        None,
+        &[],
+    );
+    // Default `run` subcommand (zag is interactive by default on `run`)
+    assert_eq!(args.first().map(String::as_str), Some("run"));
+    // Never emit --json for interactive steps — validation forbids json=true,
+    // and the interactive flag alone must not flip on non-interactive mode.
+    assert!(!args.contains(&"--json".to_string()));
+    assert!(!args.contains(&"-o".to_string()));
+    // Session metadata still applies.
+    assert!(args.contains(&"--name".to_string()));
+    assert!(args.contains(&"zig-wf-chat".to_string()));
+}
