@@ -9,7 +9,11 @@ use zig_core::resources_manage::{ResourceScope, ResourceTarget};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(run_cli(cli))
+}
 
+async fn run_cli(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Run {
             workflow,
@@ -28,7 +32,8 @@ fn main() -> Result<()> {
                 no_storage,
                 dry_run,
                 format.to_core(),
-            )?;
+            )
+            .await?;
         }
         Command::Resources { command } => match command {
             ResourcesCommand::List {
@@ -153,13 +158,14 @@ fn main() -> Result<()> {
                     name.as_deref(),
                     output.as_deref(),
                     pattern.as_ref().map(|p| p.as_core_name()),
-                )?;
+                )
+                .await?;
             }
             WorkflowCommand::Pack { path, output } => {
                 zig_core::pack::pack(&path, output.as_deref())?;
             }
             WorkflowCommand::Update { workflow } => {
-                zig_core::update::run_update(&workflow)?;
+                zig_core::update::run_update(&workflow).await?;
             }
         },
         Command::Validate { workflow } => {
@@ -230,8 +236,8 @@ fn main() -> Result<()> {
                 rate_limit,
                 web,
             };
-            let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(zig_serve::start_server(config))
+            zig_serve::start_server(config)
+                .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
         }
         Command::Listen {

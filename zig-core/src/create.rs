@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
 
 use serde::Serialize;
+use zag_agent::builder::AgentBuilder;
+use zag_agent::manpages;
 
 use crate::error::ZigError;
 use crate::prompt;
-use crate::run;
 
 /// Build the system prompt for the create agent by rendering the template
 /// with injected variables.
@@ -20,28 +20,18 @@ fn build_system_prompt(zag_help: &str, zag_orch: &str, examples_reference: &str)
     prompt::render(prompt::templates::create(), &vars)
 }
 
-/// Attempt to capture zag CLI reference text via `zag --help-agent`.
+/// Return the zag CLI reference text previously fetched via `zag --help-agent`.
+///
+/// Pulled directly from the embedded `zag-agent` manpages so no subprocess or
+/// installed `zag` binary is required.
 pub(crate) fn get_zag_help() -> String {
-    Command::new("zag")
-        .arg("--help-agent")
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .unwrap_or_else(|| "(zag --help-agent not available — zag may not be installed)".into())
+    manpages::HELP_AGENT.to_string()
 }
 
-/// Attempt to capture zag orchestration reference via `zag man orchestration`.
+/// Return the zag orchestration reference, previously fetched via
+/// `zag man orchestration`. Embedded at compile time via `zag-agent`.
 pub(crate) fn get_zag_orch_reference() -> String {
-    Command::new("zag")
-        .args(["man", "orchestration"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .unwrap_or_else(|| {
-            "(zag man orchestration not available — zag may not be installed)".into()
-        })
+    manpages::ORCHESTRATION.to_string()
 }
 
 /// Return a short one-sentence guidance about a specific orchestration pattern
@@ -165,27 +155,22 @@ pub fn prepare_create(
 /// Launch an interactive zag session for workflow creation.
 ///
 /// The agent is given full context about zag and the .zwf format, and guides
-/// the user through designing their workflow.
-pub fn run_create(
+/// the user through designing their workflow. Driven through
+/// [`AgentBuilder::run`], so no external `zag` binary is required.
+pub async fn run_create(
     name: Option<&str>,
     output: Option<&str>,
     pattern: Option<&str>,
 ) -> Result<(), ZigError> {
-    run::check_zag()?;
-
     let params = prepare_create(name, output, pattern)?;
 
-    let status = Command::new("zag")
-        .args(["run", &params.initial_prompt])
-        .args(["--system-prompt", &params.system_prompt])
-        .args(["--name", &params.session_name])
-        .args(["--tag", &params.session_tag])
-        .status()
-        .map_err(|e| ZigError::Zag(format!("failed to launch zag: {e}")))?;
-
-    if !status.success() {
-        return Err(ZigError::Zag(format!("zag exited with status {status}")));
-    }
+    AgentBuilder::new()
+        .system_prompt(&params.system_prompt)
+        .name(&params.session_name)
+        .tag(&params.session_tag)
+        .run(Some(&params.initial_prompt))
+        .await
+        .map_err(|e| ZigError::Zag(format!("failed to run agent: {e}")))?;
 
     // Validate the output if it was created
     if Path::new(&params.output_path).exists() {

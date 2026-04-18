@@ -140,8 +140,8 @@ pub async fn run(Json(req): Json<RunRequest>) -> Result<Json<RunResponse>, Serve
     let workflow = req.workflow.clone();
     let prompt = req.prompt.clone();
 
-    // Spawn the workflow execution on a blocking thread (fire-and-forget)
-    tokio::task::spawn_blocking(move || {
+    // Spawn the workflow execution on a tokio task (fire-and-forget)
+    tokio::spawn(async move {
         if let Err(e) = zig_core::run::run_workflow(
             &workflow,
             prompt.as_deref(),
@@ -150,7 +150,9 @@ pub async fn run(Json(req): Json<RunRequest>) -> Result<Json<RunResponse>, Serve
             false,
             false,
             zig_core::dry_run::DryRunFormat::Text,
-        ) {
+        )
+        .await
+        {
             tracing::error!("workflow execution failed: {e}");
         }
     });

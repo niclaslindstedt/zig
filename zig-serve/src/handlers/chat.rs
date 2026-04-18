@@ -1,40 +1,41 @@
 //! Web-chat handlers that back the React UI served by `zig serve --web`.
 //!
-//! The CLI's `workflow create` flow spawns `zag run <initial_prompt> --system-prompt ...`
-//! as a short-lived interactive process. For the web UI we need the same
-//! subprocess but long-lived so the user can exchange follow-up messages with
-//! the agent. Each POST to `/api/v1/web/chat` spawns one subprocess, stores it
-//! in [`AppState::web_chats`] keyed by a UUID, and wires up:
+//! Each POST to `/api/v1/web/chat` starts a new [`AgentBuilder::exec_streaming`]
+//! session (Claude only — the bidirectional stream-json path is a Claude
+//! feature). The resulting [`StreamingSession`] stays alive in
+//! [`AppState::web_chats`] keyed by a UUID, and we wire up:
 //!
-//! - an `mpsc::Sender<String>` for follow-up messages → child's stdin
-//! - a `broadcast::Sender<String>` that fans agent stdout/stderr out to any
-//!   number of SSE subscribers.
+//! - an `mpsc::Sender<String>` for follow-up user messages → session's
+//!   stdin via [`StreamingSession::send_user_message`]
+//! - a `broadcast::Sender<String>` that fans unified [`Event`] values out
+//!   as `{role, text}` JSON to any number of SSE subscribers.
 //!
 //! The SSE endpoint (`GET /api/v1/web/chat/{id}/stream`) subscribes to that
-//! broadcast channel and yields `{role, text}` JSON events until the subprocess
-//! exits. Auth for the SSE endpoint also accepts a `?token=` query parameter
-//! because `EventSource` cannot set headers.
+//! broadcast channel until the streaming session ends. Auth for the SSE
+//! endpoint also accepts a `?token=` query parameter because `EventSource`
+//! cannot set headers.
 
 use std::convert::Infallible;
 use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::sse::{Event as SseEvent, KeepAlive, Sse};
 use serde::{Deserialize, Serialize};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, ChildStdin, Command};
 use tokio::sync::{Mutex, broadcast, mpsc};
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 use uuid::Uuid;
+use zag_agent::builder::AgentBuilder;
+use zag_agent::output::{ContentBlock, Event as AgentEvent};
+use zag_agent::streaming::StreamingSession;
 
 use crate::error::ServeError;
 use crate::state::AppState;
 
-/// A single live conversation with a zag subprocess.
+/// A single live conversation with a zag-agent streaming session.
 pub struct WebChatSession {
-    /// Channel used to send follow-up messages to the child's stdin.
+    /// Channel used to send follow-up user messages into the session.
     stdin_tx: mpsc::Sender<String>,
     /// Fan-out channel emitting JSON-encoded chat events.
     events: broadcast::Sender<String>,
@@ -94,60 +95,38 @@ pub async fn start_chat(
     .map_err(|e| ServeError::bad_request(format!("task join error: {e}")))?
     .map_err(ServeError::from)?;
 
-    // Spawn `zag run` with the rendered prompts. stdin is piped so we can feed
-    // follow-up messages into the interactive session.
-    let mut child = Command::new("zag")
-        .arg("run")
-        .arg(&req.initial_prompt)
-        .arg("--system-prompt")
-        .arg(&params.system_prompt)
-        .arg("--name")
-        .arg(&params.session_name)
-        .arg("--tag")
-        .arg(&params.session_tag)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|e| ServeError::bad_request(format!("failed to spawn zag: {e}")))?;
-
-    let stdin = child
-        .stdin
-        .take()
-        .ok_or_else(|| ServeError::bad_request("zag child has no stdin"))?;
-    let stdout = child
-        .stdout
-        .take()
-        .ok_or_else(|| ServeError::bad_request("zag child has no stdout"))?;
-    let stderr = child
-        .stderr
-        .take()
-        .ok_or_else(|| ServeError::bad_request("zag child has no stderr"))?;
+    // Start a Claude streaming session with the rendered prompts.
+    let session = AgentBuilder::new()
+        .provider("claude")
+        .system_prompt(&params.system_prompt)
+        .name(&params.session_name)
+        .tag(&params.session_tag)
+        .exec_streaming(&req.initial_prompt)
+        .await
+        .map_err(|e| ServeError::bad_request(format!("failed to start agent: {e}")))?;
 
     let (stdin_tx, stdin_rx) = mpsc::channel::<String>(32);
     let (events_tx, _events_rx) = broadcast::channel::<String>(256);
 
-    // Pump: user messages → child stdin.
-    let stdin = Arc::new(Mutex::new(stdin));
-    spawn_stdin_pump(Arc::clone(&stdin), stdin_rx);
+    // The StreamingSession is not Clone — it owns the child process. Wrap it
+    // in an Arc<Mutex<>> so the stdin-pump and event-reader tasks can both
+    // drive it without racing.
+    let session = Arc::new(Mutex::new(session));
 
-    // Pump: child stdout lines → broadcast as agent events.
-    spawn_line_reader(stdout, events_tx.clone(), "agent");
-    // Pump: child stderr lines → broadcast as system events.
-    spawn_line_reader(stderr, events_tx.clone(), "system");
+    spawn_stdin_pump(Arc::clone(&session), stdin_rx, events_tx.clone());
 
-    // Watchdog: when the child exits, announce it and drop it from the map.
     let session_id = Uuid::new_v4().to_string();
-    let session_id_for_task = session_id.clone();
-    let events_for_exit = events_tx.clone();
+    let session_for_events = Arc::clone(&session);
+    let events_for_reader = events_tx.clone();
     let chats_for_exit = Arc::clone(&state.web_chats);
+    let session_id_for_task = session_id.clone();
     tokio::spawn(async move {
-        let _ = wait_for_exit(&mut child, &events_for_exit).await;
+        pump_events(session_for_events, events_for_reader.clone()).await;
+        broadcast_event(&events_for_reader, "system", "session ended".to_string());
         chats_for_exit.lock().await.remove(&session_id_for_task);
     });
 
-    let session = Arc::new(WebChatSession {
+    let chat = Arc::new(WebChatSession {
         stdin_tx,
         events: events_tx,
     });
@@ -155,7 +134,7 @@ pub async fn start_chat(
         .web_chats
         .lock()
         .await
-        .insert(session_id.clone(), Arc::clone(&session));
+        .insert(session_id.clone(), Arc::clone(&chat));
 
     Ok(Json(StartChatResponse {
         session_id,
@@ -163,48 +142,99 @@ pub async fn start_chat(
     }))
 }
 
-fn spawn_stdin_pump(stdin: Arc<Mutex<ChildStdin>>, mut rx: mpsc::Receiver<String>) {
+/// Forward incoming user messages into the streaming session's stdin.
+fn spawn_stdin_pump(
+    session: Arc<Mutex<StreamingSession>>,
+    mut rx: mpsc::Receiver<String>,
+    events: broadcast::Sender<String>,
+) {
     tokio::spawn(async move {
-        while let Some(mut msg) = rx.recv().await {
-            if !msg.ends_with('\n') {
-                msg.push('\n');
-            }
-            let mut guard = stdin.lock().await;
-            if let Err(e) = guard.write_all(msg.as_bytes()).await {
-                tracing::debug!("chat stdin write failed: {e}");
+        while let Some(msg) = rx.recv().await {
+            let mut guard = session.lock().await;
+            if let Err(e) = guard.send_user_message(&msg).await {
+                broadcast_event(&events, "system", format!("send failed: {e}"));
                 return;
             }
-            let _ = guard.flush().await;
         }
+        // Channel closed — signal end of input to the agent.
+        let mut guard = session.lock().await;
+        guard.close_input();
     });
 }
 
-fn spawn_line_reader<R>(reader: R, events: broadcast::Sender<String>, role: &'static str)
-where
-    R: tokio::io::AsyncRead + Unpin + Send + 'static,
-{
-    tokio::spawn(async move {
-        let mut lines = BufReader::new(reader).lines();
-        loop {
-            match lines.next_line().await {
-                Ok(Some(line)) => broadcast_event(&events, role, line),
-                Ok(None) => return,
-                Err(e) => {
-                    tracing::debug!("chat line reader error: {e}");
-                    return;
-                }
+/// Drain the streaming session's event stream and fan each unified event
+/// out as a `{role, text}` broadcast message. Returns when the session
+/// ends (subprocess exits).
+async fn pump_events(session: Arc<Mutex<StreamingSession>>, events: broadcast::Sender<String>) {
+    loop {
+        let mut guard = session.lock().await;
+        match guard.next_event().await {
+            Ok(Some(event)) => {
+                drop(guard);
+                route_event(&events, event);
+            }
+            Ok(None) => return,
+            Err(e) => {
+                drop(guard);
+                broadcast_event(&events, "system", format!("event read error: {e}"));
+                return;
             }
         }
-    });
+    }
 }
 
-async fn wait_for_exit(
-    child: &mut Child,
-    events: &broadcast::Sender<String>,
-) -> std::io::Result<()> {
-    let status = child.wait().await?;
-    broadcast_event(events, "system", format!("session ended ({status})"));
-    Ok(())
+/// Map a unified [`AgentEvent`] to the `{role, text}` shape the React UI
+/// expects. Events without a user-visible text body (init, usage, partial
+/// token chunks) are ignored.
+fn route_event(events: &broadcast::Sender<String>, event: AgentEvent) {
+    match event {
+        AgentEvent::AssistantMessage { content, .. } => {
+            let text = flatten_content(&content);
+            if !text.is_empty() {
+                broadcast_event(events, "agent", text);
+            }
+        }
+        AgentEvent::UserMessage { content, .. } => {
+            let text = flatten_content(&content);
+            if !text.is_empty() {
+                broadcast_event(events, "user", text);
+            }
+        }
+        AgentEvent::ToolExecution {
+            tool_name, input, ..
+        } => {
+            let input_preview = serde_json::to_string(&input).unwrap_or_default();
+            broadcast_event(
+                events,
+                "system",
+                format!("tool: {tool_name}({input_preview})"),
+            );
+        }
+        AgentEvent::Error { message, .. } => {
+            broadcast_event(events, "system", format!("error: {message}"));
+        }
+        AgentEvent::Result {
+            success, message, ..
+        } => {
+            if !success && let Some(m) = message {
+                broadcast_event(events, "system", format!("turn failed: {m}"));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn flatten_content(blocks: &[ContentBlock]) -> String {
+    let mut out = String::new();
+    for block in blocks {
+        if let ContentBlock::Text { text } = block {
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(text);
+        }
+    }
+    out
 }
 
 // -- POST /api/v1/web/chat/{id} ---------------------------------------------
@@ -245,7 +275,7 @@ pub async fn send_message(
 pub async fn stream_chat(
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, ServeError> {
+) -> Result<Sse<impl tokio_stream::Stream<Item = Result<SseEvent, Infallible>>>, ServeError> {
     let session = {
         let chats = state.web_chats.lock().await;
         chats
@@ -256,7 +286,7 @@ pub async fn stream_chat(
 
     let rx = session.subscribe();
     let stream = BroadcastStream::new(rx).filter_map(|res| match res {
-        Ok(payload) => Some(Ok(Event::default().data(payload))),
+        Ok(payload) => Some(Ok(SseEvent::default().data(payload))),
         Err(_) => None,
     });
 

@@ -578,10 +578,10 @@ fn prompt_var_with_default_uses_default_when_no_prompt() {
     assert_eq!(vars["content"], "fallback");
 }
 
-// ── build_zag_args ──────────────────────────────────────────────────────────
+// ── build_agent_config ──────────────────────────────────────────────────────
 
 #[test]
-fn build_zag_args_basic() {
+fn build_agent_config_basic() {
     let mut s = step("test");
     s.provider = Some("claude".into());
     s.model = Some("sonnet".into());
@@ -591,7 +591,7 @@ fn build_zag_args_basic() {
     s.timeout = Some("5m".into());
     s.tags = vec!["review".into()];
 
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "do stuff",
         "my-workflow",
@@ -602,29 +602,24 @@ fn build_zag_args_basic() {
         &[],
     );
 
-    assert!(args.contains(&"run".to_string()));
-    assert!(args.contains(&"do stuff".to_string()));
-    assert!(args.contains(&"--provider".to_string()));
-    assert!(args.contains(&"claude".to_string()));
-    assert!(args.contains(&"--model".to_string()));
-    assert!(args.contains(&"sonnet".to_string()));
-    assert!(args.contains(&"--system-prompt".to_string()));
-    assert!(args.contains(&"--max-turns".to_string()));
-    assert!(args.contains(&"5".to_string()));
-    assert!(args.contains(&"--json".to_string()));
-    assert!(args.contains(&"--timeout".to_string()));
-    assert!(args.contains(&"5m".to_string()));
-    assert!(args.contains(&"--name".to_string()));
-    assert!(args.contains(&"zig-my-workflow-test".to_string()));
-    assert!(args.contains(&"zig-workflow".to_string()));
-    assert!(args.contains(&"review".to_string()));
+    assert_eq!(cfg.command, "run");
+    assert_eq!(cfg.prompt, "do stuff");
+    assert_eq!(cfg.provider.as_deref(), Some("claude"));
+    assert_eq!(cfg.model.as_deref(), Some("sonnet"));
+    assert_eq!(cfg.system_prompt.as_deref(), Some("be helpful"));
+    assert_eq!(cfg.max_turns, Some(5));
+    assert!(cfg.json_mode);
+    assert_eq!(cfg.timeout.as_deref(), Some("5m"));
+    assert_eq!(cfg.session_name, "zig-my-workflow-test");
+    assert!(cfg.tags.contains(&"zig-workflow".to_string()));
+    assert!(cfg.tags.contains(&"review".to_string()));
 }
 
 #[test]
-fn build_zag_args_auto_approve() {
+fn build_agent_config_auto_approve() {
     let mut s = step("test");
     s.auto_approve = true;
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -634,10 +629,10 @@ fn build_zag_args_auto_approve() {
         None,
         &[],
     );
-    assert!(args.contains(&"--auto-approve".to_string()));
+    assert!(cfg.auto_approve);
 
     let s2 = step("test");
-    let args2 = build_zag_args(
+    let cfg2 = build_agent_config(
         &s2,
         "prompt",
         "wf",
@@ -647,14 +642,14 @@ fn build_zag_args_auto_approve() {
         None,
         &[],
     );
-    assert!(!args2.contains(&"--auto-approve".to_string()));
+    assert!(!cfg2.auto_approve);
 }
 
 #[test]
-fn build_zag_args_env() {
+fn build_agent_config_env() {
     let mut s = step("test");
     s.env = HashMap::from([("MODE".into(), "strict".into())]);
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -664,16 +659,15 @@ fn build_zag_args_env() {
         None,
         &[],
     );
-    assert!(args.contains(&"--env".to_string()));
-    assert!(args.contains(&"MODE=strict".to_string()));
+    assert_eq!(cfg.env, vec![("MODE".to_string(), "strict".to_string())]);
 }
 
 #[test]
-fn build_zag_args_isolation() {
+fn build_agent_config_isolation() {
     let mut s = step("test");
     s.worktree = true;
     s.sandbox = Some("worker-box".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -683,17 +677,16 @@ fn build_zag_args_isolation() {
         None,
         &[],
     );
-    assert!(args.contains(&"--worktree".to_string()));
-    assert!(args.contains(&"--sandbox".to_string()));
-    assert!(args.contains(&"worker-box".to_string()));
+    assert!(matches!(cfg.worktree, Some(None)));
+    assert_eq!(cfg.sandbox.as_deref(), Some("worker-box"));
 }
 
 #[test]
-fn build_zag_args_files_and_dirs() {
+fn build_agent_config_files_and_dirs() {
     let mut s = step("test");
     s.files = vec!["input.txt".into(), "data.json".into()];
     s.add_dirs = vec!["/tmp/shared".into()];
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -704,19 +697,17 @@ fn build_zag_args_files_and_dirs() {
         &[],
     );
 
-    let file_count = args.iter().filter(|a| *a == "--file").count();
-    assert_eq!(file_count, 2);
-    assert!(args.contains(&"input.txt".to_string()));
-    assert!(args.contains(&"data.json".to_string()));
-    assert!(args.contains(&"--add-dir".to_string()));
-    assert!(args.contains(&"/tmp/shared".to_string()));
+    assert_eq!(cfg.files.len(), 2);
+    assert!(cfg.files.contains(&"input.txt".to_string()));
+    assert!(cfg.files.contains(&"data.json".to_string()));
+    assert!(cfg.add_dirs.contains(&"/tmp/shared".to_string()));
 }
 
 #[test]
-fn build_zag_args_description() {
+fn build_agent_config_description() {
     let mut s = step("test");
     s.description = "Analyze the code".into();
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -726,12 +717,11 @@ fn build_zag_args_description() {
         None,
         &[],
     );
-    assert!(args.contains(&"--description".to_string()));
-    assert!(args.contains(&"Analyze the code".to_string()));
+    assert_eq!(cfg.description.as_deref(), Some("Analyze the code"));
 
-    // Empty description should not produce the flag
+    // Empty description should produce None
     let s2 = step("test");
-    let args2 = build_zag_args(
+    let cfg2 = build_agent_config(
         &s2,
         "prompt",
         "wf",
@@ -741,14 +731,14 @@ fn build_zag_args_description() {
         None,
         &[],
     );
-    assert!(!args2.contains(&"--description".to_string()));
+    assert!(cfg2.description.is_none());
 }
 
 #[test]
-fn build_zag_args_json_schema() {
+fn build_agent_config_json_schema() {
     let mut s = step("test");
     s.json_schema = Some(r#"{"type":"object"}"#.into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -758,15 +748,14 @@ fn build_zag_args_json_schema() {
         None,
         &[],
     );
-    assert!(args.contains(&"--json-schema".to_string()));
-    assert!(args.contains(&r#"{"type":"object"}"#.to_string()));
+    assert_eq!(cfg.json_schema.as_deref(), Some(r#"{"type":"object"}"#));
 }
 
 #[test]
-fn build_zag_args_root() {
+fn build_agent_config_root() {
     let mut s = step("test");
     s.root = Some("/tmp/work".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -776,15 +765,14 @@ fn build_zag_args_root() {
         None,
         &[],
     );
-    assert!(args.contains(&"--root".to_string()));
-    assert!(args.contains(&"/tmp/work".to_string()));
+    assert_eq!(cfg.root.as_deref(), Some("/tmp/work"));
 }
 
 #[test]
-fn build_zag_args_model_override() {
+fn build_agent_config_model_override() {
     let mut s = step("test");
     s.model = Some("sonnet".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -795,15 +783,14 @@ fn build_zag_args_model_override() {
         &[],
     );
     // Override should take precedence
-    let model_idx = args.iter().position(|a| a == "--model").unwrap();
-    assert_eq!(args[model_idx + 1], "opus");
+    assert_eq!(cfg.model.as_deref(), Some("opus"));
 }
 
 #[test]
-fn build_zag_args_model_no_override() {
+fn build_agent_config_model_no_override() {
     let mut s = step("test");
     s.model = Some("sonnet".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -813,14 +800,13 @@ fn build_zag_args_model_no_override() {
         None,
         &[],
     );
-    let model_idx = args.iter().position(|a| a == "--model").unwrap();
-    assert_eq!(args[model_idx + 1], "sonnet");
+    assert_eq!(cfg.model.as_deref(), Some("sonnet"));
 }
 
 #[test]
-fn build_zag_args_no_model() {
+fn build_agent_config_no_model() {
     let s = step("test");
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -830,7 +816,7 @@ fn build_zag_args_no_model() {
         None,
         &[],
     );
-    assert!(!args.contains(&"--model".to_string()));
+    assert!(cfg.model.is_none());
 }
 
 // ── partition_tier ──────────────────────────────────────────────────────────
@@ -890,51 +876,13 @@ fn partition_tier_multiple_race_groups() {
     assert_eq!(race_groups["slow"].len(), 1);
 }
 
-// ── build_zag_args: context injection ──────────────────────────────────────
+// ── build_agent_config: context / plan / mcp ────────────────────────────────
 
 #[test]
-fn build_zag_args_context() {
-    let mut s = step("test");
-    s.context = vec!["session-abc".into(), "session-def".into()];
-    let args = build_zag_args(
-        &s,
-        "prompt",
-        "wf",
-        None,
-        s.system_prompt.as_deref(),
-        None,
-        None,
-        &[],
-    );
-    let ctx_count = args.iter().filter(|a| *a == "--context").count();
-    assert_eq!(ctx_count, 2);
-    assert!(args.contains(&"session-abc".to_string()));
-    assert!(args.contains(&"session-def".to_string()));
-}
-
-#[test]
-fn build_zag_args_plan() {
-    let mut s = step("test");
-    s.plan = Some("plan.md".into());
-    let args = build_zag_args(
-        &s,
-        "prompt",
-        "wf",
-        None,
-        s.system_prompt.as_deref(),
-        None,
-        None,
-        &[],
-    );
-    assert!(args.contains(&"--plan".to_string()));
-    assert!(args.contains(&"plan.md".to_string()));
-}
-
-#[test]
-fn build_zag_args_mcp_config() {
+fn build_agent_config_mcp_config() {
     let mut s = step("test");
     s.mcp_config = Some("config.json".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -944,14 +892,13 @@ fn build_zag_args_mcp_config() {
         None,
         &[],
     );
-    assert!(args.contains(&"--mcp-config".to_string()));
-    assert!(args.contains(&"config.json".to_string()));
+    assert_eq!(cfg.mcp_config.as_deref(), Some("config.json"));
 }
 
 #[test]
-fn build_zag_args_no_context_by_default() {
+fn build_agent_config_no_context_by_default() {
     let s = step("test");
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -961,18 +908,16 @@ fn build_zag_args_no_context_by_default() {
         None,
         &[],
     );
-    assert!(!args.contains(&"--context".to_string()));
-    assert!(!args.contains(&"--plan".to_string()));
-    assert!(!args.contains(&"--mcp-config".to_string()));
+    assert!(cfg.mcp_config.is_none());
 }
 
-// ── build_zag_args: output format ──────────────────────────────────────────
+// ── build_agent_config: output format ──────────────────────────────────────
 
 #[test]
-fn build_zag_args_output_format() {
+fn build_agent_config_output_format() {
     let mut s = step("test");
     s.output = Some("stream-json".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -982,17 +927,16 @@ fn build_zag_args_output_format() {
         None,
         &[],
     );
-    assert!(args.contains(&"-o".to_string()));
-    assert!(args.contains(&"stream-json".to_string()));
-    assert!(!args.contains(&"--json".to_string()));
+    assert_eq!(cfg.output_format.as_deref(), Some("stream-json"));
+    assert!(!cfg.json_mode);
 }
 
 #[test]
-fn build_zag_args_output_overrides_json() {
+fn build_agent_config_output_overrides_json() {
     let mut s = step("test");
     s.output = Some("text".into());
     s.json = true;
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -1002,16 +946,15 @@ fn build_zag_args_output_overrides_json() {
         None,
         &[],
     );
-    assert!(args.contains(&"-o".to_string()));
-    assert!(args.contains(&"text".to_string()));
-    assert!(!args.contains(&"--json".to_string()));
+    assert_eq!(cfg.output_format.as_deref(), Some("text"));
+    assert!(!cfg.json_mode);
 }
 
 #[test]
-fn build_zag_args_json_fallback() {
+fn build_agent_config_json_fallback() {
     let mut s = step("test");
     s.json = true;
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -1021,21 +964,21 @@ fn build_zag_args_json_fallback() {
         None,
         &[],
     );
-    assert!(args.contains(&"--json".to_string()));
-    assert!(!args.contains(&"-o".to_string()));
+    assert!(cfg.json_mode);
+    assert!(cfg.output_format.is_none());
 }
 
-// ── build_zag_args: command step types ─────────────────────────────────────
+// ── build_agent_config: command step types ─────────────────────────────────
 
 #[test]
-fn build_zag_args_command_review() {
+fn build_agent_config_command_review() {
     let mut s = step("review-step");
     s.command = Some(StepCommand::Review);
     s.uncommitted = true;
     s.base = Some("main".into());
     s.commit = Some("abc123".into());
     s.title = Some("Security Review".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "focus on auth",
         "wf",
@@ -1045,24 +988,31 @@ fn build_zag_args_command_review() {
         None,
         &[],
     );
-    assert_eq!(args[0], "review");
-    assert!(args.contains(&"focus on auth".to_string()));
-    assert!(args.contains(&"--uncommitted".to_string()));
-    assert!(args.contains(&"--base".to_string()));
-    assert!(args.contains(&"main".to_string()));
-    assert!(args.contains(&"--commit".to_string()));
-    assert!(args.contains(&"abc123".to_string()));
-    assert!(args.contains(&"--title".to_string()));
-    assert!(args.contains(&"Security Review".to_string()));
+    assert_eq!(cfg.command, "review");
+    assert_eq!(cfg.prompt, "focus on auth");
+    match cfg.command_params.as_ref().unwrap() {
+        CommandParams::Review {
+            uncommitted,
+            base,
+            commit,
+            title,
+        } => {
+            assert!(*uncommitted);
+            assert_eq!(base.as_deref(), Some("main"));
+            assert_eq!(commit.as_deref(), Some("abc123"));
+            assert_eq!(title.as_deref(), Some("Security Review"));
+        }
+        _ => panic!("expected Review params"),
+    }
 }
 
 #[test]
-fn build_zag_args_command_plan() {
+fn build_agent_config_command_plan() {
     let mut s = step("plan-step");
     s.command = Some(StepCommand::Plan);
     s.plan_output = Some("auth-plan.md".into());
     s.instructions = Some("Focus on security".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "Design auth system",
         "wf",
@@ -1072,20 +1022,26 @@ fn build_zag_args_command_plan() {
         None,
         &[],
     );
-    assert_eq!(args[0], "plan");
-    assert_eq!(args[1], "Design auth system");
-    assert!(args.contains(&"-o".to_string()));
-    assert!(args.contains(&"auth-plan.md".to_string()));
-    assert!(args.contains(&"--instructions".to_string()));
-    assert!(args.contains(&"Focus on security".to_string()));
+    assert_eq!(cfg.command, "plan");
+    assert_eq!(cfg.prompt, "Design auth system");
+    match cfg.command_params.as_ref().unwrap() {
+        CommandParams::Plan {
+            output,
+            instructions,
+        } => {
+            assert_eq!(output.as_deref(), Some("auth-plan.md"));
+            assert_eq!(instructions.as_deref(), Some("Focus on security"));
+        }
+        _ => panic!("expected Plan params"),
+    }
 }
 
 #[test]
-fn build_zag_args_command_pipe() {
+fn build_agent_config_command_pipe() {
     let mut s = step("synth");
     s.command = Some(StepCommand::Pipe);
     s.depends_on = vec!["analyze".into(), "review".into()];
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "Combine results",
         "wf",
@@ -1095,19 +1051,25 @@ fn build_zag_args_command_pipe() {
         None,
         &[],
     );
-    assert_eq!(args[0], "pipe");
-    assert!(args.contains(&"zig-wf-analyze".to_string()));
-    assert!(args.contains(&"zig-wf-review".to_string()));
-    assert!(args.contains(&"--".to_string()));
-    assert!(args.contains(&"Combine results".to_string()));
+    assert_eq!(cfg.command, "pipe");
+    match cfg.command_params.as_ref().unwrap() {
+        CommandParams::Pipe { session_ids } => {
+            assert_eq!(
+                session_ids,
+                &vec!["zig-wf-analyze".to_string(), "zig-wf-review".to_string()]
+            );
+        }
+        _ => panic!("expected Pipe params"),
+    }
+    assert_eq!(cfg.prompt, "Combine results");
 }
 
 #[test]
-fn build_zag_args_command_collect() {
+fn build_agent_config_command_collect() {
     let mut s = step("gather");
     s.command = Some(StepCommand::Collect);
     s.depends_on = vec!["worker-a".into(), "worker-b".into()];
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "",
         "wf",
@@ -1117,19 +1079,27 @@ fn build_zag_args_command_collect() {
         None,
         &[],
     );
-    assert_eq!(args[0], "collect");
-    assert!(args.contains(&"zig-wf-worker-a".to_string()));
-    assert!(args.contains(&"zig-wf-worker-b".to_string()));
-    // collect doesn't accept agent args like --provider
-    assert!(!args.contains(&"--provider".to_string()));
+    assert_eq!(cfg.command, "collect");
+    match cfg.command_params.as_ref().unwrap() {
+        CommandParams::Collect { session_ids } => {
+            assert_eq!(
+                session_ids,
+                &vec!["zig-wf-worker-a".to_string(), "zig-wf-worker-b".to_string()]
+            );
+        }
+        _ => panic!("expected Collect params"),
+    }
+    // collect doesn't accept agent args
+    assert!(!cfg.accepts_agent_args);
+    assert!(cfg.provider.is_none());
 }
 
 #[test]
-fn build_zag_args_command_summary() {
+fn build_agent_config_command_summary() {
     let mut s = step("stats");
     s.command = Some(StepCommand::Summary);
     s.depends_on = vec!["worker".into()];
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "",
         "wf",
@@ -1139,19 +1109,24 @@ fn build_zag_args_command_summary() {
         None,
         &[],
     );
-    assert_eq!(args[0], "summary");
-    assert!(args.contains(&"zig-wf-worker".to_string()));
+    assert_eq!(cfg.command, "summary");
+    match cfg.command_params.as_ref().unwrap() {
+        CommandParams::Summary { session_ids } => {
+            assert_eq!(session_ids, &vec!["zig-wf-worker".to_string()]);
+        }
+        _ => panic!("expected Summary params"),
+    }
 }
 
 #[test]
-fn build_zag_args_collect_no_agent_args() {
+fn build_agent_config_collect_no_agent_args() {
     let mut s = step("gather");
     s.command = Some(StepCommand::Collect);
     s.depends_on = vec!["a".into()];
     s.provider = Some("claude".into());
     s.model = Some("sonnet".into());
     s.auto_approve = true;
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "",
         "wf",
@@ -1162,18 +1137,18 @@ fn build_zag_args_collect_no_agent_args() {
         &[],
     );
     // These agent args should NOT appear for collect
-    assert!(!args.contains(&"--provider".to_string()));
-    assert!(!args.contains(&"--model".to_string()));
-    assert!(!args.contains(&"--auto-approve".to_string()));
+    assert!(cfg.provider.is_none());
+    assert!(cfg.model.is_none());
+    assert!(!cfg.auto_approve);
 }
 
 #[test]
-fn build_zag_args_review_accepts_agent_args() {
+fn build_agent_config_review_accepts_agent_args() {
     let mut s = step("review-step");
     s.command = Some(StepCommand::Review);
     s.provider = Some("claude".into());
     s.model = Some("opus".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "review code",
         "wf",
@@ -1183,16 +1158,15 @@ fn build_zag_args_review_accepts_agent_args() {
         None,
         &[],
     );
-    assert!(args.contains(&"--provider".to_string()));
-    assert!(args.contains(&"claude".to_string()));
-    assert!(args.contains(&"--model".to_string()));
-    assert!(args.contains(&"opus".to_string()));
+    assert!(cfg.accepts_agent_args);
+    assert_eq!(cfg.provider.as_deref(), Some("claude"));
+    assert_eq!(cfg.model.as_deref(), Some("opus"));
 }
 
 #[test]
-fn build_zag_args_default_command_unchanged() {
+fn build_agent_config_default_command_unchanged() {
     let s = step("test");
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "do stuff",
         "wf",
@@ -1202,20 +1176,21 @@ fn build_zag_args_default_command_unchanged() {
         None,
         &[],
     );
-    assert_eq!(args[0], "run");
-    assert_eq!(args[1], "do stuff");
+    assert_eq!(cfg.command, "run");
+    assert_eq!(cfg.prompt, "do stuff");
+    assert!(cfg.command_params.is_none());
 }
 
 #[test]
-fn build_zag_args_session_metadata_on_all_commands() {
-    // Even collect/summary should get --name, --tag, --description
+fn build_agent_config_session_metadata_on_all_commands() {
+    // Even collect/summary should get session_name, tags, description
     let mut s = step("gather");
     s.command = Some(StepCommand::Collect);
     s.depends_on = vec!["a".into()];
     s.description = "Gather results".into();
     s.tags = vec!["custom".into()];
     s.timeout = Some("5m".into());
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "",
         "wf",
@@ -1225,24 +1200,21 @@ fn build_zag_args_session_metadata_on_all_commands() {
         None,
         &[],
     );
-    assert!(args.contains(&"--name".to_string()));
-    assert!(args.contains(&"zig-wf-gather".to_string()));
-    assert!(args.contains(&"--description".to_string()));
-    assert!(args.contains(&"Gather results".to_string()));
-    assert!(args.contains(&"zig-workflow".to_string()));
-    assert!(args.contains(&"custom".to_string()));
-    assert!(args.contains(&"--timeout".to_string()));
-    assert!(args.contains(&"5m".to_string()));
+    assert_eq!(cfg.session_name, "zig-wf-gather");
+    assert_eq!(cfg.description.as_deref(), Some("Gather results"));
+    assert!(cfg.tags.contains(&"zig-workflow".to_string()));
+    assert!(cfg.tags.contains(&"custom".to_string()));
+    assert_eq!(cfg.timeout.as_deref(), Some("5m"));
 }
 
-// ── build_zag_args: system_prompt variable substitution ───────────────────
+// ── build_agent_config: system_prompt variable substitution ───────────────
 
 #[test]
-fn build_zag_args_rendered_system_prompt() {
+fn build_agent_config_rendered_system_prompt() {
     let mut s = step("test");
     s.system_prompt = Some("You are a ${role}".into());
     // Pass pre-rendered (substituted) value
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "do stuff",
         "wf",
@@ -1252,71 +1224,60 @@ fn build_zag_args_rendered_system_prompt() {
         None,
         &[],
     );
-    assert!(args.contains(&"--system-prompt".to_string()));
-    assert!(args.contains(&"You are a cardiologist".to_string()));
-    assert!(!args.contains(&"You are a ${role}".to_string()));
+    assert_eq!(cfg.system_prompt.as_deref(), Some("You are a cardiologist"));
 }
 
 #[test]
-fn build_zag_args_no_system_prompt() {
+fn build_agent_config_no_system_prompt() {
     let s = step("test");
-    let args = build_zag_args(&s, "do stuff", "wf", None, None, None, None, &[]);
-    assert!(!args.contains(&"--system-prompt".to_string()));
+    let cfg = build_agent_config(&s, "do stuff", "wf", None, None, None, None, &[]);
+    assert!(cfg.system_prompt.is_none());
 }
 
-// ── build_zag_args: workflow-level provider/model fallback ────────────────
+// ── build_agent_config: workflow-level provider/model fallback ────────────
 
 #[test]
-fn build_zag_args_workflow_provider_fallback() {
+fn build_agent_config_workflow_provider_fallback() {
     let s = step("test");
-    // Step has no provider, workflow provides default
-    let args = build_zag_args(&s, "prompt", "wf", None, None, Some("claude"), None, &[]);
-    assert!(args.contains(&"--provider".to_string()));
-    assert!(args.contains(&"claude".to_string()));
+    let cfg = build_agent_config(&s, "prompt", "wf", None, None, Some("claude"), None, &[]);
+    assert_eq!(cfg.provider.as_deref(), Some("claude"));
 }
 
 #[test]
-fn build_zag_args_workflow_model_fallback() {
+fn build_agent_config_workflow_model_fallback() {
     let s = step("test");
-    // Step has no model, workflow provides default
-    let args = build_zag_args(&s, "prompt", "wf", None, None, None, Some("sonnet"), &[]);
-    assert!(args.contains(&"--model".to_string()));
-    assert!(args.contains(&"sonnet".to_string()));
+    let cfg = build_agent_config(&s, "prompt", "wf", None, None, None, Some("sonnet"), &[]);
+    assert_eq!(cfg.model.as_deref(), Some("sonnet"));
 }
 
 #[test]
-fn build_zag_args_step_provider_overrides_workflow() {
+fn build_agent_config_step_provider_overrides_workflow() {
     let mut s = step("test");
     s.provider = Some("gemini".into());
-    let args = build_zag_args(&s, "prompt", "wf", None, None, Some("claude"), None, &[]);
-    assert!(args.contains(&"--provider".to_string()));
-    assert!(args.contains(&"gemini".to_string()));
-    assert!(!args.contains(&"claude".to_string()));
+    let cfg = build_agent_config(&s, "prompt", "wf", None, None, Some("claude"), None, &[]);
+    assert_eq!(cfg.provider.as_deref(), Some("gemini"));
 }
 
 #[test]
-fn build_zag_args_step_model_overrides_workflow() {
+fn build_agent_config_step_model_overrides_workflow() {
     let mut s = step("test");
     s.model = Some("opus".into());
-    let args = build_zag_args(&s, "prompt", "wf", None, None, None, Some("sonnet"), &[]);
-    assert!(args.contains(&"--model".to_string()));
-    assert!(args.contains(&"opus".to_string()));
-    assert!(!args.contains(&"sonnet".to_string()));
+    let cfg = build_agent_config(&s, "prompt", "wf", None, None, None, Some("sonnet"), &[]);
+    assert_eq!(cfg.model.as_deref(), Some("opus"));
 }
 
 #[test]
-fn build_zag_args_no_provider_no_workflow_provider() {
+fn build_agent_config_no_provider_no_workflow_provider() {
     let s = step("test");
-    let args = build_zag_args(&s, "prompt", "wf", None, None, None, None, &[]);
-    assert!(!args.contains(&"--provider".to_string()));
-    assert!(!args.contains(&"--model".to_string()));
+    let cfg = build_agent_config(&s, "prompt", "wf", None, None, None, None, &[]);
+    assert!(cfg.provider.is_none());
+    assert!(cfg.model.is_none());
 }
 
 #[test]
-fn build_zag_args_model_override_beats_workflow_model() {
+fn build_agent_config_model_override_beats_workflow_model() {
     let s = step("test");
-    // model_override (retry escalation) should beat workflow model
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "prompt",
         "wf",
@@ -1326,9 +1287,7 @@ fn build_zag_args_model_override_beats_workflow_model() {
         Some("sonnet"),
         &[],
     );
-    assert!(args.contains(&"--model".to_string()));
-    assert!(args.contains(&"opus".to_string()));
-    assert!(!args.contains(&"sonnet".to_string()));
+    assert_eq!(cfg.model.as_deref(), Some("opus"));
 }
 
 // ── resolve_role_system_prompt ──────────────���──────────────────────────────
@@ -1805,10 +1764,10 @@ fn load_file_defaults_missing_file_returns_error() {
 }
 
 #[test]
-fn build_zag_args_interactive_keeps_run_subcommand_and_omits_json() {
+fn build_agent_config_interactive_keeps_run_command_and_omits_json() {
     let mut s = step("chat");
     s.interactive = true;
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         &s,
         "hello",
         "wf",
@@ -1818,13 +1777,13 @@ fn build_zag_args_interactive_keeps_run_subcommand_and_omits_json() {
         None,
         &[],
     );
-    // Default `run` subcommand (zag is interactive by default on `run`)
-    assert_eq!(args.first().map(String::as_str), Some("run"));
-    // Never emit --json for interactive steps — validation forbids json=true,
-    // and the interactive flag alone must not flip on non-interactive mode.
-    assert!(!args.contains(&"--json".to_string()));
-    assert!(!args.contains(&"-o".to_string()));
+    // Default `run` command (zag is interactive by default on `run`).
+    assert_eq!(cfg.command, "run");
+    assert!(cfg.interactive);
+    // Never set json_mode for interactive steps — validation forbids
+    // json=true, and the interactive flag alone must not flip on JSON mode.
+    assert!(!cfg.json_mode);
+    assert!(cfg.output_format.is_none());
     // Session metadata still applies.
-    assert!(args.contains(&"--name".to_string()));
-    assert!(args.contains(&"zig-wf-chat".to_string()));
+    assert_eq!(cfg.session_name, "zig-wf-chat");
 }
