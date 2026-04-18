@@ -5,12 +5,26 @@ import type {
   WorkflowInfo,
 } from "./types.js";
 
+/** Output format for `zig run --dry-run`. */
+export type DryRunFormat = "text" | "json";
+
 /** Options accepted by the run / runInteractive / stream methods. */
 export interface RunOptions {
   /** Additional context prompt injected into every step. */
   prompt?: string;
   /** Disable the `<resources>` block injected into each step's system prompt. */
   noResources?: boolean;
+  /** Disable the `<memory>` block injected into each step's system prompt. */
+  noMemory?: boolean;
+  /** Disable the `<storage>` block and skip creating storage directories. */
+  noStorage?: boolean;
+  /**
+   * Preview the resolved plan without invoking zag. Prints rendered prompts,
+   * condition outcomes, and the exact zag invocation for each step.
+   */
+  dryRun?: boolean;
+  /** Output format for `--dry-run` (`text` is the default). */
+  format?: DryRunFormat;
 }
 
 /** Tier scope for `resources list`. */
@@ -228,6 +242,10 @@ export class ZigBuilder {
     const args = ["run", workflow];
     if (opts.prompt) args.push(opts.prompt);
     if (opts.noResources) args.push("--no-resources");
+    if (opts.noMemory) args.push("--no-memory");
+    if (opts.noStorage) args.push("--no-storage");
+    if (opts.dryRun) args.push("--dry-run");
+    if (opts.format) args.push("--format", opts.format);
     return args;
   }
 
@@ -326,6 +344,19 @@ export class ZigBuilder {
   }
 
   /**
+   * Revise an existing workflow interactively with an AI agent.
+   *
+   * Runs with inherited stdio since the update process is interactive.
+   *
+   * @param workflow - Name or path of the workflow to update
+   */
+  async workflowUpdate(workflow: string): Promise<void> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "workflow", "update", workflow];
+    return runZig(this._bin, args);
+  }
+
+  /**
    * Tail a running or completed zig session.
    *
    * Runs with inherited stdio to display session output live.
@@ -383,6 +414,18 @@ export class ZigBuilder {
   async man(topic?: string): Promise<string> {
     await this.preflight();
     const args = [...this.buildGlobalArgs(), "man"];
+    if (topic) args.push(topic);
+    return execZig(this._bin, args);
+  }
+
+  /**
+   * Show a conceptual documentation topic (e.g. "zwf", "patterns", "dry-run").
+   *
+   * @param topic - Topic name. Omit to list all topics.
+   */
+  async docs(topic?: string): Promise<string> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "docs"];
     if (topic) args.push(topic);
     return execZig(this._bin, args);
   }

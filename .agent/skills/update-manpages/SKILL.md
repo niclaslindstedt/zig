@@ -23,6 +23,7 @@ manpage.
 | `listen.md` | Tail a running or completed zig session |
 | `workflow.md` | Manage workflows (list, show, create, update, delete, pack) |
 | `resources.md` | Manage reference files advertised to agents |
+| `memory.md` | Manage the memory scratch pad for workflows |
 | `validate.md` | Validate a `.zwf`/`.zwfz` workflow file |
 | `serve.md` | Start the HTTP API server |
 

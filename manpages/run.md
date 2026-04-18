@@ -12,7 +12,8 @@ zig run <workflow> [prompt] [--no-resources] [--no-memory] [--no-storage]
 ## Description
 
 Parses a `.zwf` or `.zwfz` workflow file, validates it, resolves the step
-DAG, and executes each step by delegating to `zag`. Steps are grouped into
+DAG, and executes each step by calling embedded zag orchestration primitives
+(`zag-agent` + `zag-orch` are linked in-process). Steps are grouped into
 parallelizable tiers using topological sorting — steps within the same tier
 run concurrently when their dependencies are satisfied.
 
@@ -30,7 +31,7 @@ run concurrently when their dependencies are satisfied.
 | `--no-resources` | Disable the `<resources>` block normally injected into each step's system prompt. Useful when you want a workflow to run with no global / cwd / inline resource advertisements at all. See `zig man resources`. |
 | `--no-memory`    | Disable the `<memory>` block normally injected into each step's system prompt. Suppresses all tiers of the memory scratch pad for this invocation. See `zig man memory`. |
 | `--no-storage`   | Disable the `<storage>` block normally injected into each step's system prompt. Storage directories are not created and no storage listings are shown to agents. See `zig docs storage`. |
-| `--dry-run`      | Preview what the workflow would do without invoking `zag`. Prints each step's resolved prompt, system prompt, condition outcome, and the exact `zag` command-line that would be spawned. No sessions are recorded, no storage directories are created, and `zag` itself is not required on PATH. See `zig docs dry-run`. |
+| `--dry-run`      | Preview what the workflow would do without invoking zag. Prints each step's resolved prompt, system prompt, condition outcome, and the exact zag invocation that would run. No sessions are recorded, no storage directories are created, and no agent CLIs are spawned. See `zig docs dry-run`. |
 | `--format <fmt>` | Output format for `--dry-run`: `text` (default, human-readable) or `json` (stable schema suitable for piping into `jq`). Only meaningful with `--dry-run`. |
 
 ## Workflow Resolution
@@ -122,7 +123,7 @@ zig run code-review --dry-run --format json | jq '.tiers[].steps[].name'
 
 ## Prerequisites
 
-- `zag` must be installed and available on PATH (not required for `--dry-run`)
+- At least one agent CLI for the providers used by the workflow (`claude`, `codex`, `gemini`, `copilot`, `ollama`). `zag` itself is embedded in `zig` — no separate install is required.
 
 ## See Also
 
