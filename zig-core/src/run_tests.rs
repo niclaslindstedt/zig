@@ -876,6 +876,50 @@ fn partition_tier_multiple_race_groups() {
     assert_eq!(race_groups["slow"].len(), 1);
 }
 
+// ── build_pipe_context ──────────────────────────────────────────────────────
+
+#[test]
+fn build_pipe_context_errors_when_no_sessions_resolve() {
+    // UUIDs that are not in any known session store must surface as a
+    // concrete error rather than producing an empty/invalid prompt.
+    let ids = vec![
+        "00000000-0000-0000-0000-000000000001".to_string(),
+        "00000000-0000-0000-0000-000000000002".to_string(),
+    ];
+    let err = build_pipe_context(&ids, None).unwrap_err();
+    assert!(
+        err.to_string().contains("no results available"),
+        "unexpected error: {err}"
+    );
+}
+
+#[test]
+fn build_pipe_context_errors_on_empty_input() {
+    let err = build_pipe_context(&[], None).unwrap_err();
+    assert!(
+        err.to_string().contains("no results available"),
+        "unexpected error: {err}"
+    );
+}
+
+// ── resolve_plan_output_path ────────────────────────────────────────────────
+
+#[test]
+fn resolve_plan_output_path_preserves_explicit_filename() {
+    let target = resolve_plan_output_path("plans/oauth.md");
+    assert_eq!(target, std::path::PathBuf::from("plans/oauth.md"));
+}
+
+#[test]
+fn resolve_plan_output_path_appends_timestamped_file_for_directory_input() {
+    let target = resolve_plan_output_path("plans");
+    // No extension on input → generated filename inside the directory.
+    assert_eq!(target.parent(), Some(std::path::Path::new("plans")));
+    let name = target.file_name().and_then(|s| s.to_str()).unwrap();
+    assert!(name.starts_with("plan-"), "bad filename: {name}");
+    assert!(name.ends_with(".md"), "bad filename: {name}");
+}
+
 // ── build_agent_config: context / plan / mcp ────────────────────────────────
 
 #[test]

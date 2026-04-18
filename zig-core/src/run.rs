@@ -6,12 +6,9 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tokio::task::JoinSet;
 use zag_agent::builder::AgentBuilder;
-use zag_agent::output::AgentOutput;
 use zag_agent::{plan as agent_plan, review as agent_review};
 use zag_orch::collect as orch_collect;
-use zag_orch::pipe as orch_pipe;
 use zag_orch::summary as orch_summary;
-use zag_orch::types::SessionMetadata;
 
 use crate::config::ZigConfig;
 use crate::dry_run::{DryRunContext, DryRunFormat};
@@ -820,15 +817,22 @@ fn parse_timeout_string(s: &str) -> Option<Duration> {
 }
 
 /// Dispatch a built [`AgentConfig`] through the appropriate `zag-agent`
-/// / `zag-orch` library entry point and return the captured result text
-/// used for `saves` and dependency injection.
+/// / `zag-orch` entry point and return the captured result text used for
+/// `saves` and dependency injection.
+///
+/// Every path that drives an agent attaches a live `.on_log_event` hook
+/// via [`install_live_streaming`] so per-turn activity (assistant
+/// messages, tool calls, reasoning) streams to stderr and the zig session
+/// log as it happens — restoring the old `zag run` streaming UX after the
+/// subprocess-drop refactor.
 ///
 /// - `run` → [`AgentBuilder::exec`] (or [`AgentBuilder::run`] for `interactive`).
-/// - `review` → [`zag_agent::review::run_review`].
-/// - `plan` → [`zag_agent::plan::run_plan`].
-/// - `pipe` → [`zag_orch::pipe::pipe_sessions`].
-/// - `collect` → [`zag_orch::collect::collect_results`] (serialized as JSON).
-/// - `summary` → [`zag_orch::summary::summarize_sessions`] (serialized as JSON).
+/// - `review` (non-codex) → prompt built inline, then `AgentBuilder::exec`.
+/// - `review` (codex) → [`zag_agent::review::run_review`] (no live stream; codex has a native review flow).
+/// - `plan` → prompt built via [`zag_agent::plan::build_plan_prompt`], then `AgentBuilder::exec`, result optionally written to a file.
+/// - `pipe` → context built inline via [`zag_orch::collect::extract_last_assistant_message`], then `AgentBuilder::exec`.
+/// - `collect` → [`zag_orch::collect::collect_results`] (serialized as JSON; no agent).
+/// - `summary` → [`zag_orch::summary::summarize_sessions`] (serialized as JSON; no agent).
 async fn dispatch_agent(
     cfg: &AgentConfig,
     step_name: &str,
@@ -838,119 +842,149 @@ async fn dispatch_agent(
     match cfg.command.as_str() {
         "run" => {
             if cfg.interactive {
+                // Interactive sessions inherit stdio — the provider TUI
+                // takes over the terminal and renders events directly, so
+                // no log-event hook is wired here.
                 let builder = apply_agent_config(AgentBuilder::new(), cfg);
                 builder.run(Some(&cfg.prompt)).await.map_err(|e| {
                     ZigError::Zag(format!("agent run failed for step '{step_name}': {e}"))
                 })?;
                 Ok(String::new())
             } else {
-                let builder = apply_agent_config(AgentBuilder::new(), cfg);
+                let mut builder = apply_agent_config(AgentBuilder::new(), cfg);
+                builder = install_live_streaming(builder, step_name, session, prefix);
                 let output = builder.exec(&cfg.prompt).await.map_err(|e| {
                     ZigError::Zag(format!("agent exec failed for step '{step_name}': {e}"))
                 })?;
-                Ok(finalize_output(output, step_name, session, prefix))
+                Ok(output.result.unwrap_or_default())
             }
         }
         "review" => {
-            let params = agent_review::ReviewParams {
-                provider: cfg.provider.clone().unwrap_or_else(|| "claude".to_string()),
-                uncommitted: matches!(&cfg.command_params,
-                    Some(CommandParams::Review { uncommitted, .. }) if *uncommitted),
-                base: match &cfg.command_params {
-                    Some(CommandParams::Review { base, .. }) => base.clone(),
-                    _ => None,
-                },
-                commit: match &cfg.command_params {
-                    Some(CommandParams::Review { commit, .. }) => commit.clone(),
-                    _ => None,
-                },
-                title: match &cfg.command_params {
-                    Some(CommandParams::Review { title, .. }) => title.clone(),
-                    _ => None,
-                },
-                prompt: if cfg.prompt.is_empty() {
-                    None
-                } else {
-                    Some(cfg.prompt.clone())
-                },
-                system_prompt: cfg.system_prompt.clone(),
-                model: cfg.model.clone(),
-                root: cfg.root.clone(),
-                auto_approve: cfg.auto_approve,
-                add_dirs: cfg.add_dirs.clone(),
-                progress: Box::new(zag_agent::progress::SilentProgress),
+            let provider = cfg.provider.clone().unwrap_or_else(|| "claude".to_string());
+            let (uncommitted, base, commit, title) = match &cfg.command_params {
+                Some(CommandParams::Review {
+                    uncommitted,
+                    base,
+                    commit,
+                    title,
+                }) => (*uncommitted, base.clone(), commit.clone(), title.clone()),
+                _ => (false, None, None, None),
             };
-            let output = agent_review::run_review(params)
-                .await
-                .map_err(|e| ZigError::Zag(format!("review failed for step '{step_name}': {e}")))?;
-            let text = output.and_then(|o| o.result).unwrap_or_default();
-            emit_captured(&text, step_name, session, prefix);
-            Ok(text)
+
+            // Codex has a native review flow inside zag-agent that we
+            // don't want to reimplement — fall back to the library call.
+            // No live stream in that branch; same as before this fix.
+            if provider == "codex" {
+                let params = agent_review::ReviewParams {
+                    provider,
+                    uncommitted,
+                    base,
+                    commit,
+                    title,
+                    prompt: if cfg.prompt.is_empty() {
+                        None
+                    } else {
+                        Some(cfg.prompt.clone())
+                    },
+                    system_prompt: cfg.system_prompt.clone(),
+                    model: cfg.model.clone(),
+                    root: cfg.root.clone(),
+                    auto_approve: cfg.auto_approve,
+                    add_dirs: cfg.add_dirs.clone(),
+                    progress: Box::new(zag_agent::progress::SilentProgress),
+                };
+                let output = agent_review::run_review(params).await.map_err(|e| {
+                    ZigError::Zag(format!("review failed for step '{step_name}': {e}"))
+                })?;
+                return Ok(output.and_then(|o| o.result).unwrap_or_default());
+            }
+
+            // Non-codex review: build the diff and prompt in-process, then
+            // drive AgentBuilder directly so we can attach the live hook.
+            let diff = agent_review::gather_diff(
+                uncommitted,
+                base.as_deref(),
+                commit.as_deref(),
+                cfg.root.as_deref(),
+            )
+            .map_err(|e| {
+                ZigError::Zag(format!(
+                    "review gather_diff failed for step '{step_name}': {e}"
+                ))
+            })?;
+            let user_prompt = if cfg.prompt.is_empty() {
+                None
+            } else {
+                Some(cfg.prompt.as_str())
+            };
+            let review_prompt =
+                agent_review::build_review_prompt(&diff, title.as_deref(), user_prompt);
+
+            let mut builder = apply_agent_config(AgentBuilder::new(), cfg);
+            builder = install_live_streaming(builder, step_name, session, prefix);
+            let output = builder.exec(&review_prompt).await.map_err(|e| {
+                ZigError::Zag(format!("review exec failed for step '{step_name}': {e}"))
+            })?;
+            Ok(output.result.unwrap_or_default())
         }
         "plan" => {
-            let (output, instructions) = match &cfg.command_params {
+            let (plan_output_path, instructions) = match &cfg.command_params {
                 Some(CommandParams::Plan {
                     output,
                     instructions,
                 }) => (output.clone(), instructions.clone()),
                 _ => (None, None),
             };
-            let params = agent_plan::PlanParams {
-                provider: cfg.provider.clone().unwrap_or_else(|| "claude".to_string()),
-                goal: cfg.prompt.clone(),
-                output,
-                instructions,
-                system_prompt: cfg.system_prompt.clone(),
-                model: cfg.model.clone(),
-                root: cfg.root.clone(),
-                auto_approve: cfg.auto_approve,
-                add_dirs: cfg.add_dirs.clone(),
-                progress: Box::new(zag_agent::progress::SilentProgress),
-            };
-            let result = agent_plan::run_plan(params)
-                .await
-                .map_err(|e| ZigError::Zag(format!("plan failed for step '{step_name}': {e}")))?;
-            let text = result.text.unwrap_or_default();
-            emit_captured(&text, step_name, session, prefix);
+
+            let plan_prompt = agent_plan::build_plan_prompt(&cfg.prompt, instructions.as_deref());
+
+            let mut builder = apply_agent_config(AgentBuilder::new(), cfg);
+            builder = install_live_streaming(builder, step_name, session, prefix);
+            let output = builder.exec(&plan_prompt).await.map_err(|e| {
+                ZigError::Zag(format!("plan exec failed for step '{step_name}': {e}"))
+            })?;
+            let text = output.result.unwrap_or_default();
+
+            if let Some(path_str) = plan_output_path {
+                let target = resolve_plan_output_path(&path_str);
+                if let Some(parent) = target.parent()
+                    && !parent.as_os_str().is_empty()
+                {
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        ZigError::Io(format!(
+                            "failed to create plan output directory {}: {e}",
+                            parent.display()
+                        ))
+                    })?;
+                }
+                std::fs::write(&target, &text).map_err(|e| {
+                    ZigError::Io(format!(
+                        "failed to write plan output to {}: {e}",
+                        target.display()
+                    ))
+                })?;
+                eprintln!("plan written to {}", target.display());
+            }
+
             Ok(text)
         }
         "pipe" => {
             let session_ids = match &cfg.command_params {
-                Some(CommandParams::Pipe { session_ids }) => session_ids.clone(),
-                _ => Vec::new(),
+                Some(CommandParams::Pipe { session_ids }) => session_ids.as_slice(),
+                _ => &[] as &[String],
             };
-            let params = orch_pipe::PipeParams {
-                session_ids,
-                tag: None,
-                prompt: cfg.prompt.clone(),
-                provider: cfg.provider.clone(),
-                model: cfg.model.clone(),
-                root: cfg.root.clone(),
-                auto_approve: cfg.auto_approve,
-                system_prompt: cfg.system_prompt.clone(),
-                add_dirs: cfg.add_dirs.clone(),
-                size: None,
-                max_turns: cfg.max_turns,
-                output: cfg.output_format.clone(),
-                json: cfg.json_mode,
-                quiet: true,
-                metadata: SessionMetadata {
-                    name: Some(cfg.session_name.clone()),
-                    description: cfg.description.clone(),
-                    tags: cfg.tags.clone(),
-                },
-                timeout: cfg.timeout.clone(),
-                env_vars: cfg.env.clone(),
-                files: cfg.files.clone(),
-                worktree: cfg.worktree.clone(),
-                sandbox: cfg.sandbox.clone().map(Some),
-                context: None,
-                mcp_config: cfg.mcp_config.clone(),
-            };
-            let output = orch_pipe::pipe_sessions(&params)
-                .await
-                .map_err(|e| ZigError::Zag(format!("pipe failed for step '{step_name}': {e}")))?;
-            Ok(finalize_output(output, step_name, session, prefix))
+            let context = build_pipe_context(session_ids, cfg.root.as_deref())?;
+            let combined = format!(
+                "Here are results from previous agent sessions:\n\n{context}\n\n{}",
+                cfg.prompt
+            );
+
+            let mut builder = apply_agent_config(AgentBuilder::new(), cfg);
+            builder = install_live_streaming(builder, step_name, session, prefix);
+            let output = builder.exec(&combined).await.map_err(|e| {
+                ZigError::Zag(format!("pipe exec failed for step '{step_name}': {e}"))
+            })?;
+            Ok(output.result.unwrap_or_default())
         }
         "collect" => {
             let session_ids = match &cfg.command_params {
@@ -997,25 +1031,37 @@ async fn dispatch_agent(
     }
 }
 
-/// Extract the final result text from an [`AgentOutput`] and route it to
-/// the session writer / stderr prefix the same way `run_zag_streaming`
-/// used to stream zag stdout.
-fn finalize_output(
-    output: AgentOutput,
+/// Attach a live event stream to `builder`. Every [`AgentLogEvent`] that
+/// reaches the session log fires the closure: rendered via
+/// [`zag_agent::listen::format_event_text`] and routed to both stderr
+/// (with optional `[prefix]` tagging for parallel tiers) and the zig
+/// [`SessionWriter`] as `StepOutput` events — the same surface the old
+/// `run_zag_streaming` helper produced before we dropped the subprocess.
+fn install_live_streaming(
+    builder: AgentBuilder,
     step_name: &str,
     session: Option<&Arc<SessionWriter>>,
     prefix: Option<&str>,
-) -> String {
-    let text = output.result.unwrap_or_default();
-    emit_captured(&text, step_name, session, prefix);
-    text
+) -> AgentBuilder {
+    let step_name_owned = step_name.to_string();
+    let prefix_owned = prefix.map(String::from);
+    let session_owned = session.cloned();
+    builder.on_log_event(move |evt| {
+        let Some(text) = zag_agent::listen::format_event_text(evt, false) else {
+            return;
+        };
+        emit_live_line(
+            &text,
+            &step_name_owned,
+            session_owned.as_ref(),
+            prefix_owned.as_deref(),
+        );
+    })
 }
 
-/// Emit captured agent output line-by-line: (1) to the session log as
-/// one `StepOutput` event per line (mirrors the old streaming path so
-/// `zig listen` still sees per-line breadcrumbs), and (2) to stderr
-/// with an optional `[prefix]` tag for parallel runs.
-fn emit_captured(
+/// Write one or more rendered lines to stderr (with optional prefix) and
+/// mirror each line to the zig session writer.
+fn emit_live_line(
     text: &str,
     step_name: &str,
     session: Option<&Arc<SessionWriter>>,
@@ -1036,6 +1082,64 @@ fn emit_captured(
             None => writeln!(h, "{line}"),
         };
     }
+}
+
+/// Emit captured non-agent output (collect / summary JSON) line-by-line
+/// to stderr and the session writer. Kept for the two paths that don't
+/// run an agent and therefore can't use [`install_live_streaming`].
+fn emit_captured(
+    text: &str,
+    step_name: &str,
+    session: Option<&Arc<SessionWriter>>,
+    prefix: Option<&str>,
+) {
+    emit_live_line(text, step_name, session, prefix);
+}
+
+/// Build the `<session-result>` context block from upstream session IDs.
+///
+/// Mirrors `zag_orch::pipe::build_context` (`zag-orch/src/pipe.rs:86-118`)
+/// byte-for-byte so the combined prompt zig feeds the agent matches what
+/// the `zag pipe` CLI would have produced.
+fn build_pipe_context(session_ids: &[String], root: Option<&str>) -> Result<String, ZigError> {
+    let mut parts = Vec::new();
+    for (i, id) in session_ids.iter().enumerate() {
+        let Some(text) = orch_collect::extract_last_assistant_message(id, root) else {
+            eprintln!("warning: no result found for upstream session {id}");
+            continue;
+        };
+        let short = &id[..id.len().min(8)];
+        let block = if session_ids.len() == 1 {
+            format!("<session-result session=\"{short}\">\n{text}\n</session-result>")
+        } else {
+            format!(
+                "<session-result index=\"{}\" session=\"{short}\">\n{text}\n</session-result>",
+                i + 1
+            )
+        };
+        parts.push(block);
+    }
+
+    if parts.is_empty() {
+        return Err(ZigError::Execution(
+            "pipe: no results available from the specified sessions".into(),
+        ));
+    }
+    Ok(parts.join("\n\n"))
+}
+
+/// Resolve a `plan_output` path. If the caller specified a bare directory
+/// name (no extension), append a timestamped `plan-YYYYMMDD-HHMMSS.md`
+/// inside it — matching the behavior documented on
+/// [`zag_agent::plan::PlanParams::output`].
+fn resolve_plan_output_path(path_str: &str) -> std::path::PathBuf {
+    let expanded = expand_path(path_str);
+    let path = std::path::PathBuf::from(&expanded);
+    if path.extension().is_some() {
+        return path;
+    }
+    let stamp = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+    path.join(format!("plan-{stamp}.md"))
 }
 
 /// Execute a single step through the agent-builder dispatch. Returns the
