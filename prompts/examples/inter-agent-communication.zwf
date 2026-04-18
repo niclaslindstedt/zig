@@ -13,6 +13,16 @@ name = "rfc-review"
 description = "Two independent reviewers assess an RFC, then a moderator synthesizes a decision"
 tags = ["architecture", "decision-making", "inter-agent-communication"]
 version = "1.0.0"
+memory = "all"
+resources = [
+  "./architecture-principles.md",
+  { path = "./prior-adrs/", name = "prior-adrs", description = "Previous Architecture Decision Records" },
+]
+
+[storage.decisions]
+type = "file"
+path = "./decision.md"
+description = "Final decision record with rationale"
 
 [vars.proposal]
 type = "string"
@@ -56,6 +66,7 @@ Be rigorous, not cheerful. Advocacy means finding genuine strengths, not ignorin
 system_prompt = "You are a senior architect who evaluates proposals by steelmanning their benefits. You are honest about tradeoffs but focus on what the proposal gets right."
 json = true
 saves = { advocate_assessment = "$" }
+storage = []
 description = "Assess the proposal from an advocate's perspective"
 
 [[step]]
@@ -77,6 +88,7 @@ Be rigorous, not cynical. Skepticism means finding genuine risks, not refusing t
 system_prompt = "You are a senior architect who evaluates proposals by finding their weakest points. You are honest about benefits but focus on risks and alternatives."
 json = true
 saves = { skeptic_assessment = "$" }
+storage = []
 description = "Assess the proposal from a skeptic's perspective"
 
 [[step]]

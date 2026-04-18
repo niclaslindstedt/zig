@@ -11,6 +11,21 @@ name = "blog-post-pipeline"
 description = "Research, draft, edit, and optimize a blog post end-to-end"
 tags = ["content", "writing", "sequential"]
 version = "1.0.0"
+memory = "all"
+resources = [
+  "./style-guide.md",
+  { path = "./editorial-checklist.md", description = "Tone, structure, and formatting rules" },
+]
+
+[storage.drafts]
+type = "folder"
+path = "./drafts"
+description = "Blog post drafts and revisions"
+
+[storage.assets]
+type = "folder"
+path = "./assets"
+description = "SEO metadata and supporting materials"
 
 [vars.topic]
 type = "string"
@@ -37,6 +52,7 @@ Organize findings into a structured research brief with sections:
 - Supporting data points
 - Counterarguments or nuances
 - Suggested angle for the article"""
+storage = []
 description = "Gather background research and key talking points"
 
 [[step]]
@@ -52,6 +68,7 @@ Structure the post with:
 - A conclusion with a clear takeaway"""
 depends_on = ["research"]
 inject_context = true
+storage = ["drafts"]
 description = "Write the first draft based on research"
 
 [[step]]
@@ -70,6 +87,7 @@ Focus on:
 Return the complete edited post."""
 depends_on = ["draft"]
 inject_context = true
+storage = ["drafts"]
 description = "Polish the draft for clarity and readability"
 
 [[step]]
@@ -86,4 +104,5 @@ Provide:
 depends_on = ["edit"]
 inject_context = true
 json = true
+storage = ["drafts", "assets"]
 description = "Generate SEO metadata and optimization suggestions"

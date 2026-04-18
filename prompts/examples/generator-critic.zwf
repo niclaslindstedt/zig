@@ -12,6 +12,17 @@ name = "landing-page-copy"
 description = "Generate and iteratively refine landing page copy with quality scoring"
 tags = ["marketing", "copywriting", "generator-critic"]
 version = "1.0.0"
+memory = "all"
+resources = [
+  "./brand-guidelines.md",
+  { path = "./tone-of-voice.md", description = "Voice, tone, and messaging standards" },
+]
+
+[storage.iterations]
+type = "folder"
+path = "./iterations"
+description = "Copy drafts by revision round"
+hint = "Filename: v1.md, v2.md, etc."
 
 [vars.product]
 type = "string"
@@ -52,6 +63,7 @@ The copy must include:
 Write in a confident, direct tone. Avoid buzzwords and superlatives.
 Lead with outcomes, not features."""
 system_prompt = "You are a senior conversion copywriter who writes crisp, benefit-driven landing pages."
+storage = ["iterations"]
 description = "Generate or refine landing page copy"
 
 [[step]]
@@ -75,6 +87,7 @@ inject_context = true
 system_prompt = "You are a conversion rate optimization specialist who evaluates marketing copy with rigorous, data-informed criteria."
 json = true
 saves = { score = "$.score", feedback = "$.suggestions" }
+storage = []
 description = "Score the copy and provide improvement feedback"
 
 [[step]]
@@ -88,4 +101,5 @@ depends_on = ["critique"]
 condition = "score < threshold"
 next = "critique"
 system_prompt = "You are a senior conversion copywriter who writes crisp, benefit-driven landing pages."
+storage = ["iterations"]
 description = "Refine the copy based on critic feedback and loop back"

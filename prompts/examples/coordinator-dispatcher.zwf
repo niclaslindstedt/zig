@@ -11,6 +11,21 @@ name = "support-ticket-router"
 description = "Classify support tickets and route to specialized handlers"
 tags = ["support", "routing", "coordinator-dispatcher"]
 version = "1.0.0"
+memory = "all"
+
+[[workflow.resources]]
+path = "./refund-policy.md"
+description = "Refund and credit policy"
+required = true
+
+[[workflow.resources]]
+path = "./troubleshooting-guide.md"
+description = "Common issues and resolution steps"
+
+[storage.resolutions]
+type = "folder"
+path = "./resolutions"
+description = "Past ticket resolutions for reference"
 
 [vars.ticket]
 type = "string"
@@ -51,6 +66,7 @@ Respond in JSON."""
 system_prompt = "You are a support ticket triage specialist. Classify accurately based on the primary issue, not secondary mentions."
 json = true
 saves = { category = "$.category", priority = "$.priority", customer_context = "$.customer_context" }
+storage = []
 description = "Classify the ticket category and priority"
 
 [[step]]
