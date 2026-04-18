@@ -7,7 +7,7 @@
 
 Describe workflows. Share them. Run them.
 
-`zig` is an orchestration CLI for AI coding agents. It uses [zag](https://github.com/niclaslindstedt/zag) behind the scenes to let you describe a workflow in natural language, capture it as a shareable `.zwf` file, and replay it anywhere with a single command.
+`zig` is an orchestration CLI for AI coding agents. It embeds [zag](https://github.com/niclaslindstedt/zag) behind the scenes to let you describe a workflow in natural language, capture it as a shareable `.zwf` file, and replay it anywhere with a single command.
 
 ## Why zig?
 
@@ -53,8 +53,9 @@ to collaborate with the agent until your `.zwf` file is ready.
 ## Prerequisites
 
 - **Rust 1.94+** (edition 2024) — for building from source
-- **zag CLI** — zig delegates to zag for agent orchestration ([install zag](https://github.com/niclaslindstedt/zag#install))
 - At least one AI agent CLI installed (Claude, Codex, Gemini, Copilot, or Ollama — see [zag docs](https://github.com/niclaslindstedt/zag#agent-clis))
+
+zag's orchestration (`zag-agent` + `zag-orch`) is embedded directly into the `zig` binary — you do not need a separate `zag` install.
 
 ## Install
 
@@ -286,7 +287,7 @@ zig validate my-workflow.zwfz
 
 ### `zig man`
 
-Show built-in manual pages for zig commands (zig, run, listen, serve, workflow, validate, resources).
+Show built-in manual pages for zig commands (zig, run, listen, serve, workflow, validate, resources, memory).
 
 ```bash
 zig man run
@@ -295,7 +296,7 @@ zig man workflow
 
 ### `zig docs`
 
-Show conceptual documentation (zwf, patterns, variables, conditions, memory, storage).
+Show conceptual documentation (zwf, patterns, variables, conditions, memory, storage, dry-run).
 
 ```bash
 zig docs zwf
@@ -316,6 +317,8 @@ zig docs patterns
 | `--no-resources` | | `run` | Skip the `<resources>` block injected into each step's system prompt |
 | `--no-memory` | | `run` | Skip the `<memory>` block injected into each step's system prompt |
 | `--no-storage` | | `run` | Skip the `<storage>` block and do not create storage directories |
+| `--dry-run` | | `run` | Preview the resolved plan (prompts, conditions, `zag` command line) without executing |
+| `--format <fmt>` | | `run` (with `--dry-run`) | Dry-run output format: `text` (default) or `json` |
 | `--global` | | `resources add/delete/list` | Target the global tier (`~/.zig/resources/_shared/`) |
 | `--cwd` | | `resources add/delete/list` | Target the project tier (`<git-root>/.zig/resources/`) |
 | `--workflow <name>` | | `resources`, `memory` | Restrict to a specific workflow's tier |
@@ -366,7 +369,7 @@ zig-core (library crate)
 
 zig-cli (binary crate)
   CLI argument parsing (clap) → dispatch to zig-core
-  Delegates to zag for agent interactions
+  Embeds zag-agent + zag-orch for agent interactions
 ```
 
 `zig` is built as a Rust workspace with two crates:
@@ -390,7 +393,7 @@ zig-cli (binary crate)
 - **zig-cli** — Thin CLI wrapper that handles argument parsing (via clap) and dispatches commands to `zig-core`.
 - **zig-serve** — Companion HTTP API server crate (invoked via `zig serve`) with optional embedded React web UI.
 
-Under the hood, `zig-core` delegates to zag's orchestration primitives (`spawn`, `wait`, `collect`, `pipe`, etc.) to execute workflows.
+Under the hood, `zig-core` embeds zag's library crates (`zag-agent`, `zag-orch`) and calls their orchestration primitives (`spawn`, `wait`, `collect`, `pipe`, etc.) directly in-process — no external `zag` binary is required.
 
 ## Development
 
@@ -436,8 +439,6 @@ Ready-to-use workflow files are in [`prompts/examples/`](prompts/examples/). Eac
 
 **`zig: command not found`** — make sure `~/.cargo/bin` is in your `PATH` after `cargo install zig-cli`.
 
-**`zag: command not found`** — install zag first; see the [zag install guide](https://github.com/niclaslindstedt/zag#install).
-
 **Workflow fails immediately** — run `zig validate <workflow>` to check the `.zwf` file for structural errors before executing it.
 
 **Build fails with web UI errors** — ensure Node 24+ is installed; the `make build` target builds the embedded React UI first.
@@ -452,6 +453,7 @@ Conceptual and reference docs live in [`docs/`](docs/):
 - [`docs/conditions.md`](docs/conditions.md) — conditional step routing
 - [`docs/memory.md`](docs/memory.md) — memory scratch pad model
 - [`docs/storage.md`](docs/storage.md) — writable storage declarations
+- [`docs/dry-run.md`](docs/dry-run.md) — `zig run --dry-run` preview model and JSON schema
 
 Built-in docs are also available at runtime via `zig docs <topic>` and `zig man <topic>`.
 

@@ -23,6 +23,8 @@ changes without corresponding docs updates.
 | `variables.md` | Variable declarations, substitution, saves, data flow |
 | `conditions.md` | Condition expressions for step gating |
 | `memory.md` | Memory scratch pad, tiers, rendered `<memory>` block |
+| `storage.md` | Writable structured working data for workflows |
+| `dry-run.md` | `zig run --dry-run` preview model and JSON schema |
 
 ## Tracking Mechanism
 

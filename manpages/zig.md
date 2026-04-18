@@ -11,8 +11,9 @@ zig <command> [options]
 ## Description
 
 `zig` lets you create a workflow interactively with an AI agent, capture it as
-a shareable `.zwf` file, and replay it anywhere with a single command. It uses
-zag behind the scenes for agent orchestration.
+a shareable `.zwf` file, and replay it anywhere with a single command. It
+embeds zag (`zag-agent` + `zag-orch`) in-process for agent orchestration — no
+separate `zag` binary is required.
 
 ## Commands
 
@@ -75,6 +76,7 @@ zig docs variables   # Variable system and data flow
 zig docs conditions  # Condition expressions
 zig docs memory      # Memory scratch pad and the <memory> block
 zig docs storage     # Writable structured working data for workflows
+zig docs dry-run     # Preview workflow execution without running zag
 ```
 
 ## See Also

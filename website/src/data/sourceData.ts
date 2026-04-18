@@ -27,7 +27,7 @@ export interface StepField {
 
 // --- Data ---
 
-export const version = "0.7.1";
+export const version = "0.9.0";
 
 export const commands: CommandData[] = [
   {
