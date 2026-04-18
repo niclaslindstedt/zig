@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::Serialize;
+use zag_agent::builder::AgentBuilder;
 
 use crate::create::{get_zag_help, get_zag_orch_reference};
 use crate::error::ZigError;
@@ -137,25 +137,20 @@ pub fn prepare_update(workflow: &str) -> Result<UpdateParams, ZigError> {
 /// Flow:
 /// 1. Resolve the workflow by name or path.
 /// 2. Copy (plain `.zwf`) or unzip (`.zwfz`) it into a temp staging directory.
-/// 3. Spawn `zag run` with an update system prompt and the staging path.
+/// 3. Drive an [`AgentBuilder`] session with the update system prompt and the
+///    staging path.
 /// 4. On success, move (plain) or re-zip (zipped) the staging contents back
 ///    over the original path.
-pub fn run_update(workflow: &str) -> Result<(), ZigError> {
-    run::check_zag()?;
-
+pub async fn run_update(workflow: &str) -> Result<(), ZigError> {
     let params = prepare_update(workflow)?;
 
-    let status = Command::new("zag")
-        .args(["run", &params.initial_prompt])
-        .args(["--system-prompt", &params.system_prompt])
-        .args(["--name", &params.session_name])
-        .args(["--tag", &params.session_tag])
-        .status()
-        .map_err(|e| ZigError::Zag(format!("failed to launch zag: {e}")))?;
-
-    if !status.success() {
-        return Err(ZigError::Zag(format!("zag exited with status {status}")));
-    }
+    AgentBuilder::new()
+        .system_prompt(&params.system_prompt)
+        .name(&params.session_name)
+        .tag(&params.session_tag)
+        .run(Some(&params.initial_prompt))
+        .await
+        .map_err(|e| ZigError::Zag(format!("failed to run agent: {e}")))?;
 
     // Re-validate the edited workflow; warn (but do not abort) on issues so
     // the user still ends up with the file the agent produced.

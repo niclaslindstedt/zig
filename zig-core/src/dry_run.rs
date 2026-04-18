@@ -1,13 +1,15 @@
-//! `zig run --dry-run` — preview what a workflow would do without invoking zag.
+//! `zig run --dry-run` — preview what a workflow would do without invoking the agent.
 //!
 //! This module walks the tiers produced by `topological_sort` and renders,
 //! for each step, everything a real run would compute up to the moment of
-//! `zag` spawn: the resolved prompt, system prompt (including the
+//! agent invocation: the resolved prompt, system prompt (including the
 //! `<resources>` / `<memory>` / `<storage>` blocks), the condition outcome,
-//! and the exact `zag` command-line arguments that *would* be invoked.
+//! and the full [`AgentConfig`] snapshot (every AgentBuilder knob the
+//! executor would set plus any command-specific params) that *would* be
+//! applied.
 //!
 //! No side effects: no session log is written, no storage directories are
-//! created, no `zag` process is launched.
+//! created, no agent subprocess is launched.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -18,7 +20,8 @@ use crate::error::ZigError;
 use crate::memory::MemoryCollector;
 use crate::resources::ResourceCollector;
 use crate::run::{
-    build_zag_args, evaluate_condition, render_step_prompt, resolve_role_system_prompt,
+    AgentConfig, build_agent_config, evaluate_condition, render_step_prompt,
+    resolve_role_system_prompt,
 };
 use crate::storage::StorageManager;
 use crate::workflow::model::{FailurePolicy, Role, Step, StepCommand, Workflow};
@@ -120,7 +123,12 @@ pub struct DryRunStep {
     pub prompt: String,
     pub system_prompt: Option<String>,
     pub blocks: DryRunBlocks,
-    pub zag_args: Vec<String>,
+    /// Snapshot of the AgentBuilder configuration that would drive this
+    /// step at run time. Mirrors every builder knob (provider, model,
+    /// system prompt, root, add_dirs, env, files, auto_approve, json,
+    /// output format, max_turns, timeout, session metadata, …) plus any
+    /// command-specific params (review/plan/pipe/collect/summary).
+    pub agent_config: AgentConfig,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -257,7 +265,7 @@ fn build_step(
 
     let storage_dirs = ctx.storage.add_dirs_for_step(step.storage.as_deref());
 
-    let zag_args = build_zag_args(
+    let agent_config = build_agent_config(
         step,
         &prompt,
         &ctx.workflow.workflow.name,
@@ -294,7 +302,7 @@ fn build_step(
         prompt,
         system_prompt: rendered_sp,
         blocks,
-        zag_args,
+        agent_config,
     })
 }
 
@@ -511,9 +519,76 @@ fn print_step_text(position: usize, step: &DryRunStep) {
     print_block_text("memory", &step.blocks.memory);
     print_block_text("storage", &step.blocks.storage);
 
-    let quoted: Vec<String> = step.zag_args.iter().map(|a| quote_arg(a)).collect();
-    println!("    zag args: [{}]", quoted.join(", "));
+    println!("    agent config:");
+    print_agent_config_text(&step.agent_config, "      ");
     println!();
+}
+
+fn print_agent_config_text(cfg: &AgentConfig, prefix: &str) {
+    println!("{prefix}command: {}", cfg.command);
+    if let Some(ref p) = cfg.provider {
+        println!("{prefix}provider: {p}");
+    }
+    if let Some(ref m) = cfg.model {
+        println!("{prefix}model: {m}");
+    }
+    if let Some(ref r) = cfg.root {
+        println!("{prefix}root: {r}");
+    }
+    if !cfg.add_dirs.is_empty() {
+        println!("{prefix}add_dirs: {:?}", cfg.add_dirs);
+    }
+    if !cfg.env.is_empty() {
+        let pairs: Vec<String> = cfg.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+        println!("{prefix}env: [{}]", pairs.join(", "));
+    }
+    if !cfg.files.is_empty() {
+        println!("{prefix}files: {:?}", cfg.files);
+    }
+    if cfg.auto_approve {
+        println!("{prefix}auto_approve: true");
+    }
+    if let Some(ref wt) = cfg.worktree {
+        match wt {
+            None => println!("{prefix}worktree: generated"),
+            Some(name) => println!("{prefix}worktree: {name}"),
+        }
+    }
+    if let Some(ref sb) = cfg.sandbox {
+        println!("{prefix}sandbox: {sb}");
+    }
+    if cfg.json_mode {
+        println!("{prefix}json_mode: true");
+    }
+    if let Some(ref schema) = cfg.json_schema {
+        println!("{prefix}json_schema: {}", preview(schema, 80));
+    }
+    if let Some(ref fmt) = cfg.output_format {
+        println!("{prefix}output_format: {fmt}");
+    }
+    if let Some(turns) = cfg.max_turns {
+        println!("{prefix}max_turns: {turns}");
+    }
+    if let Some(ref t) = cfg.timeout {
+        println!("{prefix}timeout: {t}");
+    }
+    if let Some(ref mcp) = cfg.mcp_config {
+        println!("{prefix}mcp_config: {mcp}");
+    }
+    println!("{prefix}session_name: {}", cfg.session_name);
+    if let Some(ref d) = cfg.description {
+        println!("{prefix}description: {d}");
+    }
+    if !cfg.tags.is_empty() {
+        println!("{prefix}tags: {:?}", cfg.tags);
+    }
+    if cfg.interactive {
+        println!("{prefix}interactive: true");
+    }
+    if let Some(ref params) = cfg.command_params {
+        let j = serde_json::to_string(params).unwrap_or_default();
+        println!("{prefix}command_params: {j}");
+    }
 }
 
 fn print_block_text(label: &str, block: &DryRunBlock) {
@@ -550,15 +625,6 @@ fn preview(value: &str, max: usize) -> String {
     } else {
         let truncated: String = collapsed.chars().take(max).collect();
         format!("{truncated}…")
-    }
-}
-
-fn quote_arg(arg: &str) -> String {
-    if arg.is_empty() || arg.chars().any(|c| c.is_whitespace() || c == '"') {
-        let escaped = arg.replace('\\', "\\\\").replace('"', "\\\"");
-        format!("\"{escaped}\"")
-    } else {
-        format!("\"{arg}\"")
     }
 }
 

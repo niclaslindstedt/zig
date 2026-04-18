@@ -345,12 +345,11 @@ fn build_plan_zag_args_include_prompt_and_name() {
 
     let tiers: Vec<Vec<&Step>> = vec![wf.steps.iter().collect()];
     let plan = build_plan(&ctx, &tiers).unwrap();
-    let args = &plan.tiers[0].steps[0].zag_args;
-    assert_eq!(args[0], "run");
-    assert!(args.contains(&"Do the thing".to_string()));
+    let cfg = &plan.tiers[0].steps[0].agent_config;
+    assert_eq!(cfg.command, "run");
+    assert_eq!(cfg.prompt, "Do the thing");
     // session name is derived from workflow name + step name
-    let name_idx = args.iter().position(|a| a == "--name").unwrap();
-    assert_eq!(args[name_idx + 1], "zig-test-wf-a");
+    assert_eq!(cfg.session_name, "zig-test-wf-a");
 }
 
 // ── JSON serialization ───────────────────────────────────────────────────────
@@ -380,7 +379,9 @@ fn json_output_has_expected_top_level_keys() {
     let step_zero = &json["tiers"][0]["steps"][0];
     assert_eq!(step_zero["name"], "a");
     assert_eq!(step_zero["command"], "run");
-    assert!(step_zero["zag_args"].is_array());
+    assert!(step_zero["agent_config"].is_object());
+    assert_eq!(step_zero["agent_config"]["command"], "run");
+    assert_eq!(step_zero["agent_config"]["session_name"], "zig-test-wf-a");
     assert_eq!(step_zero["condition"]["outcome"], "none");
     // `missing` should be skipped when empty (per serde skip_serializing_if).
     assert!(step_zero["condition"].get("missing").is_none());

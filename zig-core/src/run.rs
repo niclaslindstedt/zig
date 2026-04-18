@@ -1,12 +1,17 @@
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use std::time::Instant;
+use serde::Serialize;
+use tokio::task::JoinSet;
+use zag_agent::builder::AgentBuilder;
+use zag_agent::output::AgentOutput;
+use zag_agent::{plan as agent_plan, review as agent_review};
+use zag_orch::collect as orch_collect;
+use zag_orch::pipe as orch_pipe;
+use zag_orch::summary as orch_summary;
+use zag_orch::types::SessionMetadata;
 
 use crate::config::ZigConfig;
 use crate::dry_run::{DryRunContext, DryRunFormat};
@@ -25,8 +30,9 @@ const MAX_LOOP_ITERATIONS: usize = 100;
 /// Execute a workflow file (`.zwf` or `.zwfz`).
 ///
 /// Parses the workflow, validates it, resolves the step DAG, and executes
-/// each step by delegating to `zag`. The optional `user_prompt` is injected
-/// as additional context into every step's prompt.
+/// each step via the embedded [`zag_agent::builder::AgentBuilder`] (and
+/// [`zag_orch`] for pipe/collect/summary commands). The optional
+/// `user_prompt` is injected as additional context into every step's prompt.
 ///
 /// Resource advertisement (the `<resources>` block prepended to each step's
 /// system prompt) is enabled by default; pass `disable_resources = true` to
@@ -39,12 +45,11 @@ const MAX_LOOP_ITERATIONS: usize = 100;
 /// pass `disable_storage = true` to opt out via `zig run --no-storage`.
 ///
 /// When `dry_run = true`, the workflow is parsed, validated, and its plan is
-/// printed in the requested `format` — no `zag` invocation, session log,
+/// printed in the requested `format` — no agent invocation, session log,
 /// storage creation, or memory write occurs. The three `disable_*` flags are
-/// respected and surface in the plan output. `check_zag()` is skipped so a
-/// dry run is produceable on machines without `zag` installed.
+/// respected and surface in the plan output.
 #[allow(clippy::too_many_arguments)]
-pub fn run_workflow(
+pub async fn run_workflow(
     workflow_path: &str,
     user_prompt: Option<&str>,
     disable_resources: bool,
@@ -53,10 +58,6 @@ pub fn run_workflow(
     dry_run: bool,
     dry_run_format: DryRunFormat,
 ) -> Result<(), ZigError> {
-    if !dry_run {
-        check_zag()?;
-    }
-
     let path = resolve_workflow_path(workflow_path)?;
     let (workflow, source) = parser::parse_workflow(&path)?;
 
@@ -76,21 +77,7 @@ pub fn run_workflow(
         dry_run,
         dry_run_format,
     )
-}
-
-/// Verify that `zag` is installed and available on PATH.
-pub(crate) fn check_zag() -> Result<(), ZigError> {
-    let zag_available = Command::new("zag")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success());
-
-    if !zag_available {
-        return Err(ZigError::Zag(
-            "zag is not installed or not in PATH. Install it from https://github.com/niclaslindstedt/zag".into(),
-        ));
-    }
-    Ok(())
+    .await
 }
 
 /// Resolve a workflow argument to an actual file path.
@@ -281,7 +268,7 @@ fn json_path_lookup(value: &serde_json::Value, path: &str) -> String {
 pub(crate) fn resolve_role_system_prompt(
     step: &Step,
     roles: &HashMap<String, Role>,
-    resources: &ResourceCollector,
+    resources: &ResourceCollector<'_>,
     memory: &MemoryCollector,
     storage: &StorageManager,
     vars: &HashMap<String, String>,
@@ -477,21 +464,115 @@ pub(crate) fn render_step_prompt(
     prompt
 }
 
-/// Build the argument list for a zag invocation.
+/// Serializable snapshot of everything a step contributes to an agent
+/// invocation. Produced by [`build_agent_config`] and used by both the
+/// executor (to configure a [`AgentBuilder`]) and `--dry-run` (to show
+/// the author what each step will ask of the agent).
 ///
-/// Separated from `execute_step` to allow unit testing of flag logic
-/// without a real `zag` binary. The optional `model_override` is used
-/// during retries when `retry_model` escalates to a different model.
-///
-/// The subcommand is determined by `step.command`:
-/// - `None` → `zag run <prompt>` (default)
-/// - `Review` → `zag review [prompt] [--uncommitted] [--base] [--commit] [--title]`
-/// - `Plan` → `zag plan <prompt> [-o path] [--instructions]`
-/// - `Pipe` → `zag pipe <session-ids...> -- <prompt>`
-/// - `Collect` → `zag collect <session-ids...>`
-/// - `Summary` → `zag summary <session-ids...>`
+/// The shape mirrors [`AgentBuilder`] field-for-field; additional
+/// command-specific parameters (review/plan/pipe/collect/summary) are
+/// stored in the optional `command_params` bag.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct AgentConfig {
+    /// Subcommand label — `"run"`, `"review"`, `"plan"`, `"pipe"`,
+    /// `"collect"`, or `"summary"`.
+    pub command: String,
+
+    /// Agent-level knobs.
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub system_prompt: Option<String>,
+    pub root: Option<String>,
+    pub add_dirs: Vec<String>,
+    #[serde(serialize_with = "serialize_env_pairs")]
+    pub env: Vec<(String, String)>,
+    pub files: Vec<String>,
+    pub auto_approve: bool,
+    /// `None` → no worktree, `Some(None)` → generated name, `Some(Some(n))` → explicit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub worktree: Option<Option<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sandbox: Option<String>,
+
+    /// Output shaping.
+    pub json_mode: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub json_schema: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_format: Option<String>,
+
+    /// Turn / timeout / MCP.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_turns: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_config: Option<String>,
+
+    /// Session metadata — always set (session name derives from workflow/step).
+    pub session_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+
+    /// The effective prompt after dependency/context/plan prepending.
+    pub prompt: String,
+
+    /// Whether `accepts_agent_args` was true for this command — pipe/run/
+    /// review/plan/exec respect agent-level flags; collect/summary don't.
+    pub accepts_agent_args: bool,
+
+    /// Extra params for the non-plain commands. `None` for `run`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command_params: Option<CommandParams>,
+
+    /// Interactive flag — steps with `interactive = true` run through
+    /// `AgentBuilder::run` instead of `exec`.
+    pub interactive: bool,
+}
+
+fn serialize_env_pairs<S>(pairs: &[(String, String)], s: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    use serde::ser::SerializeSeq;
+    let mut seq = s.serialize_seq(Some(pairs.len()))?;
+    for (k, v) in pairs {
+        seq.serialize_element(&format!("{k}={v}"))?;
+    }
+    seq.end()
+}
+
+/// Command-specific parameter bag. Only populated for non-`run` commands.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CommandParams {
+    Review {
+        uncommitted: bool,
+        base: Option<String>,
+        commit: Option<String>,
+        title: Option<String>,
+    },
+    Plan {
+        output: Option<String>,
+        instructions: Option<String>,
+    },
+    Pipe {
+        session_ids: Vec<String>,
+    },
+    Collect {
+        session_ids: Vec<String>,
+    },
+    Summary {
+        session_ids: Vec<String>,
+    },
+}
+
+/// Build an [`AgentConfig`] snapshot for a step. Replaces the old argv
+/// builder (`build_zag_args`) — the returned config is applied to an
+/// [`AgentBuilder`] at execution time by [`apply_agent_config`].
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn build_zag_args(
+pub(crate) fn build_agent_config(
     step: &Step,
     prompt: &str,
     workflow_name: &str,
@@ -500,269 +581,469 @@ pub(crate) fn build_zag_args(
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
     extra_add_dirs: &[std::path::PathBuf],
-) -> Vec<String> {
+) -> AgentConfig {
     let session_name = |dep: &str| format!("zig-{workflow_name}-{dep}");
 
-    // Build command-specific prefix and determine if agent args apply
-    let (mut args, accepts_agent_args) = match &step.command {
-        None => (vec!["run".to_string(), prompt.to_string()], true),
-        Some(StepCommand::Review) => {
-            let mut a = vec!["review".to_string()];
-            if !prompt.is_empty() {
-                a.push(prompt.to_string());
-            }
-            if step.uncommitted {
-                a.push("--uncommitted".into());
-            }
-            if let Some(base) = &step.base {
-                a.extend(["--base".into(), base.clone()]);
-            }
-            if let Some(commit) = &step.commit {
-                a.extend(["--commit".into(), commit.clone()]);
-            }
-            if let Some(title) = &step.title {
-                a.extend(["--title".into(), title.clone()]);
-            }
-            (a, true)
-        }
-        Some(StepCommand::Plan) => {
-            let mut a = vec!["plan".to_string(), prompt.to_string()];
-            if let Some(output) = &step.plan_output {
-                a.extend(["-o".into(), expand_path(output)]);
-            }
-            if let Some(instructions) = &step.instructions {
-                a.extend(["--instructions".into(), instructions.clone()]);
-            }
-            (a, true)
-        }
+    let (command_label, accepts_agent_args, command_params) = match &step.command {
+        None => ("run".to_string(), true, None),
+        Some(StepCommand::Review) => (
+            "review".to_string(),
+            true,
+            Some(CommandParams::Review {
+                uncommitted: step.uncommitted,
+                base: step.base.clone(),
+                commit: step.commit.clone(),
+                title: step.title.clone(),
+            }),
+        ),
+        Some(StepCommand::Plan) => (
+            "plan".to_string(),
+            true,
+            Some(CommandParams::Plan {
+                output: step.plan_output.as_deref().map(expand_path),
+                instructions: step.instructions.clone(),
+            }),
+        ),
         Some(StepCommand::Pipe) => {
-            let mut a = vec!["pipe".to_string()];
-            for dep in &step.depends_on {
-                a.push(session_name(dep));
-            }
-            a.push("--".into());
-            a.push(prompt.to_string());
-            (a, true)
+            let session_ids: Vec<String> =
+                step.depends_on.iter().map(|d| session_name(d)).collect();
+            (
+                "pipe".to_string(),
+                true,
+                Some(CommandParams::Pipe { session_ids }),
+            )
         }
         Some(StepCommand::Collect) => {
-            let mut a = vec!["collect".to_string()];
-            for dep in &step.depends_on {
-                a.push(session_name(dep));
-            }
-            (a, false)
+            let session_ids: Vec<String> =
+                step.depends_on.iter().map(|d| session_name(d)).collect();
+            (
+                "collect".to_string(),
+                false,
+                Some(CommandParams::Collect { session_ids }),
+            )
         }
         Some(StepCommand::Summary) => {
-            let mut a = vec!["summary".to_string()];
-            for dep in &step.depends_on {
-                a.push(session_name(dep));
-            }
-            (a, false)
+            let session_ids: Vec<String> =
+                step.depends_on.iter().map(|d| session_name(d)).collect();
+            (
+                "summary".to_string(),
+                false,
+                Some(CommandParams::Summary { session_ids }),
+            )
         }
     };
 
-    // Agent args (provider, model, prompts, output, etc.) only apply to
-    // commands that launch an agent: run, review, plan, pipe.
-    if accepts_agent_args {
-        let effective_provider = step.provider.as_deref().or(workflow_provider);
-        if let Some(provider) = effective_provider {
-            args.extend(["--provider".into(), provider.to_string()]);
-        }
+    // Build the agent config. Agent-level knobs only apply when the
+    // command accepts them (matching the old `accepts_agent_args` gate).
+    let mut cfg = AgentConfig {
+        command: command_label,
+        session_name: session_name(&step.name),
+        description: if step.description.is_empty() {
+            None
+        } else {
+            Some(step.description.clone())
+        },
+        tags: {
+            let mut t = vec!["zig-workflow".to_string()];
+            t.extend(step.tags.iter().cloned());
+            t
+        },
+        timeout: step.timeout.clone(),
+        prompt: prompt.to_string(),
+        accepts_agent_args,
+        command_params,
+        interactive: step.interactive,
+        ..Default::default()
+    };
 
-        let effective_model = model_override.or(step.model.as_deref()).or(workflow_model);
-        if let Some(model) = effective_model {
-            args.extend(["--model".into(), model.to_string()]);
-        }
-
-        if let Some(sp) = rendered_system_prompt {
-            args.extend(["--system-prompt".into(), sp.to_string()]);
-        }
-        if let Some(max_turns) = step.max_turns {
-            args.extend(["--max-turns".into(), max_turns.to_string()]);
-        }
-
-        // Output format: explicit format overrides the json bool
-        if let Some(output) = &step.output {
-            args.extend(["-o".into(), output.clone()]);
-        } else if step.json {
-            args.push("--json".into());
-        }
-        if let Some(schema) = &step.json_schema {
-            args.extend(["--json-schema".into(), schema.clone()]);
-        }
-
-        if let Some(mcp_config) = &step.mcp_config {
-            args.extend(["--mcp-config".into(), expand_path(mcp_config)]);
-        }
-
-        // Execution environment
-        if step.auto_approve {
-            args.push("--auto-approve".into());
-        }
-        if let Some(root) = &step.root {
-            args.extend(["--root".into(), expand_path(root)]);
-        }
-        for dir in &step.add_dirs {
-            args.extend(["--add-dir".into(), expand_path(dir)]);
-        }
-        for dir in extra_add_dirs {
-            args.extend(["--add-dir".into(), dir.display().to_string()]);
-        }
-        for (key, value) in &step.env {
-            args.extend(["--env".into(), format!("{key}={value}")]);
-        }
-        for file in &step.files {
-            args.extend(["--file".into(), expand_path(file)]);
-        }
-
-        // Context injection
-        for ctx in &step.context {
-            args.extend(["--context".into(), ctx.clone()]);
-        }
-        if let Some(plan) = &step.plan {
-            args.extend(["--plan".into(), expand_path(plan)]);
-        }
-
-        // Isolation
-        if step.worktree {
-            args.push("--worktree".into());
-        }
-        if let Some(sandbox) = &step.sandbox {
-            args.extend(["--sandbox".into(), sandbox.clone()]);
-        }
+    if !accepts_agent_args {
+        return cfg;
     }
 
-    // Session metadata applies to all commands
-    let name = session_name(&step.name);
-    args.extend(["--name".into(), name]);
+    cfg.provider = step
+        .provider
+        .clone()
+        .or_else(|| workflow_provider.map(String::from));
+    cfg.model = model_override
+        .map(String::from)
+        .or_else(|| step.model.clone())
+        .or_else(|| workflow_model.map(String::from));
+    cfg.system_prompt = rendered_system_prompt.map(String::from);
+    cfg.max_turns = step.max_turns;
 
-    if !step.description.is_empty() {
-        args.extend(["--description".into(), step.description.clone()]);
+    // Output format: explicit `output` overrides the `json` bool; the
+    // two map onto AgentBuilder::output_format and AgentBuilder::json.
+    if let Some(output) = &step.output {
+        cfg.output_format = Some(output.clone());
+    } else if step.json {
+        cfg.json_mode = true;
     }
+    cfg.json_schema = step.json_schema.clone();
+    cfg.mcp_config = step.mcp_config.as_deref().map(expand_path);
 
-    args.extend(["--tag".into(), "zig-workflow".into()]);
-    for tag in &step.tags {
-        args.extend(["--tag".into(), tag.clone()]);
+    cfg.auto_approve = step.auto_approve;
+    cfg.root = step.root.as_deref().map(expand_path);
+    cfg.add_dirs = step
+        .add_dirs
+        .iter()
+        .map(|d| expand_path(d))
+        .chain(extra_add_dirs.iter().map(|p| p.display().to_string()))
+        .collect();
+    cfg.env = step
+        .env
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    cfg.files = step.files.iter().map(|f| expand_path(f)).collect();
+
+    // Isolation
+    if step.worktree {
+        cfg.worktree = Some(None);
     }
+    cfg.sandbox = step.sandbox.clone();
 
-    if let Some(timeout) = &step.timeout {
-        args.extend(["--timeout".into(), timeout.clone()]);
-    }
-
-    args
+    cfg
 }
 
-/// Spawn `zag` with all three stdio streams inherited so the agent's
-/// interactive TUI can take over the terminal. No output is captured,
-/// so `saves` cannot apply — validation rejects that combination.
-fn run_zag_interactive(
-    args: &[String],
-    step_name: &str,
-) -> Result<std::process::ExitStatus, ZigError> {
-    let mut cmd = Command::new("zag");
-    cmd.args(args)
-        .stdin(std::process::Stdio::inherit())
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit());
-
-    let mut child = cmd.spawn().map_err(|e| {
-        ZigError::Zag(format!(
-            "failed to launch zag (interactive) for step '{step_name}': {e}"
-        ))
-    })?;
-
-    child
-        .wait()
-        .map_err(|e| ZigError::Execution(format!("failed to wait for child: {e}")))
+/// Apply an [`AgentConfig`] to an [`AgentBuilder`]. The prompt itself
+/// is NOT set here — callers pass it to `exec`/`run` directly.
+pub(crate) fn apply_agent_config(mut builder: AgentBuilder, cfg: &AgentConfig) -> AgentBuilder {
+    if let Some(ref p) = cfg.provider {
+        builder = builder.provider(p);
+    }
+    if let Some(ref m) = cfg.model {
+        builder = builder.model(m);
+    }
+    if let Some(ref sp) = cfg.system_prompt {
+        builder = builder.system_prompt(sp);
+    }
+    if let Some(ref r) = cfg.root {
+        builder = builder.root(r);
+    }
+    if cfg.auto_approve {
+        builder = builder.auto_approve(true);
+    }
+    for dir in &cfg.add_dirs {
+        builder = builder.add_dir(dir);
+    }
+    for (k, v) in &cfg.env {
+        builder = builder.env(k, v);
+    }
+    for f in &cfg.files {
+        builder = builder.file(f);
+    }
+    if let Some(ref wt) = cfg.worktree {
+        builder = builder.worktree(wt.as_deref());
+    }
+    if let Some(ref sb) = cfg.sandbox {
+        builder = builder.sandbox(Some(sb));
+    }
+    if let Some(ref fmt) = cfg.output_format {
+        builder = builder.output_format(fmt);
+    }
+    if cfg.json_mode {
+        if let Some(ref schema) = cfg.json_schema {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(schema) {
+                builder = builder.json_schema(v);
+            } else {
+                builder = builder.json();
+            }
+        } else {
+            builder = builder.json();
+        }
+    } else if let Some(ref schema) = cfg.json_schema {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(schema) {
+            builder = builder.json_schema(v);
+        }
+    }
+    if let Some(turns) = cfg.max_turns {
+        builder = builder.max_turns(turns);
+    }
+    if let Some(ref t) = cfg.timeout {
+        if let Some(dur) = parse_timeout_string(t) {
+            builder = builder.timeout(dur);
+        }
+    }
+    if let Some(ref mcp) = cfg.mcp_config {
+        builder = builder.mcp_config(mcp);
+    }
+    builder = builder.name(&cfg.session_name);
+    if let Some(ref d) = cfg.description {
+        builder = builder.description(d);
+    }
+    for tag in &cfg.tags {
+        builder = builder.tag(tag);
+    }
+    builder
 }
 
-/// Spawn `zag` and stream its stdout/stderr live to our stderr while
-/// also accumulating stdout into a buffer for `saves` extraction.
+/// Parse a duration string like `"5m"`, `"30s"`, `"1h30m"` into a
+/// [`std::time::Duration`]. Returns `None` if the format is unrecognised.
+fn parse_timeout_string(s: &str) -> Option<Duration> {
+    // Mirrors zag_orch::duration::parse_duration — allows `1h30m`, `5m`,
+    // `30s`, `500ms`, bare seconds (`60`). Keep the dependency inline so
+    // we don't have to thread its error type through ZigError.
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+    if let Ok(secs) = s.parse::<u64>() {
+        return Some(Duration::from_secs(secs));
+    }
+    let mut total = Duration::ZERO;
+    let mut current = String::new();
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c.is_ascii_digit() || c == '.' {
+            current.push(c);
+            continue;
+        }
+        let mut unit = String::from(c);
+        if c == 'm' && chars.peek() == Some(&'s') {
+            unit.push(chars.next().unwrap());
+        }
+        let value: f64 = current.parse().ok()?;
+        current.clear();
+        let piece = match unit.as_str() {
+            "ms" => Duration::from_millis(value as u64),
+            "s" => Duration::from_secs_f64(value),
+            "m" => Duration::from_secs_f64(value * 60.0),
+            "h" => Duration::from_secs_f64(value * 3600.0),
+            _ => return None,
+        };
+        total += piece;
+    }
+    if !current.is_empty() {
+        return None;
+    }
+    Some(total)
+}
+
+/// Dispatch a built [`AgentConfig`] through the appropriate `zag-agent`
+/// / `zag-orch` library entry point and return the captured result text
+/// used for `saves` and dependency injection.
 ///
-/// If `prefix` is `Some`, every emitted line is prefixed with `[prefix] `
-/// — used to disambiguate output from steps running in parallel.
-fn run_zag_streaming(
-    args: &[String],
+/// - `run` → [`AgentBuilder::exec`] (or [`AgentBuilder::run`] for `interactive`).
+/// - `review` → [`zag_agent::review::run_review`].
+/// - `plan` → [`zag_agent::plan::run_plan`].
+/// - `pipe` → [`zag_orch::pipe::pipe_sessions`].
+/// - `collect` → [`zag_orch::collect::collect_results`] (serialized as JSON).
+/// - `summary` → [`zag_orch::summary::summarize_sessions`] (serialized as JSON).
+async fn dispatch_agent(
+    cfg: &AgentConfig,
     step_name: &str,
-    prefix: Option<&str>,
     session: Option<&Arc<SessionWriter>>,
-) -> Result<(std::process::ExitStatus, String), ZigError> {
-    let mut cmd = Command::new("zag");
-    cmd.args(args)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| ZigError::Zag(format!("failed to launch zag for step '{step_name}': {e}")))?;
-
-    let stdout = child.stdout.take().expect("stdout was piped");
-    let stderr = child.stderr.take().expect("stderr was piped");
-
-    let buffer = Arc::new(Mutex::new(String::new()));
-    let buffer_clone = Arc::clone(&buffer);
-    let prefix_stdout = prefix.map(String::from);
-    let prefix_stderr = prefix.map(String::from);
-    let session_stdout = session.cloned();
-    let session_stderr = session.cloned();
-    let step_name_stdout = step_name.to_string();
-    let step_name_stderr = step_name.to_string();
-
-    let stdout_thread = thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        let stderr_handle = std::io::stderr();
-        for line in reader.lines().map_while(Result::ok) {
-            if let Ok(mut buf) = buffer_clone.lock() {
-                buf.push_str(&line);
-                buf.push('\n');
+    prefix: Option<&str>,
+) -> Result<String, ZigError> {
+    match cfg.command.as_str() {
+        "run" => {
+            if cfg.interactive {
+                let builder = apply_agent_config(AgentBuilder::new(), cfg);
+                builder.run(Some(&cfg.prompt)).await.map_err(|e| {
+                    ZigError::Zag(format!("agent run failed for step '{step_name}': {e}"))
+                })?;
+                Ok(String::new())
+            } else {
+                let builder = apply_agent_config(AgentBuilder::new(), cfg);
+                let output = builder.exec(&cfg.prompt).await.map_err(|e| {
+                    ZigError::Zag(format!("agent exec failed for step '{step_name}': {e}"))
+                })?;
+                Ok(finalize_output(output, step_name, session, prefix))
             }
-            if let Some(w) = &session_stdout {
-                let _ = w.step_output(&step_name_stdout, OutputStream::Stdout, &line);
-            }
-            let mut h = stderr_handle.lock();
-            let _ = match &prefix_stdout {
-                Some(p) => writeln!(h, "[{p}] {line}"),
-                None => writeln!(h, "{line}"),
-            };
         }
-    });
-
-    let stderr_thread = thread::spawn(move || {
-        let reader = BufReader::new(stderr);
-        let stderr_handle = std::io::stderr();
-        for line in reader.lines().map_while(Result::ok) {
-            if let Some(w) = &session_stderr {
-                let _ = w.step_output(&step_name_stderr, OutputStream::Stderr, &line);
-            }
-            let mut h = stderr_handle.lock();
-            let _ = match &prefix_stderr {
-                Some(p) => writeln!(h, "[{p}] {line}"),
-                None => writeln!(h, "{line}"),
+        "review" => {
+            let params = agent_review::ReviewParams {
+                provider: cfg.provider.clone().unwrap_or_else(|| "claude".to_string()),
+                uncommitted: matches!(&cfg.command_params,
+                    Some(CommandParams::Review { uncommitted, .. }) if *uncommitted),
+                base: match &cfg.command_params {
+                    Some(CommandParams::Review { base, .. }) => base.clone(),
+                    _ => None,
+                },
+                commit: match &cfg.command_params {
+                    Some(CommandParams::Review { commit, .. }) => commit.clone(),
+                    _ => None,
+                },
+                title: match &cfg.command_params {
+                    Some(CommandParams::Review { title, .. }) => title.clone(),
+                    _ => None,
+                },
+                prompt: if cfg.prompt.is_empty() {
+                    None
+                } else {
+                    Some(cfg.prompt.clone())
+                },
+                system_prompt: cfg.system_prompt.clone(),
+                model: cfg.model.clone(),
+                root: cfg.root.clone(),
+                auto_approve: cfg.auto_approve,
+                add_dirs: cfg.add_dirs.clone(),
+                progress: Box::new(zag_agent::progress::SilentProgress),
             };
+            let output = agent_review::run_review(params)
+                .await
+                .map_err(|e| ZigError::Zag(format!("review failed for step '{step_name}': {e}")))?;
+            let text = output.and_then(|o| o.result).unwrap_or_default();
+            emit_captured(&text, step_name, session, prefix);
+            Ok(text)
         }
-    });
-
-    let status = child
-        .wait()
-        .map_err(|e| ZigError::Execution(format!("failed to wait for child: {e}")))?;
-
-    let _ = stdout_thread.join();
-    let _ = stderr_thread.join();
-
-    let captured = Arc::try_unwrap(buffer)
-        .map_err(|_| ZigError::Execution("buffer still shared after threads joined".into()))?
-        .into_inner()
-        .map_err(|_| ZigError::Execution("output buffer poisoned".into()))?;
-
-    Ok((status, captured))
+        "plan" => {
+            let (output, instructions) = match &cfg.command_params {
+                Some(CommandParams::Plan {
+                    output,
+                    instructions,
+                }) => (output.clone(), instructions.clone()),
+                _ => (None, None),
+            };
+            let params = agent_plan::PlanParams {
+                provider: cfg.provider.clone().unwrap_or_else(|| "claude".to_string()),
+                goal: cfg.prompt.clone(),
+                output,
+                instructions,
+                system_prompt: cfg.system_prompt.clone(),
+                model: cfg.model.clone(),
+                root: cfg.root.clone(),
+                auto_approve: cfg.auto_approve,
+                add_dirs: cfg.add_dirs.clone(),
+                progress: Box::new(zag_agent::progress::SilentProgress),
+            };
+            let result = agent_plan::run_plan(params)
+                .await
+                .map_err(|e| ZigError::Zag(format!("plan failed for step '{step_name}': {e}")))?;
+            let text = result.text.unwrap_or_default();
+            emit_captured(&text, step_name, session, prefix);
+            Ok(text)
+        }
+        "pipe" => {
+            let session_ids = match &cfg.command_params {
+                Some(CommandParams::Pipe { session_ids }) => session_ids.clone(),
+                _ => Vec::new(),
+            };
+            let params = orch_pipe::PipeParams {
+                session_ids,
+                tag: None,
+                prompt: cfg.prompt.clone(),
+                provider: cfg.provider.clone(),
+                model: cfg.model.clone(),
+                root: cfg.root.clone(),
+                auto_approve: cfg.auto_approve,
+                system_prompt: cfg.system_prompt.clone(),
+                add_dirs: cfg.add_dirs.clone(),
+                size: None,
+                max_turns: cfg.max_turns,
+                output: cfg.output_format.clone(),
+                json: cfg.json_mode,
+                quiet: true,
+                metadata: SessionMetadata {
+                    name: Some(cfg.session_name.clone()),
+                    description: cfg.description.clone(),
+                    tags: cfg.tags.clone(),
+                },
+                timeout: cfg.timeout.clone(),
+                env_vars: cfg.env.clone(),
+                files: cfg.files.clone(),
+                worktree: cfg.worktree.clone(),
+                sandbox: cfg.sandbox.clone().map(Some),
+                context: None,
+                mcp_config: cfg.mcp_config.clone(),
+            };
+            let output = orch_pipe::pipe_sessions(&params)
+                .await
+                .map_err(|e| ZigError::Zag(format!("pipe failed for step '{step_name}': {e}")))?;
+            Ok(finalize_output(output, step_name, session, prefix))
+        }
+        "collect" => {
+            let session_ids = match &cfg.command_params {
+                Some(CommandParams::Collect { session_ids }) => session_ids.clone(),
+                _ => Vec::new(),
+            };
+            let params = orch_collect::CollectParams {
+                session_ids,
+                tag: None,
+                json: true,
+                root: cfg.root.clone(),
+            };
+            let results = orch_collect::collect_results(&params).map_err(|e| {
+                ZigError::Zag(format!("collect failed for step '{step_name}': {e}"))
+            })?;
+            let json = serde_json::to_string(&results)
+                .map_err(|e| ZigError::Execution(format!("collect serialization failed: {e}")))?;
+            emit_captured(&json, step_name, session, prefix);
+            Ok(json)
+        }
+        "summary" => {
+            let session_ids = match &cfg.command_params {
+                Some(CommandParams::Summary { session_ids }) => session_ids.clone(),
+                _ => Vec::new(),
+            };
+            let params = orch_summary::SummaryParams {
+                session_ids,
+                tag: None,
+                stats: false,
+                json: true,
+                root: cfg.root.clone(),
+            };
+            let results = orch_summary::summarize_sessions(&params).map_err(|e| {
+                ZigError::Zag(format!("summary failed for step '{step_name}': {e}"))
+            })?;
+            let json = serde_json::to_string(&results)
+                .map_err(|e| ZigError::Execution(format!("summary serialization failed: {e}")))?;
+            emit_captured(&json, step_name, session, prefix);
+            Ok(json)
+        }
+        other => Err(ZigError::Execution(format!(
+            "unknown command '{other}' for step '{step_name}'"
+        ))),
+    }
 }
 
-/// Execute a single step by invoking `zag`, streaming its output live.
-///
-/// Returns the captured stdout from zag. The optional `model_override`
-/// is used during retries to escalate to a different model. The optional
-/// `prefix` tags streamed lines with the step name (used for parallel runs).
+/// Extract the final result text from an [`AgentOutput`] and route it to
+/// the session writer / stderr prefix the same way `run_zag_streaming`
+/// used to stream zag stdout.
+fn finalize_output(
+    output: AgentOutput,
+    step_name: &str,
+    session: Option<&Arc<SessionWriter>>,
+    prefix: Option<&str>,
+) -> String {
+    let text = output.result.unwrap_or_default();
+    emit_captured(&text, step_name, session, prefix);
+    text
+}
+
+/// Emit captured agent output line-by-line: (1) to the session log as
+/// one `StepOutput` event per line (mirrors the old streaming path so
+/// `zig listen` still sees per-line breadcrumbs), and (2) to stderr
+/// with an optional `[prefix]` tag for parallel runs.
+fn emit_captured(
+    text: &str,
+    step_name: &str,
+    session: Option<&Arc<SessionWriter>>,
+    prefix: Option<&str>,
+) {
+    use std::io::Write;
+    if text.is_empty() {
+        return;
+    }
+    let stderr = std::io::stderr();
+    for line in text.lines() {
+        if let Some(w) = session {
+            let _ = w.step_output(step_name, OutputStream::Stdout, line);
+        }
+        let mut h = stderr.lock();
+        let _ = match prefix {
+            Some(p) => writeln!(h, "[{p}] {line}"),
+            None => writeln!(h, "{line}"),
+        };
+    }
+}
+
+/// Execute a single step through the agent-builder dispatch. Returns the
+/// captured result text used for `saves` and dependency injection. The
+/// optional `model_override` is used during retries to escalate to a
+/// different model.
 #[allow(clippy::too_many_arguments)]
-fn execute_step(
+async fn execute_step(
     step: &Step,
     prompt: &str,
     workflow_name: &str,
@@ -774,7 +1055,7 @@ fn execute_step(
     workflow_model: Option<&str>,
     extra_add_dirs: &[std::path::PathBuf],
 ) -> Result<String, ZigError> {
-    let args = build_zag_args(
+    let cfg = build_agent_config(
         step,
         prompt,
         workflow_name,
@@ -784,36 +1065,15 @@ fn execute_step(
         workflow_model,
         extra_add_dirs,
     );
-
-    if step.interactive {
-        let status = run_zag_interactive(&args, &step.name)?;
-        if !status.success() {
-            return Err(ZigError::Execution(format!(
-                "step '{}' failed (exit {})",
-                step.name, status,
-            )));
-        }
-        return Ok(String::new());
-    }
-
-    let (status, stdout) = run_zag_streaming(&args, &step.name, prefix, session)?;
-
-    if !status.success() {
-        return Err(ZigError::Execution(format!(
-            "step '{}' failed (exit {})",
-            step.name, status,
-        )));
-    }
-
-    Ok(stdout)
+    dispatch_agent(&cfg, &step.name, session, prefix).await
 }
 
-/// Run a step with retry logic, returning its captured stdout on success.
+/// Run a step with retry logic, returning its captured output on success.
 ///
 /// Extracted so both sequential and parallel execution paths share the
 /// same retry / model-escalation behavior.
 #[allow(clippy::too_many_arguments)]
-fn run_step_attempts(
+async fn run_step_attempts(
     step: &Step,
     prompt: &str,
     workflow_name: &str,
@@ -849,7 +1109,9 @@ fn run_step_attempts(
             workflow_provider,
             workflow_model,
             extra_add_dirs,
-        ) {
+        )
+        .await
+        {
             Ok(output) => return Ok(output),
             Err(e) => {
                 if let Some(w) = session {
@@ -921,47 +1183,13 @@ fn partition_tier<'a>(tier: &[&'a Step]) -> (Vec<&'a Step>, HashMap<String, Vec<
     (sequential, race_groups)
 }
 
-/// Spawn a step as a child process without waiting for it to finish.
-fn spawn_step(
-    step: &Step,
-    prompt: &str,
-    workflow_name: &str,
-    rendered_system_prompt: Option<&str>,
-    workflow_provider: Option<&str>,
-    workflow_model: Option<&str>,
-    extra_add_dirs: &[std::path::PathBuf],
-) -> Result<std::process::Child, ZigError> {
-    debug_assert!(
-        !step.interactive,
-        "spawn_step called for interactive step '{}' — validation should reject \
-         interactive steps in parallel tiers and race groups",
-        step.name
-    );
-    let args = build_zag_args(
-        step,
-        prompt,
-        workflow_name,
-        None,
-        rendered_system_prompt,
-        workflow_provider,
-        workflow_model,
-        extra_add_dirs,
-    );
-    let mut cmd = Command::new("zag");
-    cmd.args(&args)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-
-    cmd.spawn()
-        .map_err(|e| ZigError::Zag(format!("failed to spawn zag for step '{}': {e}", step.name)))
-}
-
-/// Execute a race group: run all steps in parallel, return the first winner.
-///
-/// When one step finishes successfully, all remaining steps are killed.
-/// Returns the winning step's name and its stdout output.
+/// Execute a race group: run all steps concurrently via a [`JoinSet`] and
+/// return the first winner. Once one step succeeds, the remaining tasks
+/// are aborted (the underlying `tokio::process::Child` is dropped, which
+/// kills the provider subprocess if `kill_on_drop` is set — zag-agent
+/// sets this on its internal commands).
 #[allow(clippy::too_many_arguments)]
-fn execute_race_group(
+async fn execute_race_group(
     steps: &[&Step],
     prompts: &HashMap<String, String>,
     system_prompts: &HashMap<String, String>,
@@ -989,93 +1217,84 @@ fn execute_race_group(
             );
         }
     }
+
     let race_started = Instant::now();
-    let mut children: Vec<(String, std::process::Child)> = Vec::new();
+    let mut set: JoinSet<(String, Result<String, ZigError>)> = JoinSet::new();
 
     for step in steps {
-        let prompt = prompts.get(&step.name).ok_or_else(|| {
-            ZigError::Execution(format!("missing prompt for step '{}'", step.name))
-        })?;
+        let prompt = prompts
+            .get(&step.name)
+            .ok_or_else(|| ZigError::Execution(format!("missing prompt for step '{}'", step.name)))?
+            .clone();
         eprintln!("  racing step '{}'...", step.name);
-        let rendered_sp = system_prompts.get(&step.name).map(|s| s.as_str());
+        let rendered_sp = system_prompts.get(&step.name).cloned();
         let empty: Vec<std::path::PathBuf> = Vec::new();
-        let extra_dirs = storage_dirs.get(&step.name).unwrap_or(&empty);
-        let child = spawn_step(
-            step,
-            prompt,
-            workflow_name,
-            rendered_sp,
-            workflow_provider,
-            workflow_model,
-            extra_dirs,
-        )?;
-        children.push((step.name.clone(), child));
+        let extra_dirs = storage_dirs.get(&step.name).unwrap_or(&empty).clone();
+        let step_clone: Step = (*step).clone();
+        let wf_name = workflow_name.to_string();
+        let wf_provider = workflow_provider.map(String::from);
+        let wf_model = workflow_model.map(String::from);
+        let session_clone = session.cloned();
+        let name = step.name.clone();
+        set.spawn(async move {
+            let res = execute_step(
+                &step_clone,
+                &prompt,
+                &wf_name,
+                None,
+                None,
+                session_clone.as_ref(),
+                rendered_sp.as_deref(),
+                wf_provider.as_deref(),
+                wf_model.as_deref(),
+                &extra_dirs,
+            )
+            .await;
+            (name, res)
+        });
     }
 
-    // Poll until one finishes
-    loop {
-        for i in 0..children.len() {
-            let status = children[i]
-                .1
-                .try_wait()
-                .map_err(|e| ZigError::Execution(format!("failed to poll child: {e}")))?;
-
-            if let Some(exit_status) = status {
-                let (winner_name, winner_child) = children.remove(i);
-
-                // Kill remaining children
-                for (name, mut child) in children {
-                    eprintln!("  cancelling step '{name}' (race lost)");
-                    let _ = child.kill();
-                    let _ = child.wait();
-                }
-
-                let elapsed = race_started.elapsed().as_millis() as u64;
-                if !exit_status.success() {
-                    let stderr = winner_child
-                        .stderr
-                        .map(|mut s| {
-                            let mut buf = String::new();
-                            std::io::Read::read_to_string(&mut s, &mut buf).ok();
-                            buf
-                        })
-                        .unwrap_or_default();
-                    let err_msg = format!(
-                        "race winner '{}' failed (exit {}): {}",
-                        winner_name,
-                        exit_status,
-                        stderr.trim()
-                    );
-                    if let Some(w) = session {
-                        let _ = w.step_failed(&winner_name, exit_status.code(), 1, &err_msg);
+    // Wait for the first winner — drop (abort) the rest.
+    while let Some(joined) = set.join_next().await {
+        let (winner_name, result) = match joined {
+            Ok(pair) => pair,
+            Err(e) if e.is_cancelled() => continue,
+            Err(e) => return Err(ZigError::Execution(format!("race task panicked: {e}"))),
+        };
+        match result {
+            Ok(stdout) => {
+                // Abort losers.
+                set.abort_all();
+                while let Some(r) = set.join_next().await {
+                    if let Ok((name, _)) = r {
+                        eprintln!("  cancelling step '{name}' (race lost)");
                     }
-                    return Err(ZigError::Execution(err_msg));
                 }
-
-                let stdout = winner_child
-                    .stdout
-                    .map(|mut s| {
-                        let mut buf = String::new();
-                        std::io::Read::read_to_string(&mut s, &mut buf).ok();
-                        buf
-                    })
-                    .unwrap_or_default();
-
+                let elapsed = race_started.elapsed().as_millis() as u64;
                 eprintln!("  race won by '{winner_name}'");
                 if let Some(w) = session {
                     let _ = w.step_completed(&winner_name, 0, elapsed, Vec::new());
                 }
                 return Ok((winner_name, stdout));
             }
+            Err(e) => {
+                if let Some(w) = session {
+                    let _ = w.step_failed(&winner_name, None, 1, &e.to_string());
+                }
+                // Keep racing remaining tasks; this one lost.
+                continue;
+            }
         }
-
-        std::thread::sleep(Duration::from_millis(100));
     }
+
+    Err(ZigError::Execution(
+        "all racers failed without a winner".into(),
+    ))
 }
 
 /// Execute a single sequential step with retry logic, saves, and next-jump handling.
 #[allow(clippy::too_many_arguments)]
-fn execute_sequential_step(
+async fn execute_sequential_step(
     step: &Step,
     vars: &mut HashMap<String, String>,
     user_prompt: Option<&str>,
@@ -1085,7 +1304,7 @@ fn execute_sequential_step(
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
-    resources: &ResourceCollector,
+    resources: &ResourceCollector<'_>,
     memory: &MemoryCollector,
     storage: &StorageManager,
     workflow_dir: &Path,
@@ -1141,7 +1360,8 @@ fn execute_sequential_step(
         workflow_provider,
         workflow_model,
         &storage_dirs,
-    );
+    )
+    .await;
 
     match result {
         Ok(output) => {
@@ -1186,14 +1406,14 @@ fn execute_sequential_step(
 
 /// Run multiple independent steps in a tier concurrently.
 ///
-/// All non-skipped steps are spawned in their own threads and we wait for
-/// every one to finish (unlike race groups, which kill losers). Output
-/// lines from each step are streamed live to stderr, prefixed with the
-/// step name to disambiguate. After completion, results are processed in
-/// tier-declaration order so `saves`, `next`, and `on_failure` semantics
-/// remain deterministic.
+/// All non-skipped steps are spawned as tokio tasks via [`JoinSet`] and
+/// we wait for every one to finish (unlike race groups, which abort
+/// losers). Captured output lines are written back to stderr after each
+/// task completes, prefixed with the step name to disambiguate. Results
+/// are processed in tier-declaration order so `saves`, `next`, and
+/// `on_failure` semantics remain deterministic.
 #[allow(clippy::too_many_arguments)]
-fn execute_parallel_tier(
+async fn execute_parallel_tier(
     steps: &[&Step],
     vars: &mut HashMap<String, String>,
     user_prompt: Option<&str>,
@@ -1203,7 +1423,7 @@ fn execute_parallel_tier(
     tier_index: usize,
     session: Option<&Arc<SessionWriter>>,
     roles: &HashMap<String, Role>,
-    resources: &ResourceCollector,
+    resources: &ResourceCollector<'_>,
     memory: &MemoryCollector,
     storage: &StorageManager,
     workflow_dir: &Path,
@@ -1257,7 +1477,7 @@ fn execute_parallel_tier(
     eprintln!("  running {} steps in parallel...", active.len());
 
     let mut start_times: HashMap<String, Instant> = HashMap::new();
-    let mut handles: Vec<thread::JoinHandle<(String, Result<String, ZigError>)>> = Vec::new();
+    let mut set: JoinSet<(String, Result<String, ZigError>)> = JoinSet::new();
     for step in &active {
         let step_clone: Step = (*step).clone();
         let prompt = prompts.remove(&step.name).unwrap_or_default();
@@ -1281,7 +1501,7 @@ fn execute_parallel_tier(
         let wf_provider = workflow_provider.map(String::from);
         let wf_model = workflow_model.map(String::from);
         let storage_dirs = storage_dirs_map.remove(&step.name).unwrap_or_default();
-        let handle = thread::spawn(move || {
+        set.spawn(async move {
             let res = run_step_attempts(
                 &step_clone,
                 &prompt,
@@ -1292,20 +1512,22 @@ fn execute_parallel_tier(
                 wf_provider.as_deref(),
                 wf_model.as_deref(),
                 &storage_dirs,
-            );
+            )
+            .await;
             (name, res)
         });
-        handles.push(handle);
     }
 
     let mut results: HashMap<String, Result<String, ZigError>> = HashMap::new();
-    for handle in handles {
-        match handle.join() {
+    while let Some(joined) = set.join_next().await {
+        match joined {
             Ok((name, res)) => {
                 results.insert(name, res);
             }
-            Err(_) => {
-                return Err(ZigError::Execution("parallel step thread panicked".into()));
+            Err(e) => {
+                return Err(ZigError::Execution(format!(
+                    "parallel step task panicked: {e}"
+                )));
             }
         }
     }
@@ -1381,7 +1603,7 @@ fn init_vars(workflow: &Workflow) -> HashMap<String, String> {
 
 /// Main execution loop for a validated workflow.
 #[allow(clippy::too_many_arguments)]
-fn execute(
+async fn execute(
     workflow: &Workflow,
     workflow_path: &std::path::Path,
     user_prompt: Option<&str>,
@@ -1565,7 +1787,8 @@ fn execute(
                         workflow_dir,
                         wf_provider,
                         wf_model,
-                    )?;
+                    )
+                    .await?;
                 }
             } else {
                 execute_parallel_tier(
@@ -1584,7 +1807,8 @@ fn execute(
                     workflow_dir,
                     wf_provider,
                     wf_model,
-                )?;
+                )
+                .await?;
             }
 
             // Run race groups in parallel
@@ -1643,7 +1867,9 @@ fn execute(
                     wf_provider,
                     wf_model,
                     &race_storage_dirs,
-                ) {
+                )
+                .await
+                {
                     Ok((winner_name, output)) => {
                         // Find the winning step to process saves/next
                         if let Some(winner) = active_steps.iter().find(|s| s.name == winner_name) {
