@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## [0.9.0] - 2026-04-18
+
+### Added
+
+- Wire interactive step flag to inherit tty (#106)
+- Add --dry-run flag to preview workflow execution (#105)
+- Add storage, memory, and resources to healthcare example (#102)
+
+### Fixed
+
+- Restore live per-step agent output via on_log_event (#108)
+- Harden zig-serve and zig-core against traversal, DoS, timing, and CORS issues (#104)
+
+### Documentation
+
+- Add storage, memory, and resources to embedded examples (#103)
+- Add related repositories section to AGENTS.md (#101)
 ## [0.8.0] - 2026-04-16
 
 ### Added
