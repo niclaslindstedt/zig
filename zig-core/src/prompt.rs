@@ -21,7 +21,7 @@ pub mod templates {
     /// System prompt for `zig workflow update` — the interactive workflow revision agent.
     pub fn update() -> &'static str {
         static STRIPPED: LazyLock<&'static str> =
-            LazyLock::new(|| super::strip_front_matter(include_str!("../prompts/update/1_2.md")));
+            LazyLock::new(|| super::strip_front_matter(include_str!("../prompts/update/1_3.md")));
         *STRIPPED
     }
 

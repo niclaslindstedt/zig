@@ -9,7 +9,7 @@ use crate::error::ZigError;
 use crate::pack;
 use crate::prompt;
 use crate::run;
-use crate::workflow::parser;
+use crate::workflow::{parser, validate};
 
 /// File kind on disk — either a plain `.zwf` TOML file or a zipped `.zwfz`
 /// archive. Determines how the binary stages the workflow for editing and how
@@ -106,7 +106,26 @@ pub fn prepare_update(workflow: &str) -> Result<UpdateParams, ZigError> {
     };
 
     // Parse up-front to fail fast on a broken workflow before paying for a zag session.
-    parser::parse_file(&staging_path)?;
+    let parsed = parser::parse_file(&staging_path)?;
+
+    // Validate up-front so the agent can see existing issues and use them as a
+    // starting point for the conversation. Validation failures are *not* fatal
+    // here — the whole point of update is that the user may want to fix them.
+    let validation_report = match validate::validate(&parsed) {
+        Ok(()) => "Validation: no issues found.".to_string(),
+        Err(errors) => {
+            let mut report = format!(
+                "Validation: {} issue{} found:",
+                errors.len(),
+                if errors.len() == 1 { "" } else { "s" },
+            );
+            for e in &errors {
+                report.push_str("\n  - ");
+                report.push_str(&e.to_string());
+            }
+            report
+        }
+    };
 
     let zag_help = get_zag_help();
     let zag_orch = get_zag_orch_reference();
@@ -116,8 +135,13 @@ pub fn prepare_update(workflow: &str) -> Result<UpdateParams, ZigError> {
     let initial_prompt = format!(
         "I want to update the workflow file at `{}`. Please read it first, \
          then help me make the changes I describe. Edit the file in place at \
-         that exact path — do not rename, move, or copy it.",
-        staging_path.display()
+         that exact path — do not rename, move, or copy it.\n\n\
+         Here is the current validation report for that workflow:\n\n{}\n\n\
+         Use this report as a starting point: mention any issues while you \
+         summarize the workflow, but do not start fixing anything yet. Wait \
+         for me to explicitly tell you what to change before editing the file.",
+        staging_path.display(),
+        validation_report,
     );
 
     Ok(UpdateParams {
