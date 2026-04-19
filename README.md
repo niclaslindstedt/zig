@@ -114,6 +114,7 @@ zig memory delete <id>          Delete a memory entry and its file
 zig memory show <id>            Show metadata and contents of a memory entry
 zig memory search <query>       Search across memory files
 zig validate <file>             Validate a .zwf/.zwfz workflow file
+zig self terminate              Terminate the current running session (invoked from inside an agent step)
 zig man [topic]                 Show manual pages for zig topics
 zig docs [topic]                Show conceptual documentation topics
 ```
@@ -285,9 +286,24 @@ zig validate my-workflow.zwf
 zig validate my-workflow.zwfz
 ```
 
+### `zig self`
+
+Commands that act on the currently running session. Designed to be invoked
+from inside an agent step — the target session is resolved from the
+`ZAG_PROCESS_ID` environment variable injected by `zag-agent`. `zig run`
+automatically instructs interactive agents to call `zig self terminate`
+when they are done, so the workflow engine can advance to the next step
+without waiting on a manual exit.
+
+```bash
+zig self terminate    # SIGTERM the current session
+```
+
+Run `zig man self` for the full reference.
+
 ### `zig man`
 
-Show built-in manual pages for zig commands (zig, run, listen, serve, workflow, validate, resources, memory).
+Show built-in manual pages for zig commands (zig, run, listen, serve, workflow, validate, resources, memory, self).
 
 ```bash
 zig man run
