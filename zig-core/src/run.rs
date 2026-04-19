@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tokio::task::JoinSet;
 use zag_agent::builder::AgentBuilder;
+use zag_agent::session_log::LogEventKind;
 use zag_agent::{plan as agent_plan, review as agent_review};
 use zag_orch::collect as orch_collect;
 use zag_orch::summary as orch_summary;
@@ -1046,7 +1047,14 @@ fn install_live_streaming(
     let step_name_owned = step_name.to_string();
     let prefix_owned = prefix.map(String::from);
     let session_owned = session.cloned();
+    let last_activity = Arc::new(std::sync::Mutex::new(Instant::now()));
     builder.on_log_event(move |evt| {
+        if matches!(evt.kind, LogEventKind::Heartbeat { .. }) {
+            let elapsed = last_activity.lock().unwrap().elapsed().as_secs();
+            emit_heartbeat_line(elapsed, prefix_owned.as_deref());
+            return;
+        }
+        *last_activity.lock().unwrap() = Instant::now();
         let Some(text) = zag_agent::listen::format_event_text(evt, false) else {
             return;
         };
@@ -1082,6 +1090,21 @@ fn emit_live_line(
             None => writeln!(h, "{line}"),
         };
     }
+}
+
+/// Emit a heartbeat pulse to stderr so users can see the step is still
+/// alive during silent stretches (e.g., the model is reasoning before
+/// its first tool call). Skips the session writer to keep the persisted
+/// event log focused on real activity.
+fn emit_heartbeat_line(elapsed_secs: u64, prefix: Option<&str>) {
+    use std::io::Write;
+    let line = format!("  \u{00b7} waiting ({elapsed_secs}s)");
+    let stderr = std::io::stderr();
+    let mut h = stderr.lock();
+    let _ = match prefix {
+        Some(p) => writeln!(h, "[{p}] {line}"),
+        None => writeln!(h, "{line}"),
+    };
 }
 
 /// Emit captured non-agent output (collect / summary JSON) line-by-line
