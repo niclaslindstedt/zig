@@ -39,6 +39,7 @@ function parseItems(blockText) {
   const lines = blockText.split("\n");
   const items = [];
   let doc = [];
+  let attrs = [];
   let depth = 0;
   for (const line of lines) {
     const opens = (line.match(/\{/g) || []).length;
@@ -55,8 +56,12 @@ function parseItems(blockText) {
       continue;
     }
 
-    // Skip attributes without clearing the doc buffer.
-    if (/^\s*#\[/.test(line)) continue;
+    // Collect attributes without clearing the doc buffer.
+    const attrMatch = line.match(/^\s*(#\[.*\])\s*$/);
+    if (attrMatch) {
+      attrs.push(attrMatch[1]);
+      continue;
+    }
 
     // Skip regular `//` comments (but not `///` doc comments, handled above).
     if (/^\s*\/\/($|[^/])/.test(line)) continue;
@@ -65,15 +70,28 @@ function parseItems(blockText) {
     if (trimmed === "" || trimmed === "}") {
       // Blank line or closing brace breaks association with any collected doc.
       doc = [];
+      attrs = [];
       continue;
     }
 
     if (doc.length > 0) {
-      items.push({ doc: [...doc], decl: trimmed });
+      items.push({ doc: [...doc], attrs: [...attrs], decl: trimmed });
       doc = [];
+      attrs = [];
     }
   }
   return items;
+}
+
+// Extract the clap-renamed command name from a `#[command(name = "...")]`
+// attribute, if present. Otherwise falls back to kebab-casing the variant
+// identifier.
+function commandName(item, fallbackIdent) {
+  for (const attr of item.attrs || []) {
+    const m = attr.match(/^#\[command\([^)]*\bname\s*=\s*"([^"]+)"/);
+    if (m) return m[1];
+  }
+  return camelToKebab(fallbackIdent);
 }
 
 // First non-empty doc line (used for one-line descriptions like CLI commands).
@@ -118,7 +136,7 @@ function extractCommands() {
     const m = item.decl.match(/^(\w+)/);
     if (!m) continue;
     commands.push({
-      name: camelToKebab(m[1]),
+      name: commandName(item, m[1]),
       description: firstDocLine(item.doc),
     });
   }
@@ -137,7 +155,7 @@ function extractWorkflowSubcommands() {
     const m = item.decl.match(/^(\w+)/);
     if (!m) continue;
     subcommands.push({
-      name: camelToKebab(m[1]),
+      name: commandName(item, m[1]),
       description: firstDocLine(item.doc),
     });
   }

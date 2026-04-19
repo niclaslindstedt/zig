@@ -63,6 +63,10 @@ export const commands: CommandData[] = [
     "description": "Start an HTTP API server"
   },
   {
+    "name": "self",
+    "description": "Commands that act on the currently running zig/zag session"
+  },
+  {
     "name": "listen",
     "description": "Tail a running or completed zig session"
   }
@@ -353,4 +357,4 @@ export const stepFields: StepField[] = [
 
 export const varTypes: string[] = ["string","number","bool","json"];
 
-export const manpageTopics: string[] = ["listen","memory","resources","run","serve","validate","workflow","zig"];
+export const manpageTopics: string[] = ["listen","memory","resources","run","self","serve","validate","workflow","zig"];
