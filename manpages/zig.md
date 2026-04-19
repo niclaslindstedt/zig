@@ -24,6 +24,7 @@ separate `zag` binary is required.
 | `workflow <command>` | Manage workflows (list, show, create, delete, pack)      |
 | `resources <command>`| Manage reference files advertised to step agents         |
 | `memory <command>`   | Manage the memory scratch pad for workflows              |
+| `self <command>`     | Act on the currently running zig/zag session             |
 | `validate <file>`    | Validate a `.zwf`/`.zwfz` workflow file                  |
 | `serve`              | Start an HTTP API server                                 |
 | `man [topic]`        | Show manual pages for zig commands                       |
@@ -61,6 +62,7 @@ zig man listen       # Tail a running or completed zig session
 zig man workflow     # Manage workflows (list, show, create, update, delete, pack)
 zig man resources    # Manage reference files advertised to agents
 zig man memory       # Manage the memory scratch pad for workflows
+zig man self         # Act on the currently running session
 zig man validate     # Validate a .zwf/.zwfz workflow file
 zig man serve        # Start the HTTP API server
 ```

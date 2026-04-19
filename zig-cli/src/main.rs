@@ -4,7 +4,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use clap::Parser;
-use cli::{Cli, Command, MemoryCommand, ResourcesCommand, WorkflowCommand};
+use cli::{Cli, Command, MemoryCommand, ResourcesCommand, SelfCommand, WorkflowCommand};
 use zig_core::resources_manage::{ResourceScope, ResourceTarget};
 
 fn main() -> Result<()> {
@@ -240,6 +240,11 @@ async fn run_cli(cli: Cli) -> Result<()> {
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
         }
+        Command::Self_ { command } => match command {
+            SelfCommand::Terminate => {
+                zig_core::self_cmd::terminate()?;
+            }
+        },
         Command::Listen {
             session_id,
             latest,

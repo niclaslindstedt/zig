@@ -700,6 +700,17 @@ pub(crate) fn build_agent_config(
     }
     cfg.sandbox = step.sandbox.clone();
 
+    // Interactive agents get a self-terminate instruction appended so
+    // the session exits when the agent is done instead of waiting on
+    // the user to close it.
+    if cfg.interactive {
+        let base = cfg.system_prompt.take().unwrap_or_default();
+        cfg.system_prompt = Some(format!(
+            "{base}{}",
+            crate::self_cmd::INTERACTIVE_SELF_TERMINATE_INSTRUCTION
+        ));
+    }
+
     cfg
 }
 

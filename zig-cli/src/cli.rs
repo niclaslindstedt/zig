@@ -131,6 +131,18 @@ pub enum Command {
         web: bool,
     },
 
+    /// Commands that act on the currently running zig/zag session
+    ///
+    /// Resolves the target process from the `ZAG_PROCESS_ID` env var
+    /// that `zag-agent` injects into spawned sessions. Intended to be
+    /// invoked by agents from inside their own session (for example, an
+    /// interactive step calling `zig self terminate` to exit cleanly).
+    #[command(name = "self")]
+    Self_ {
+        #[command(subcommand)]
+        command: SelfCommand,
+    },
+
     /// Tail a running or completed zig session
     Listen {
         /// Session id (full UUID or unique prefix). Omit with --latest/--active.
@@ -144,6 +156,13 @@ pub enum Command {
         #[arg(long, conflicts_with_all = ["session_id", "latest"])]
         active: bool,
     },
+}
+
+/// Subcommands for `zig self`.
+#[derive(Subcommand)]
+pub enum SelfCommand {
+    /// Terminate the current running session (SIGTERM)
+    Terminate,
 }
 
 /// Subcommands for `zig workflow`.
@@ -710,6 +729,24 @@ mod tests {
             Command::Docs { topic } => assert!(topic.is_none()),
             _ => panic!("expected Docs command"),
         }
+    }
+
+    #[test]
+    fn parse_self_terminate() {
+        let cli = Cli::try_parse_from(["zig", "self", "terminate"]).unwrap();
+        match cli.command {
+            Command::Self_ { command } => match command {
+                SelfCommand::Terminate => {}
+            },
+            _ => panic!("expected Self terminate command"),
+        }
+    }
+
+    #[test]
+    fn parse_self_requires_subcommand() {
+        // `zig self` alone is ambiguous — clap should error out.
+        let result = Cli::try_parse_from(["zig", "self"]);
+        assert!(result.is_err());
     }
 
     #[test]
