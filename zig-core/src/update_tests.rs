@@ -67,11 +67,64 @@ fn prepare_update_builds_prompts_pointing_at_staging_path() {
         params.initial_prompt.contains("do not rename"),
         "initial prompt should forbid renaming"
     );
+    // Initial prompt must include a validation report and the wait-for-instructions rule.
+    assert!(
+        params.initial_prompt.contains("Validation:"),
+        "initial prompt should include a validation report"
+    );
+    assert!(
+        params.initial_prompt.contains("no issues found"),
+        "clean workflow should report no validation issues"
+    );
+    assert!(
+        params
+            .initial_prompt
+            .contains("do not start fixing anything yet"),
+        "initial prompt should tell the agent to wait for explicit instructions"
+    );
 
     // System prompt should be fully rendered — no leftover placeholders.
     assert!(!params.system_prompt.contains("{{zwf_format_spec}}"));
     assert!(!params.system_prompt.contains("{{examples_reference}}"));
     assert!(params.system_prompt.contains("revision specialist"));
+}
+
+#[test]
+fn prepare_update_surfaces_validation_errors_in_prompt() {
+    // Workflow parses as valid TOML but fails semantic validation: the step
+    // depends on a nonexistent step.
+    const BROKEN: &str = r#"[workflow]
+name = "broken"
+description = "Depends on a missing step"
+
+[[step]]
+name = "only-step"
+prompt = "Do something"
+depends_on = ["nonexistent"]
+"#;
+
+    let dir = tempfile::tempdir().unwrap();
+    let original = dir.path().join("broken-validate.zwf");
+    fs::write(&original, BROKEN).unwrap();
+
+    let params = prepare_update(original.to_str().unwrap())
+        .expect("parser accepts the file; only validation should fail");
+
+    assert!(
+        params.initial_prompt.contains("Validation:"),
+        "initial prompt should include a validation report"
+    );
+    assert!(
+        params.initial_prompt.contains("nonexistent"),
+        "validation report should surface the unknown-step error: {}",
+        params.initial_prompt
+    );
+    assert!(
+        params
+            .initial_prompt
+            .contains("do not start fixing anything yet"),
+        "initial prompt should still tell the agent to wait for instructions"
+    );
 }
 
 #[test]
