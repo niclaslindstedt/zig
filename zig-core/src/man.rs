@@ -8,6 +8,7 @@ mod pages {
     pub const VALIDATE: &str = include_str!("../manpages/validate.md");
     pub const RESOURCES: &str = include_str!("../manpages/resources.md");
     pub const MEMORY: &str = include_str!("../manpages/memory.md");
+    pub const SELF: &str = include_str!("../manpages/self.md");
 }
 
 /// All available manpage topics in display order.
@@ -29,6 +30,10 @@ pub const TOPICS: &[(&str, &str)] = &[
         "memory",
         "Manage the memory scratch pad for workflows and steps",
     ),
+    (
+        "self",
+        "Commands that act on the currently running zig/zag session",
+    ),
 ];
 
 /// Look up a manpage by topic name.
@@ -44,6 +49,7 @@ pub fn get(topic: &str) -> Option<&'static str> {
         "validate" => Some(pages::VALIDATE),
         "resources" => Some(pages::RESOURCES),
         "memory" => Some(pages::MEMORY),
+        "self" => Some(pages::SELF),
         _ => None,
     }
 }

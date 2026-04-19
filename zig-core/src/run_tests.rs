@@ -1808,6 +1808,58 @@ fn load_file_defaults_missing_file_returns_error() {
 }
 
 #[test]
+fn build_agent_config_interactive_appends_self_terminate_instruction() {
+    let mut s = step("chat");
+    s.interactive = true;
+    let cfg = build_agent_config(
+        &s,
+        "hello",
+        "wf",
+        None,
+        Some("You are helpful."),
+        None,
+        None,
+        &[],
+    );
+    let sp = cfg
+        .system_prompt
+        .expect("interactive step should have a system prompt");
+    assert!(sp.starts_with("You are helpful."), "base prompt preserved");
+    assert!(
+        sp.contains("zig self terminate"),
+        "self-terminate instruction appended: {sp}"
+    );
+}
+
+#[test]
+fn build_agent_config_interactive_no_base_system_prompt_still_gets_instruction() {
+    let mut s = step("chat");
+    s.interactive = true;
+    let cfg = build_agent_config(&s, "hello", "wf", None, None, None, None, &[]);
+    let sp = cfg
+        .system_prompt
+        .expect("interactive step should have a system prompt even without a base");
+    assert!(sp.contains("zig self terminate"));
+}
+
+#[test]
+fn build_agent_config_non_interactive_has_no_self_terminate_instruction() {
+    let mut s = step("chat");
+    s.interactive = false;
+    let cfg = build_agent_config(
+        &s,
+        "hello",
+        "wf",
+        None,
+        Some("You are helpful."),
+        None,
+        None,
+        &[],
+    );
+    assert_eq!(cfg.system_prompt.as_deref(), Some("You are helpful."));
+}
+
+#[test]
 fn build_agent_config_interactive_keeps_run_command_and_omits_json() {
     let mut s = step("chat");
     s.interactive = true;
