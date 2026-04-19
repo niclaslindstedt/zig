@@ -29,7 +29,7 @@ rcgen = "0.13"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
 
 # User accounts
-bcrypt = "0.17"
+bcrypt = "0.19"
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.9"
 hex = "0.4"
