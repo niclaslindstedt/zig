@@ -1,4 +1,4 @@
-.PHONY: build release release-tag install run clean test check fmt fmt-check lint clippy coverage coverage-report web-build api-client-build website website-dev
+.PHONY: build release release-tag install run clean test check fmt fmt-check lint clippy shellcheck coverage coverage-report web-build api-client-build website website-dev
 
 # The web UI imports @nlindstedt/zig-api-client as a file: dependency,
 # which resolves to clients/typescript/dist/. Build the client before
@@ -43,6 +43,9 @@ clippy: lint
 
 fmt-check:
 	cargo fmt --all -- --check
+
+shellcheck:
+	shellcheck scripts/*.sh
 
 coverage:
 	cargo llvm-cov --workspace --summary-only

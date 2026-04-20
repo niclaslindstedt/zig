@@ -18,7 +18,7 @@ jobs:
       tag: ${{ steps.version.outputs.tag }}
       commit_sha: ${{ steps.push.outputs.commit_sha }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: main
@@ -38,9 +38,11 @@ jobs:
         id: notes
         run: |
           EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          echo "release_notes<<$EOF" >> "$GITHUB_OUTPUT"
-          sed -n "/^## \[${{ steps.version.outputs.version }}\]/,/^## \[/{ /^## \[.*\]/!p; }" CHANGELOG.md >> "$GITHUB_OUTPUT"
-          echo "$EOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "release_notes<<$EOF"
+            sed -n "/^## \[${{ steps.version.outputs.version }}\]/,/^## \[/{ /^## \[.*\]/!p; }" CHANGELOG.md
+            echo "$EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: commit changelog and retag
         id: push
         run: |
@@ -78,7 +80,7 @@ jobs:
           - target: aarch64-pc-windows-msvc
             runner: windows-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
       - uses: dtolnay/rust-toolchain@1.94.0
@@ -125,7 +127,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
           merge-multiple: true
@@ -146,7 +148,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
       - uses: dtolnay/rust-toolchain@1.94.0
@@ -184,7 +186,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
 
