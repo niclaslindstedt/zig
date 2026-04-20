@@ -1,6 +1,6 @@
 [package]
 name = "zig-serve"
-version = "0.10.0"
+version = "0.10.1"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -11,7 +11,7 @@ keywords = ["ai", "agent", "orchestration", "workflow", "api"]
 categories = ["web-programming::http-server", "development-tools"]
 
 [dependencies]
-zig-core = { version = "0.10.0", path = "../zig-core" }
+zig-core = { version = "0.10.1", path = "../zig-core" }
 zag-agent = "0.15.0"
 axum = { version = "0.8", features = ["ws"] }
 tokio = { version = "1", features = ["full"] }
