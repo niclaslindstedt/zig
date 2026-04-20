@@ -1,29 +1,67 @@
 ---
 name: commit
-description: "Commit, push, and open a PR. Runs quality checks, creates a conventional commit, pushes the branch, and opens or updates a pull request."
+description: "Commit staged changes, push the branch, and create or update a PR with a conventional-commit-formatted title. Use after completing a feature or fix."
 ---
 
-# Commit, Push & PR Workflow
+# Commit, Push & PR
 
-## Pre-commit Quality Checks
+This skill handles the full workflow: verify quality gates → commit → push → create or update a PR.
 
-Before committing, run all four checks and ensure they pass:
+## Step 1: Quality Gates
+
+Run all checks before committing. All must pass:
 
 ```sh
-make build && make test && make clippy && make fmt
+make build     # must compile cleanly
+make test      # all tests must pass
+make lint      # zero warnings
+make fmt-check # code formatted
 ```
 
-All four must succeed. Fix any issues before proceeding.
+Stop if any check fails. Fix the issue, then re-run.
 
-## Branch Management
+## Step 2: Create a Feature Branch
 
-Always work on a feature branch — never commit directly to `main`. Branch naming should follow `type/short-description` in kebab-case, derived from the commit type and summary.
+**Always work on a feature branch — never commit directly to `main`.**
 
-## Commit Message Format
+Check the current branch:
 
-Conventional commit format: `type(scope): summary in imperative mood`
+```sh
+git branch --show-current
+```
 
-**Types and their changelog impact:**
+If already on `main` (or any protected branch), create and switch to a feature branch before staging anything. Derive the branch name from the commit type and a short summary of the change (kebab-case, no special characters):
+
+```sh
+git checkout -b type/short-description
+# e.g.: feat/workflow-create, fix/run-parser, refactor/cli-dispatch
+```
+
+If already on a feature branch, continue with that branch — do not create another one.
+
+## Step 3: Review Changes
+
+```sh
+git status && git diff --staged && git diff
+```
+
+Understand what changed so you can write an accurate commit message and PR title.
+
+## Step 4: Stage & Commit
+
+Stage relevant files (prefer specific paths over `git add -A` to avoid accidentally including secrets or build artifacts):
+
+```sh
+git add <files...>
+```
+
+Write a conventional commit message:
+
+```
+type(scope): summary in imperative mood
+```
+
+**Changelog-eligible types** (pick the right one — it determines what appears in the changelog):
 
 | Type | Changelog section | Version bump |
 |------|-------------------|--------------|
@@ -32,40 +70,97 @@ Conventional commit format: `type(scope): summary in imperative mood`
 | `perf` | Performance | patch |
 | `docs` | Documentation | none |
 | `test` | Tests | none |
-| `refactor`, `chore`, `ci`, `style`, `build` | *(not included)* | none |
+| `refactor`, `chore`, `ci`, `build`, `style` | *(not included)* | none |
 
-**Scopes**: lowercase, comma-separated if multiple (e.g., `refactor(parser,cli): simplify error handling`).
+For breaking changes use `feat!:` or `fix!:`, or add a `BREAKING CHANGE:` footer → triggers a major version bump.
 
-**Breaking changes**: Use `type!: summary` or add a `BREAKING CHANGE:` footer for major version bumps.
-
-## PR Title
-
-The PR title **must** follow conventional commit format — it becomes the squashed commit message on `main` and drives changelog generation. It should reflect the combined scope of all commits on the branch.
-
-When adding commits to an existing PR, update the PR title and description to reflect the new combined scope.
-
-## Documentation Sync
-
-If user-facing behavior changed, also update:
-
-- `README.md` — commands, flags, examples
-- `manpages/*.md` — command reference pages
-- `CLAUDE.md` — if architecture changed
-- `zig-core/src/man.rs` — if manpages were added or removed
-
-## Workflow
-
-1. Run quality checks: `make build && make test && make clippy && make fmt`
-2. Stage changed files
-3. Commit with conventional commit message
-4. Push to feature branch
-5. Open or update PR with conventional commit title and description
-
-## Verification
+Scopes are lowercase, comma-separated if multiple: `feat(workflow,cli): ...`
 
 ```sh
-make build    # Must compile cleanly
-make test     # All tests must pass
-make clippy   # Zero warnings
-make fmt      # Formatted
+git commit -m "type(scope): summary"
 ```
+
+## Step 5: Push
+
+```sh
+git push -u origin HEAD
+```
+
+## Step 6: Create or Update the PR
+
+**Check if a PR already exists for this branch:**
+
+```sh
+gh pr view --json number,title,url 2>/dev/null
+```
+
+### If no PR exists — create one:
+
+The PR title **must** follow conventional commit format — it becomes the squashed commit message on `main` and is what drives the changelog. Match it to the overall intent of the branch, not just the latest commit.
+
+```sh
+gh pr create \
+  --title "type(scope): summary" \
+  --body "$(cat <<'EOF'
+## Summary
+
+<brief description of the changes and motivation>
+
+## Test plan
+
+- [ ] `make build` passes
+- [ ] `make test` passes
+- [ ] `make lint` has zero warnings
+- [ ] `make fmt-check` applied
+
+## Checklist
+
+- [ ] Tests added/updated in separate `*_tests.rs` files
+- [ ] Documentation updated (if user-facing behavior changed):
+  - [ ] `README.md`
+  - [ ] `manpages/*.md`
+  - [ ] `zig-core/src/man.rs` (if manpages were added/removed)
+  - [ ] TypeScript bindings (if CLI or workflow model changed)
+- [ ] Commit messages follow conventional commit style
+EOF
+)"
+```
+
+### If a PR already exists — update it:
+
+Re-evaluate the PR title and description to reflect the **combined** scope of all commits on the branch, then update:
+
+```sh
+gh pr edit \
+  --title "type(scope): updated summary" \
+  --body "$(cat <<'EOF'
+## Summary
+
+<updated description covering all changes>
+
+## Test plan
+
+- [ ] `make build` passes
+- [ ] `make test` passes
+- [ ] `make lint` has zero warnings
+- [ ] `make fmt-check` applied
+
+## Checklist
+
+- [ ] Tests added/updated in separate `*_tests.rs` files
+- [ ] Documentation updated (if user-facing behavior changed):
+  - [ ] `README.md`
+  - [ ] `manpages/*.md`
+  - [ ] `zig-core/src/man.rs` (if manpages were added/removed)
+  - [ ] TypeScript bindings (if CLI or workflow model changed)
+- [ ] Commit messages follow conventional commit style
+EOF
+)"
+```
+
+## Key Reminders
+
+- **PR title = squashed commit on main = changelog entry.** Choose the type and summary carefully.
+- The individual commits within the branch don't appear in the changelog — only the PR title does.
+- If the branch touches multiple scopes, use comma-separated scopes: `feat(workflow,cli): ...`
+- Never skip hooks (`--no-verify`) — fix the underlying issue instead.
