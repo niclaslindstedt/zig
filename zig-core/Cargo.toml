@@ -20,7 +20,7 @@ toml = "1.1"
 tempfile = "3"
 uuid = { version = "1", features = ["v4"] }
 zip = "2"
-zag-agent = "0.15.0"
-zag-orch = "0.15.0"
+zag-agent = "0.15.1"
+zag-orch = "0.15.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
 anyhow = "1"
