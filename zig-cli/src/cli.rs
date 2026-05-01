@@ -143,6 +143,21 @@ pub enum Command {
         command: SelfCommand,
     },
 
+    /// Continue the last workflow run in this directory.
+    ///
+    /// Re-opens the most recent step's agent conversation from the latest
+    /// `zig run` (filtered by workflow if given) via zag's resume mechanism.
+    /// Interactive — type your follow-up directly into the resumed session.
+    Continue {
+        /// Workflow name to filter by. If omitted, continues the most recent
+        /// run in the current directory.
+        workflow: Option<String>,
+
+        /// Resume a specific zig session id (full UUID or unique prefix).
+        #[arg(long, conflicts_with = "workflow")]
+        session: Option<String>,
+    },
+
     /// Tail a running or completed zig session
     Listen {
         /// Session id (full UUID or unique prefix). Omit with --latest/--active.
@@ -984,5 +999,46 @@ mod tests {
             assert!(!name.is_empty());
             assert!(name.chars().all(|c| c.is_ascii_lowercase() || c == '-'));
         }
+    }
+
+    #[test]
+    fn parse_continue_no_args() {
+        let cli = Cli::try_parse_from(["zig", "continue"]).unwrap();
+        match cli.command {
+            Command::Continue { workflow, session } => {
+                assert!(workflow.is_none());
+                assert!(session.is_none());
+            }
+            _ => panic!("expected Continue command"),
+        }
+    }
+
+    #[test]
+    fn parse_continue_with_workflow() {
+        let cli = Cli::try_parse_from(["zig", "continue", "my-wf"]).unwrap();
+        match cli.command {
+            Command::Continue { workflow, .. } => {
+                assert_eq!(workflow.as_deref(), Some("my-wf"));
+            }
+            _ => panic!("expected Continue command"),
+        }
+    }
+
+    #[test]
+    fn parse_continue_with_session() {
+        let cli = Cli::try_parse_from(["zig", "continue", "--session", "abc123"]).unwrap();
+        match cli.command {
+            Command::Continue { session, workflow } => {
+                assert_eq!(session.as_deref(), Some("abc123"));
+                assert!(workflow.is_none());
+            }
+            _ => panic!("expected Continue command"),
+        }
+    }
+
+    #[test]
+    fn parse_continue_session_and_workflow_conflict() {
+        let result = Cli::try_parse_from(["zig", "continue", "my-wf", "--session", "abc"]);
+        assert!(result.is_err());
     }
 }

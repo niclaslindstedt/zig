@@ -17,6 +17,7 @@ pub mod paths;
 pub mod prompt;
 pub mod resources;
 pub mod resources_manage;
+pub mod resume;
 pub mod run;
 pub mod self_cmd;
 pub mod session;

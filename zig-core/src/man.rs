@@ -2,6 +2,7 @@
 mod pages {
     pub const ZIG: &str = include_str!("../manpages/zig.md");
     pub const RUN: &str = include_str!("../manpages/run.md");
+    pub const CONTINUE: &str = include_str!("../manpages/continue.md");
     pub const LISTEN: &str = include_str!("../manpages/listen.md");
     pub const SERVE: &str = include_str!("../manpages/serve.md");
     pub const WORKFLOW: &str = include_str!("../manpages/workflow.md");
@@ -15,6 +16,10 @@ mod pages {
 pub const TOPICS: &[(&str, &str)] = &[
     ("zig", "Overview of the zig CLI"),
     ("run", "Execute a .zwf/.zwfz workflow file"),
+    (
+        "continue",
+        "Resume the most recent step's agent conversation from the last run",
+    ),
     ("listen", "Tail a running or completed zig session"),
     ("serve", "Start an HTTP API server"),
     (
@@ -43,6 +48,7 @@ pub fn get(topic: &str) -> Option<&'static str> {
     match topic {
         "zig" => Some(pages::ZIG),
         "run" => Some(pages::RUN),
+        "continue" => Some(pages::CONTINUE),
         "listen" => Some(pages::LISTEN),
         "serve" => Some(pages::SERVE),
         "workflow" => Some(pages::WORKFLOW),
