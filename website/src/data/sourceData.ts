@@ -27,7 +27,7 @@ export interface StepField {
 
 // --- Data ---
 
-export const version = "0.9.0";
+export const version = "0.10.1";
 
 export const commands: CommandData[] = [
   {
@@ -65,6 +65,10 @@ export const commands: CommandData[] = [
   {
     "name": "self",
     "description": "Commands that act on the currently running zig/zag session"
+  },
+  {
+    "name": "continue",
+    "description": "Continue the last workflow run in this directory."
   },
   {
     "name": "listen",
@@ -357,4 +361,4 @@ export const stepFields: StepField[] = [
 
 export const varTypes: string[] = ["string","number","bool","json"];
 
-export const manpageTopics: string[] = ["listen","memory","resources","run","self","serve","validate","workflow","zig"];
+export const manpageTopics: string[] = ["continue","listen","memory","resources","run","self","serve","validate","workflow","zig"];

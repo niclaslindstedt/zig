@@ -357,6 +357,29 @@ export class ZigBuilder {
   }
 
   /**
+   * Resume the most recent step's agent conversation from the latest
+   * `zig run` in the current directory.
+   *
+   * Runs with inherited stdio so the resumed agent session attaches to
+   * the terminal interactively.
+   *
+   * @param options.workflow - Filter to the most recent run for this workflow name
+   * @param options.session - Resume a specific zig session by id or unique prefix (mutually exclusive with `workflow`)
+   */
+  async continueRun(
+    options: { workflow?: string; session?: string } = {},
+  ): Promise<void> {
+    await this.preflight();
+    const args = [...this.buildGlobalArgs(), "continue"];
+    if (options.session) {
+      args.push("--session", options.session);
+    } else if (options.workflow) {
+      args.push(options.workflow);
+    }
+    return runZig(this._bin, args);
+  }
+
+  /**
    * Tail a running or completed zig session.
    *
    * Runs with inherited stdio to display session output live.

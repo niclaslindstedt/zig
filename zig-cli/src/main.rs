@@ -240,6 +240,11 @@ async fn run_cli(cli: Cli) -> Result<()> {
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
         }
+        Command::Continue { workflow, session } => {
+            zig_core::resume::continue_run(zig_core::resume::ContinueOptions { workflow, session })
+                .await
+                .map_err(|e| anyhow::anyhow!("{e}"))?;
+        }
         Command::Self_ { command } => match command {
             SelfCommand::Terminate => {
                 zig_core::self_cmd::terminate()?;
