@@ -3560,9 +3560,9 @@ dependencies = [
 
 [[package]]
 name = "zag-agent"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c93acd9f26c969f56aeda4102f7e149be8c9df8c759fcae191247ea84ac468a"
+checksum = "2d8aa9592be0b632b46a924213a58d3e45fd6170c509728967b360f262004f58"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -3585,9 +3585,9 @@ dependencies = [
 
 [[package]]
 name = "zag-orch"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "092c3406074851fab6e485aedbe1b61d79f5c4b86d0e279e9eac4344a5d3950f"
+checksum = "e040f9445ba15f8df05faa49d9450d40cc784abdff1456fa05e3e08aebc8f3d9"
 dependencies = [
  "anyhow",
  "chrono",
