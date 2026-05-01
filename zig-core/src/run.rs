@@ -848,6 +848,7 @@ fn parse_timeout_string(s: &str) -> Option<Duration> {
 async fn dispatch_agent(
     cfg: &AgentConfig,
     step_name: &str,
+    workflow_name: &str,
     session: Option<&Arc<SessionWriter>>,
     prefix: Option<&str>,
 ) -> Result<String, ZigError> {
@@ -857,7 +858,27 @@ async fn dispatch_agent(
                 // Interactive sessions inherit stdio — the provider TUI
                 // takes over the terminal and renders events directly, so
                 // no log-event hook is wired here.
-                let builder = apply_agent_config(AgentBuilder::new(), cfg);
+                //
+                // Register with zag's process store + inject `ZAG_PROCESS_ID`
+                // / `ZAG_SESSION_ID` etc. into the agent subprocess so the
+                // `INTERACTIVE_SELF_TERMINATE_INSTRUCTION` system-prompt
+                // tail's `zig self terminate` actually resolves to this
+                // step's agent process. Without this, the agent would dutifully
+                // run the command per the instruction, but `zag_orch::ps::
+                // request_kill("self")` would fail with "ZAG_PROCESS_ID is not
+                // set" — see `zig-core/src/self_cmd.rs::terminate`.
+                let mut builder = apply_agent_config(AgentBuilder::new(), cfg);
+                builder = builder.register_process(
+                    zag_agent::process_registration::RegisterOptionsOwned {
+                        provider: cfg.provider.clone().unwrap_or_else(|| "claude".to_string()),
+                        model: cfg.model.clone().unwrap_or_default(),
+                        command: "run".to_string(),
+                        prompt_preview: Some(prompt_preview(&cfg.prompt)),
+                        session_id: Some(format!("zig-{workflow_name}-{step_name}")),
+                        session_name: None,
+                        root: cfg.root.clone(),
+                    },
+                );
                 builder.run(Some(&cfg.prompt)).await.map_err(|e| {
                     ZigError::Zag(format!("agent run failed for step '{step_name}': {e}"))
                 })?;
@@ -1203,7 +1224,7 @@ async fn execute_step(
         workflow_model,
         extra_add_dirs,
     );
-    dispatch_agent(&cfg, &step.name, session, prefix).await
+    dispatch_agent(&cfg, &step.name, workflow_name, session, prefix).await
 }
 
 /// Run a step with retry logic, returning its captured output on success.
