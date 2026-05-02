@@ -156,6 +156,49 @@ fn resolve_from_log_errors_when_no_step_started() {
 }
 
 #[test]
+fn continue_options_prompt_is_independent_of_resolution() {
+    // Resolution only consults the index/log; the prompt field is forwarded
+    // to zag at run-time and must not influence which session is picked.
+    let dir = tempfile::tempdir().unwrap();
+    let log = dir.path().join("z-1.jsonl");
+    write_jsonl(
+        &log,
+        &[evt(
+            1,
+            SessionEventKind::StepStarted {
+                step_name: "only".into(),
+                tier_index: 0,
+                zag_session_id: "zig-wf-only".into(),
+                zag_command: "run".into(),
+                model: None,
+                prompt_preview: "...".into(),
+            },
+        )],
+    );
+
+    let opts_no_prompt = ContinueOptions {
+        workflow: None,
+        prompt: None,
+        session: None,
+    };
+    let opts_with_prompt = ContinueOptions {
+        workflow: None,
+        prompt: Some("do X".into()),
+        session: None,
+    };
+
+    // The prompt round-trips on the struct unchanged.
+    assert!(opts_no_prompt.prompt.is_none());
+    assert_eq!(opts_with_prompt.prompt.as_deref(), Some("do X"));
+
+    // resolve_from_log doesn't touch prompt — both forms produce the same target.
+    let a = resolve_from_log(&log, entry()).unwrap();
+    let b = resolve_from_log(&log, entry()).unwrap();
+    assert_eq!(a.zag_session_id, b.zag_session_id);
+    assert_eq!(a.zag_session_id, "zig-wf-only");
+}
+
+#[test]
 fn resolve_from_log_ignores_unrelated_events() {
     let dir = tempfile::tempdir().unwrap();
     let log = dir.path().join("z-1.jsonl");

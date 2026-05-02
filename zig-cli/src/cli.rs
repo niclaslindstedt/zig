@@ -150,11 +150,16 @@ pub enum Command {
     /// Interactive — type your follow-up directly into the resumed session.
     Continue {
         /// Workflow name to filter by. If omitted, continues the most recent
-        /// run in the current directory.
+        /// run in the current directory. When `--session` is set, this
+        /// positional is reinterpreted as the follow-up prompt.
         workflow: Option<String>,
 
+        /// Optional follow-up prompt to send into the resumed agent turn. If
+        /// omitted, the resumed session is opened interactively.
+        prompt: Option<String>,
+
         /// Resume a specific zig session id (full UUID or unique prefix).
-        #[arg(long, conflicts_with = "workflow")]
+        #[arg(long)]
         session: Option<String>,
     },
 
@@ -1005,8 +1010,13 @@ mod tests {
     fn parse_continue_no_args() {
         let cli = Cli::try_parse_from(["zig", "continue"]).unwrap();
         match cli.command {
-            Command::Continue { workflow, session } => {
+            Command::Continue {
+                workflow,
+                prompt,
+                session,
+            } => {
                 assert!(workflow.is_none());
+                assert!(prompt.is_none());
                 assert!(session.is_none());
             }
             _ => panic!("expected Continue command"),
@@ -1017,8 +1027,28 @@ mod tests {
     fn parse_continue_with_workflow() {
         let cli = Cli::try_parse_from(["zig", "continue", "my-wf"]).unwrap();
         match cli.command {
-            Command::Continue { workflow, .. } => {
+            Command::Continue {
+                workflow, prompt, ..
+            } => {
                 assert_eq!(workflow.as_deref(), Some("my-wf"));
+                assert!(prompt.is_none());
+            }
+            _ => panic!("expected Continue command"),
+        }
+    }
+
+    #[test]
+    fn parse_continue_with_workflow_and_prompt() {
+        let cli = Cli::try_parse_from(["zig", "continue", "my-wf", "do X"]).unwrap();
+        match cli.command {
+            Command::Continue {
+                workflow,
+                prompt,
+                session,
+            } => {
+                assert_eq!(workflow.as_deref(), Some("my-wf"));
+                assert_eq!(prompt.as_deref(), Some("do X"));
+                assert!(session.is_none());
             }
             _ => panic!("expected Continue command"),
         }
@@ -1028,17 +1058,36 @@ mod tests {
     fn parse_continue_with_session() {
         let cli = Cli::try_parse_from(["zig", "continue", "--session", "abc123"]).unwrap();
         match cli.command {
-            Command::Continue { session, workflow } => {
+            Command::Continue {
+                session,
+                workflow,
+                prompt,
+            } => {
                 assert_eq!(session.as_deref(), Some("abc123"));
                 assert!(workflow.is_none());
+                assert!(prompt.is_none());
             }
             _ => panic!("expected Continue command"),
         }
     }
 
     #[test]
-    fn parse_continue_session_and_workflow_conflict() {
-        let result = Cli::try_parse_from(["zig", "continue", "my-wf", "--session", "abc"]);
-        assert!(result.is_err());
+    fn parse_continue_with_session_and_prompt() {
+        // With --session, the trailing positional is the prompt. clap fills
+        // the first positional (`workflow`) at parse time; main.rs reroutes
+        // it to the prompt slot when --session is set.
+        let cli = Cli::try_parse_from(["zig", "continue", "--session", "abc", "do X"]).unwrap();
+        match cli.command {
+            Command::Continue {
+                session,
+                workflow,
+                prompt,
+            } => {
+                assert_eq!(session.as_deref(), Some("abc"));
+                assert_eq!(workflow.as_deref(), Some("do X"));
+                assert!(prompt.is_none());
+            }
+            _ => panic!("expected Continue command"),
+        }
     }
 }

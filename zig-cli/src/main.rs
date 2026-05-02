@@ -240,10 +240,30 @@ async fn run_cli(cli: Cli) -> Result<()> {
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))?;
         }
-        Command::Continue { workflow, session } => {
-            zig_core::resume::continue_run(zig_core::resume::ContinueOptions { workflow, session })
-                .await
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+        Command::Continue {
+            workflow,
+            prompt,
+            session,
+        } => {
+            // When --session is set, the trailing positional (parsed as
+            // `workflow` by clap) is the prompt. A second positional is then
+            // ambiguous and rejected.
+            let (workflow, prompt) = match (session.is_some(), workflow, prompt) {
+                (true, Some(p), None) => (None, Some(p)),
+                (true, Some(_), Some(_)) => {
+                    anyhow::bail!(
+                        "`zig continue --session <id>` accepts at most one positional (the prompt)"
+                    );
+                }
+                (_, w, p) => (w, p),
+            };
+            zig_core::resume::continue_run(zig_core::resume::ContinueOptions {
+                workflow,
+                prompt,
+                session,
+            })
+            .await
+            .map_err(|e| anyhow::anyhow!("{e}"))?;
         }
         Command::Self_ { command } => match command {
             SelfCommand::Terminate => {
