@@ -1070,7 +1070,7 @@ async fn dispatch_agent(
 /// (with optional `[prefix]` tagging for parallel tiers) and the zig
 /// [`SessionWriter`] as `StepOutput` events — the same surface the old
 /// `run_zag_streaming` helper produced before we dropped the subprocess.
-fn install_live_streaming(
+pub(crate) fn install_live_streaming(
     builder: AgentBuilder,
     step_name: &str,
     session: Option<&Arc<SessionWriter>>,

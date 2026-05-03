@@ -94,7 +94,7 @@ zig run demo
 
 ```
 zig run <workflow>              Execute a .zwf/.zwfz workflow file
-zig continue [workflow]         Resume the last step's agent conversation from the most recent run
+zig continue [workflow] [prompt] Resume the last step's agent conversation from the most recent run
 zig listen [session_id]         Tail a running or completed zig session
 zig serve                       Start the HTTP API server (optionally with --web UI)
 zig workflow list               List available workflows
@@ -145,20 +145,22 @@ recording a session, creating storage, or invoking `zag`. See
 Re-open the most recent step's agent conversation from the latest `zig run`
 in this directory. Resolves the target zig session from the project session
 index, reads its log to find the last `step_started` event, and resumes that
-zag session interactively — the terminal attaches and you type your follow-up
-directly.
+zag session — interactively when no prompt is given, or non-interactively
+when a follow-up prompt is supplied.
 
 ```bash
-zig continue                       # resume the most recent run in cwd
-zig continue code-review           # filter to a specific workflow
-zig continue --session 9c3f2b      # resume a specific zig session by id prefix
+zig continue                              # resume the most recent run in cwd, interactive
+zig continue code-review                  # filter to a specific workflow
+zig continue code-review "now also do X" # resume and send a follow-up prompt
+zig continue --session 9c3f2b             # resume a specific zig session by id prefix
+zig continue --session 9c3f2b "now also do X"
 ```
 
 This is intentionally an agent-level resume, not a workflow replay: skipping
 already-completed steps would lose their `saves` outputs, so any later step
-depending on them would have undefined variables. Full step-by-step resumption
-needs persisted variable state and a zag builder API for resume-with-prompt;
-both are tracked as future work. See `zig man continue` for details.
+depending on them would have undefined variables. Full step-by-step
+resumption with variable rehydration would still require zig to persist
+inter-step variable state. See `zig man continue` for details.
 
 ### `zig listen`
 

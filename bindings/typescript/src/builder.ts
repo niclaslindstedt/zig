@@ -361,13 +361,15 @@ export class ZigBuilder {
    * `zig run` in the current directory.
    *
    * Runs with inherited stdio so the resumed agent session attaches to
-   * the terminal interactively.
+   * the terminal — interactively when no prompt is given, or driven by
+   * the supplied follow-up prompt non-interactively.
    *
    * @param options.workflow - Filter to the most recent run for this workflow name
    * @param options.session - Resume a specific zig session by id or unique prefix (mutually exclusive with `workflow`)
+   * @param options.prompt - Optional follow-up prompt to send into the resumed agent turn
    */
   async continueRun(
-    options: { workflow?: string; session?: string } = {},
+    options: { workflow?: string; session?: string; prompt?: string } = {},
   ): Promise<void> {
     await this.preflight();
     const args = [...this.buildGlobalArgs(), "continue"];
@@ -375,6 +377,9 @@ export class ZigBuilder {
       args.push("--session", options.session);
     } else if (options.workflow) {
       args.push(options.workflow);
+    }
+    if (options.prompt) {
+      args.push(options.prompt);
     }
     return runZig(this._bin, args);
   }

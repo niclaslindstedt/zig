@@ -26,6 +26,10 @@ use crate::session::{
 pub struct ContinueOptions {
     /// Filter the most-recent lookup to a specific workflow name.
     pub workflow: Option<String>,
+    /// Optional follow-up prompt. When `Some`, the resumed turn is driven
+    /// non-interactively via `AgentBuilder::resume_with_prompt`; when
+    /// `None`, the resumed session is opened interactively.
+    pub prompt: Option<String>,
     /// Resume a specific zig session id (full UUID or unique prefix).
     pub session: Option<String>,
 }
@@ -132,8 +136,13 @@ fn find_latest_for_workflow(name: &str) -> Result<SessionLogIndexEntry, ZigError
         .ok_or_else(|| ZigError::Io(format!("no zig sessions found for workflow '{name}'.")))
 }
 
-/// Resume the most recent step's agent session interactively. The terminal
-/// attaches to the resumed conversation; type follow-ups directly there.
+/// Resume the most recent step's agent session.
+///
+/// With `opts.prompt = None`, the terminal attaches to the resumed
+/// conversation interactively. With `opts.prompt = Some(p)`, the resumed
+/// turn is driven non-interactively via
+/// [`zag_agent::builder::AgentBuilder::resume_with_prompt`] and live event
+/// output is streamed to stderr (matching the `zig run` UX).
 pub async fn continue_run(opts: ContinueOptions) -> Result<(), ZigError> {
     let target = resolve(&opts)?;
     let short_id = &target.zig_session_id[..target.zig_session_id.len().min(8)];
@@ -141,10 +150,25 @@ pub async fn continue_run(opts: ContinueOptions) -> Result<(), ZigError> {
         "resuming workflow '{}' (zig session {}, zag session {})",
         target.workflow_name, short_id, target.zag_session_id,
     );
-    AgentBuilder::new()
-        .resume(&target.zag_session_id)
-        .await
-        .map_err(|e| ZigError::Zag(format!("resume failed: {e}")))
+    match opts.prompt {
+        None => AgentBuilder::new()
+            .resume(&target.zag_session_id)
+            .await
+            .map_err(|e| ZigError::Zag(format!("resume failed: {e}")))?,
+        Some(prompt) => {
+            let builder = crate::run::install_live_streaming(
+                AgentBuilder::new(),
+                &target.workflow_name,
+                None,
+                None,
+            );
+            builder
+                .resume_with_prompt(&target.zag_session_id, &prompt)
+                .await
+                .map_err(|e| ZigError::Zag(format!("resume failed: {e}")))?;
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
