@@ -114,6 +114,7 @@ git clone https://github.com/niclaslindstedt/oss-spec.git /tmp/oss-spec
 | Manpage staleness | Run `update-manpages` skill — tracks last update via `.agent/skills/update-manpages/.last-updated` |
 | Docs staleness | Run `update-docs` skill — tracks last update via `.agent/skills/update-docs/.last-updated` |
 | Website staleness | Run `update-website` skill — tracks last update via `.agent/skills/update-website/.last-updated` |
+| OSS_SPEC.md conformance drift | Run `sync-oss-spec` skill — drives the bash fallback validator (`scripts/validate.sh`) from the upstream oss-spec project; tracks last update via `.agent/skills/sync-oss-spec/.last-updated` |
 
 ## Prompt versioning
 
@@ -152,4 +153,5 @@ Skills live under `.agent/skills/` (`.claude/skills` is a symlink to it). Each s
 | `update-website` | website/ source data is stale after any release |
 | `update-manpages` | manpages/*.md are stale after CLI changes |
 | `update-bindings` | TypeScript bindings are stale after Rust model changes |
+| `sync-oss-spec` | Repo may have drifted from `OSS_SPEC.md`; runs the bash fallback validator from the upstream oss-spec project (the nonbinary backup, since zig does not ship the `oss-spec` binary) and walks each violation to a fix |
 | `commit` | Commit, push, and open a PR |
