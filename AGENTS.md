@@ -129,6 +129,18 @@ Prompt templates live in `prompts/<name>/<major>_<minor>_<patch>.md` and are emb
 
 The `website/` directory contains generated source data. Run the `update-website` skill whenever commands, patterns, workflow model, or the version number changes. The skill tracks its own last-update timestamp at `.agent/skills/update-website/.last-updated`.
 
+## Website SEO source of truth
+
+All SEO copy (site name, tagline, description, canonical URL, OG image, JSON-LD per route) lives in `website/src/seo/siteConfig.mjs`. Never duplicate this copy into `website/index.html`, components, or build scripts — change `siteConfig.mjs` and let the build pick it up.
+
+The build pipeline (`npm run build`):
+
+1. `npm run extract` — pulls Rust-derived data into `website/src/data/sourceData.ts`.
+2. `vite build` — produces `dist/index.html` with hashed asset references.
+3. `node scripts/generate-seo.mjs` — splices a per-route `<head>` block into `dist/index.html` for every route in `siteConfig.mjs`, copies it to `dist/404.html` for SPA-fallback hosting, and emits `dist/sitemap.xml` with `<lastmod>` derived from the latest git commit touching `website/src/`.
+
+The website is hosted at `https://zig.niclaslindstedt.se/` via GitHub Pages — `website/public/CNAME` is the custom-domain marker that GitHub Pages reads.
+
 ## Parity and checklist rules
 
 Cross-cutting invariants that must hold across the entire repo:

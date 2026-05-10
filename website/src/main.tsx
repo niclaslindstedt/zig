@@ -6,7 +6,7 @@ import "./App.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter basename="/zig/">
+    <BrowserRouter>
       <App />
     </BrowserRouter>
   </StrictMode>,
