@@ -179,9 +179,17 @@ console.log(wf.steps.length);
 | `.workflowShow(workflow)` | `Promise<string>` | Show workflow details |
 | `.workflowDelete(workflow)` | `Promise<string>` | Delete a workflow |
 | `.workflowCreate(options?)` | `Promise<void>` | Create a workflow interactively |
-| `.listen(options?)` | `Promise<void>` | Tail a running/completed session |
+| `.workflowUpdate(workflow)` | `Promise<void>` | Revise an existing workflow interactively |
 | `.workflowPack(path, output?)` | `Promise<string>` | Pack a workflow directory into a .zwfz zip archive |
+| `.continueRun(options?)` | `Promise<void>` | Resume the most recent step's agent conversation from the last run. Options: `workflow?`, `session?`, `prompt?` |
+| `.listen(options?)` | `Promise<void>` | Tail a running/completed session |
+| `.resourcesList(options?)` | `Promise<string>` | List discovered resources from all tiers |
+| `.resourcesAdd(path, options?)` | `Promise<string>` | Add a resource file to a tier |
+| `.resourcesDelete(name, options?)` | `Promise<string>` | Delete a resource file from a tier |
+| `.resourcesShow(name, workflow?)` | `Promise<string>` | Print a resource file's contents |
+| `.resourcesWhere(workflow?)` | `Promise<string>` | Show resource search paths and source tiers |
 | `.man(topic?)` | `Promise<string>` | Show a manual page topic |
+| `.docs(topic?)` | `Promise<string>` | Show a conceptual documentation topic |
 
 ## Utility functions
 
