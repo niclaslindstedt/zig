@@ -118,11 +118,11 @@ git clone https://github.com/niclaslindstedt/oss-spec.git /tmp/oss-spec
 
 ## Prompt versioning
 
-Prompt templates live in `prompts/<name>/<major>_<minor>.md` and are embedded via `include_str!` in `zig-core/src/prompt.rs`.
+Prompt templates live in `prompts/<name>/<major>_<minor>_<patch>.md` and are embedded via `include_str!` in `zig-core/src/prompt.rs`. The filename format follows OSS_SPEC.md §13.5 and the `version:` field in the front matter must match the filename stem (e.g. `1_4_0.md` → `version: "1.4.0"`).
 
 **Rules:**
 - **Never edit an existing version file.** Always create a new file and update the `include_str!` path in `prompt.rs`.
-- Version using SemVer-style major/minor: bump **minor** (`1_1` → `1_2`) for small adjustments (wording tweaks, adding a guideline). Bump **major** (`1_2` → `2_0`) for rewrites or structural changes that fundamentally alter the prompt.
+- Version using SemVer: bump **patch** (`1_4_0` → `1_4_1`) for wording fixes that do not change the contract, **minor** (`1_4_0` → `1_5_0`) for non-breaking additions, **major** (`1_5_0` → `2_0_0`) for breaking rewrites.
 - Every prompt file must have YAML front matter with `name`, `description`, `version`, and `references` (files that use it). Keep front matter up to date when creating a new version — update the description to reflect what changed and list current references.
 
 ## Website staleness policy
