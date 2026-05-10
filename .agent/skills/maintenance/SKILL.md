@@ -27,8 +27,9 @@ The registry is the single source of truth for which sync skills exist in this r
 | `update-bindings` | `bindings/typescript/` vs. Rust workflow model (`zig-core/src/workflow/model.rs`) and CLI surface | 3 |
 | `update-readme`   | `README.md` vs. current public surface                              | 4 |
 | `update-website`  | `website/` source-derived content vs. commands, patterns, version   | 5 |
+| `sync-oss-spec`   | Repo contents vs. `OSS_SPEC.md` (via the bash fallback validator)   | 6 — must run last, after every per-artifact skill has settled |
 
-Run order matters: upstream fixes must land before downstream skills read them. Manpages settle first; `docs/` references those manpages; bindings mirror the Rust source independently but should be regenerated before the README summarizes them; the README summarizes everything above; the website is rendered from all of the above.
+Run order matters: upstream fixes must land before downstream skills read them. Manpages settle first; `docs/` references those manpages; bindings mirror the Rust source independently but should be regenerated before the README summarizes them; the README summarizes everything above; the website is rendered from all of the above; finally `sync-oss-spec` re-runs the OSS_SPEC.md conformance check to catch residual violations the per-artifact skills did not touch.
 
 ## Housekeeping checks
 
@@ -104,7 +105,7 @@ Between skills, do **not** commit — aggregate all edits into a single working 
 
 After every run, update this file:
 
-1. **Add new sync skills to the registry.** Every new `update-*` skill must appear here, in alphabetical order, with a clear run-order slot.
+1. **Add new sync skills to the registry.** Every new `update-*` skill (and `sync-oss-spec`, which runs last) must appear here, in alphabetical order, with a clear run-order slot.
 2. **Adjust run order** if you discovered a hidden dependency (e.g. skill A reads files that skill B rewrites).
 3. **Record drift signals.** If a change should have triggered a skill but did not appear in any skill's mapping table, extend that skill's mapping table — not this one.
 4. **Commit the skill edits** together with the drift sweep so the orchestration knowledge compounds.
