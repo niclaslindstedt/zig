@@ -135,8 +135,13 @@ function spliceHead(html, headInner, lang) {
   // hashed asset URLs that we must not regenerate. Match only tags pointing
   // at the /assets/ output dir so we don't accidentally re-inject our own
   // <link rel="sitemap"> / icon / canonical tags.
+  // Order matters: try the explicit-close form first so <script>...</script>
+  // is captured whole. The void/self-close form (\/?>) would otherwise greedily
+  // match the `>` of the opening <script> tag and drop the closing </script>,
+  // producing an unclosed <script> in dist/index.html (everything after gets
+  // parsed as script source → blank page).
   const assetTagRe =
-    /<(script|link)\b[^>]*\b(?:src|href)\s*=\s*"[^"]*\/assets\/[^"]+"[^>]*(?:\/?>|>[\s\S]*?<\/\1>)/gi;
+    /<(script|link)\b[^>]*\b(?:src|href)\s*=\s*"[^"]*\/assets\/[^"]+"[^>]*(?:>[\s\S]*?<\/\1>|\/?>)/gi;
   const assetTags = insideHead.match(assetTagRe) ?? [];
   const newHead = ["\n", headInner, "", ...assetTags.map((t) => `    ${t}`), "  "].join(
     "\n",
