@@ -1,4 +1,66 @@
+# https://zig.niclaslindstedt.se/ — robots policy
+#
+# This site is a developer landing page; everything is public and we want
+# every search and answer-engine bot to index it. Explicit User-agent
+# blocks make that intent unambiguous to crawlers that look for their own
+# name before falling back to the wildcard rule.
+
 User-agent: *
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: YandexBot
+Allow: /
+
+User-agent: Baiduspider
+Allow: /
+
+# Answer-engine and LLM-search crawlers that programmers increasingly use
+# to discover tooling. Letting them index the docs improves discovery via
+# ChatGPT/Claude/Perplexity citations.
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
 Allow: /
 
 Sitemap: https://zig.niclaslindstedt.se/sitemap.xml
