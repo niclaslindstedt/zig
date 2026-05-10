@@ -20,6 +20,7 @@ separate `zag` binary is required.
 | Command              | Description                                              |
 |----------------------|----------------------------------------------------------|
 | `run <workflow>`     | Execute a `.zwf` workflow file                           |
+| `continue [workflow] [prompt]` | Resume the most recent step's agent conversation from the last run |
 | `listen [session]`   | Tail a running or completed zig session                  |
 | `workflow <command>` | Manage workflows (list, show, create, delete, pack)      |
 | `resources <command>`| Manage reference files advertised to step agents         |
@@ -58,6 +59,7 @@ Use `zig man` to learn more about a specific command:
 
 ```bash
 zig man run          # The run command
+zig man continue     # Resume the last run's agent conversation
 zig man listen       # Tail a running or completed zig session
 zig man workflow     # Manage workflows (list, show, create, update, delete, pack)
 zig man resources    # Manage reference files advertised to agents

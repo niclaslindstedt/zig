@@ -87,9 +87,17 @@ These methods execute the builder configuration. Each spawns a `zig` subprocess.
 | `workflowShow` | `async workflowShow(workflow: string): Promise<string>` | Show workflow details. |
 | `workflowDelete` | `async workflowDelete(workflow: string): Promise<string>` | Delete a workflow. |
 | `workflowCreate` | `async workflowCreate(options?): Promise<void>` | Create a workflow interactively. Options: `name?`, `output?`, `pattern?`. |
-| `listen` | `async listen(options?): Promise<void>` | Tail a running/completed session. Options: `sessionId?`, `latest?`, `active?`. |
+| `workflowUpdate` | `async workflowUpdate(workflow: string): Promise<void>` | Revise an existing workflow interactively (inherits stdio). |
 | `workflowPack` | `async workflowPack(path: string, output?: string): Promise<string>` | Pack a workflow directory into a .zwfz zip archive. |
+| `continueRun` | `async continueRun(options?: { workflow?, session?, prompt? }): Promise<void>` | Resume the most recent step's agent conversation from the last run. |
+| `listen` | `async listen(options?): Promise<void>` | Tail a running/completed session. Options: `sessionId?`, `latest?`, `active?`. |
+| `resourcesList` | `async resourcesList(options?): Promise<string>` | List discovered resources from all tiers. Options: `workflow?`, `global?`, `cwd?`. |
+| `resourcesAdd` | `async resourcesAdd(path: string, options?): Promise<string>` | Add a resource file to a tier. Options: `workflow?`, `global?`, `cwd?`, `name?`, `description?`, `tags?`. |
+| `resourcesDelete` | `async resourcesDelete(name: string, options?): Promise<string>` | Delete a resource file from a tier. Options: `workflow?`, `global?`, `cwd?`. |
+| `resourcesShow` | `async resourcesShow(name: string, workflow?: string): Promise<string>` | Print a resource file's contents. |
+| `resourcesWhere` | `async resourcesWhere(workflow?: string): Promise<string>` | Show resource search paths and source tiers. |
 | `man` | `async man(topic?: string): Promise<string>` | Show a manual page topic. |
+| `docs` | `async docs(topic?: string): Promise<string>` | Show a conceptual documentation topic. |
 
 ---
 
