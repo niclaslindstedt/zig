@@ -25,6 +25,8 @@ import {
   SITE_NAME,
   SITE_LANG,
   SITE_LOCALE,
+  SITE_KEYWORDS,
+  AUTHOR_NAME,
   OG_IMAGE,
   OG_IMAGE_WIDTH,
   OG_IMAGE_HEIGHT,
@@ -76,18 +78,53 @@ function escapeHtml(s) {
     .replaceAll('"', "&quot;");
 }
 
+// Render a JSON-LD payload as a <script> tag. The payload may already be a
+// pre-shaped object (legacy `route.jsonLd`) or a graph array that we wrap in
+// a single {"@context": "schema.org", "@graph": [...]} envelope.
+function jsonLdScript(payload) {
+  return `    <script type="application/ld+json">
+${JSON.stringify(payload, null, 2)}
+    </script>`;
+}
+
+function buildJsonLd(route) {
+  const blocks = [];
+  if (Array.isArray(route.jsonLdGraph) && route.jsonLdGraph.length > 0) {
+    blocks.push(
+      jsonLdScript({
+        "@context": "https://schema.org",
+        "@graph": route.jsonLdGraph,
+      }),
+    );
+  } else if (route.jsonLd) {
+    const payload = route.jsonLd["@context"]
+      ? route.jsonLd
+      : { "@context": "https://schema.org", ...route.jsonLd };
+    blocks.push(jsonLdScript(payload));
+  }
+  return blocks.join("\n");
+}
+
 function buildHead(route) {
   const url = `${SITE_URL}${route.path}`;
   const title = route.title;
   const description = route.description;
-  const jsonLd = JSON.stringify(route.jsonLd, null, 2);
+  const keywords = (route.keywords ?? SITE_KEYWORDS).join(", ");
+  const jsonLd = buildJsonLd(route);
   return `    <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔀</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${escapeHtml(title)}</title>
     <meta name="description" content="${escapeHtml(description)}" />
+    <meta name="keywords" content="${escapeHtml(keywords)}" />
+    <meta name="author" content="${escapeHtml(AUTHOR_NAME)}" />
     <link rel="canonical" href="${escapeHtml(url)}" />
-    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <link rel="alternate" hreflang="${escapeHtml(SITE_LANG)}" href="${escapeHtml(url)}" />
+    <link rel="alternate" hreflang="x-default" href="${escapeHtml(url)}" />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="application-name" content="${escapeHtml(SITE_NAME)}" />
 
     <!-- Open Graph -->
     <meta property="og:site_name" content="${escapeHtml(SITE_NAME)}" />
@@ -106,14 +143,13 @@ function buildHead(route) {
     <meta name="twitter:title" content="${escapeHtml(title)}" />
     <meta name="twitter:description" content="${escapeHtml(description)}" />
     <meta name="twitter:image" content="${escapeHtml(OG_IMAGE)}" />
+    <meta name="twitter:image:alt" content="${escapeHtml(OG_IMAGE_ALT)}" />
 
     <!-- Sitemap (also referenced from /robots.txt) -->
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
 
     <!-- JSON-LD structured data -->
-    <script type="application/ld+json">
-${jsonLd}
-    </script>`;
+${jsonLd}`;
 }
 
 function spliceHead(html, headInner, lang) {
@@ -179,14 +215,20 @@ writeFileSync(
   "utf-8",
 );
 
-// sitemap.xml — every route, with git-derived <lastmod>.
+// sitemap.xml — every route, with git-derived <lastmod>, plus optional
+// per-route changefreq / priority hints.
 const sitemap = [
   `<?xml version="1.0" encoding="UTF-8"?>`,
   `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">`,
   ...ROUTES.map((r) => {
     const url = `${SITE_URL}${r.path}`;
-    const lastmod = SITE_LASTMOD ? `\n    <lastmod>${SITE_LASTMOD}</lastmod>` : "";
-    return `  <url>\n    <loc>${url}</loc>${lastmod}\n  </url>`;
+    const parts = [`    <loc>${url}</loc>`];
+    if (SITE_LASTMOD) parts.push(`    <lastmod>${SITE_LASTMOD}</lastmod>`);
+    if (r.sitemap?.changefreq)
+      parts.push(`    <changefreq>${r.sitemap.changefreq}</changefreq>`);
+    if (r.sitemap?.priority)
+      parts.push(`    <priority>${r.sitemap.priority}</priority>`);
+    return `  <url>\n${parts.join("\n")}\n  </url>`;
   }),
   `</urlset>`,
   "",

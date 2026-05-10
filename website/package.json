@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "extract": "node scripts/extract-source-data.mjs",
-    "build": "npm run extract && vite build && node scripts/generate-seo.mjs",
+    "build": "npm run extract && vite build && node scripts/generate-seo.mjs && node scripts/verify-seo.mjs",
+    "verify-seo": "node scripts/verify-seo.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

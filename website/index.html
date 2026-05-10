@@ -4,47 +4,63 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔀</text></svg>" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>zig — Describe, share, and run AI agent workflows</title>
-    <meta name="description" content="An orchestration CLI for AI coding agents. Describe workflows in natural language, capture them as shareable .zwf files, and replay them anywhere — powered by zag." />
+    <title>zig — AI agent orchestration CLI for developers</title>
+    <meta name="description" content="Open-source CLI that orchestrates AI coding agents (Claude, Codex, Gemini, Copilot, Ollama). Describe multi-agent workflows in natural language, capture them as portable .zwf files, and replay them anywhere — powered by zag." />
+    <meta name="keywords" content="AI agent orchestration, AI agent CLI, AI coding agents, AI coding agent orchestration, multi-agent workflow, agent workflow automation, agent DAG runner, Claude orchestration, Codex orchestration, Gemini orchestration, Copilot orchestration, Ollama orchestration, MCP workflow, LLM workflow CLI, .zwf workflow file, workflow as code, Rust CLI, developer tools, zag, zig CLI" />
+    <meta name="author" content="Niclas Lindstedt" />
     <link rel="canonical" href="https://zig.niclaslindstedt.se/" />
-    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <link rel="alternate" hreflang="en" href="https://zig.niclaslindstedt.se/" />
+    <link rel="alternate" hreflang="x-default" href="https://zig.niclaslindstedt.se/" />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <meta name="googlebot" content="index,follow,max-image-preview:large,max-snippet:-1" />
+    <meta name="theme-color" content="#0d1117" />
+    <meta name="application-name" content="zig" />
 
     <!-- Open Graph -->
     <meta property="og:site_name" content="zig" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="zig — Describe, share, and run AI agent workflows" />
-    <meta property="og:description" content="An orchestration CLI for AI coding agents. Describe workflows in natural language, capture them as shareable .zwf files, and replay them anywhere — powered by zag." />
+    <meta property="og:title" content="zig — AI agent orchestration CLI for developers" />
+    <meta property="og:description" content="Open-source CLI that orchestrates AI coding agents (Claude, Codex, Gemini, Copilot, Ollama). Describe multi-agent workflows in natural language, capture them as portable .zwf files, and replay them anywhere — powered by zag." />
     <meta property="og:url" content="https://zig.niclaslindstedt.se/" />
     <meta property="og:image" content="https://zig.niclaslindstedt.se/og-default.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="zig — orchestration CLI for AI coding agents" />
+    <meta property="og:image:alt" content="zig — AI agent orchestration CLI for developers" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="zig — Describe, share, and run AI agent workflows" />
-    <meta name="twitter:description" content="An orchestration CLI for AI coding agents. Describe workflows in natural language, capture them as shareable .zwf files, and replay them anywhere — powered by zag." />
+    <meta name="twitter:title" content="zig — AI agent orchestration CLI for developers" />
+    <meta name="twitter:description" content="Open-source CLI that orchestrates AI coding agents (Claude, Codex, Gemini, Copilot, Ollama). Describe multi-agent workflows in natural language, capture them as portable .zwf files, and replay them anywhere — powered by zag." />
     <meta name="twitter:image" content="https://zig.niclaslindstedt.se/og-default.png" />
+    <meta name="twitter:image:alt" content="zig — AI agent orchestration CLI for developers" />
 
     <!-- Sitemap (also referenced from /robots.txt) -->
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
 
     <!-- JSON-LD structured data. The build-time generator at
          scripts/generate-seo.mjs replaces this <head> with per-route
-         metadata when assembling dist/index.html for production. -->
+         metadata (including a richer @graph) when assembling
+         dist/index.html for production. The block below is just the
+         dev-server preview. -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "@id": "https://zig.niclaslindstedt.se/#software",
         "name": "zig",
-        "description": "An orchestration CLI for AI coding agents. Describe workflows in natural language, capture them as shareable .zwf files, and replay them anywhere — powered by zag.",
+        "alternateName": "zig-cli",
+        "description": "Open-source CLI that orchestrates AI coding agents (Claude, Codex, Gemini, Copilot, Ollama). Describe multi-agent workflows in natural language, capture them as portable .zwf files, and replay them anywhere — powered by zag.",
         "url": "https://zig.niclaslindstedt.se/",
         "applicationCategory": "DeveloperApplication",
+        "applicationSubCategory": "AI Agent Orchestration",
         "operatingSystem": "Linux, macOS, Windows",
         "license": "https://github.com/niclaslindstedt/zig/blob/main/LICENSE",
         "codeRepository": "https://github.com/niclaslindstedt/zig",
+        "programmingLanguage": "Rust",
+        "downloadUrl": "https://github.com/niclaslindstedt/zig/releases",
+        "installUrl": "https://crates.io/crates/zig-cli",
+        "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
           "price": "0",
