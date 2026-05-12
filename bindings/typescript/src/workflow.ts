@@ -99,7 +99,9 @@ export function parseWorkflow(content: string): Workflow {
     | "vars"
     | "step"
     | "storage"
-    | "storage_file" = "root";
+    | "storage_file"
+    | "trigger"
+    | "trigger_output" = "root";
   let currentRoleName: string | null = null;
   let currentVarName: string | null = null;
   let currentStep: Partial<Step> | null = null;
@@ -199,6 +201,30 @@ export function parseWorkflow(content: string): Workflow {
       continue;
     }
 
+    if (trimmed === "[trigger]") {
+      currentSection = "trigger";
+      currentRoleName = null;
+      currentVarName = null;
+      currentStep = null;
+      currentStorageName = null;
+      currentStorageFile = null;
+      if (!workflow.trigger) {
+        workflow.trigger = { source: "stdin", bind: "" };
+      }
+      continue;
+    }
+
+    if (trimmed === "[trigger.output]") {
+      currentSection = "trigger_output";
+      if (!workflow.trigger) {
+        workflow.trigger = { source: "stdin", bind: "" };
+      }
+      if (!workflow.trigger.output) {
+        workflow.trigger.output = { kind: "stdout-jsonl" };
+      }
+      continue;
+    }
+
     // Key-value pairs
     const kvMatch = /^(\w+)\s*=\s*(.+)$/.exec(trimmed);
     if (!kvMatch) continue;
@@ -264,6 +290,26 @@ export function parseWorkflow(content: string): Workflow {
         if (currentStorageFile) {
           if (key === "name") currentStorageFile.name = String(value);
           else if (key === "description") currentStorageFile.description = String(value);
+        }
+        break;
+
+      case "trigger":
+        if (workflow.trigger) {
+          if (key === "source") workflow.trigger.source = String(value);
+          else if (key === "format") workflow.trigger.format = String(value);
+          else if (key === "bind") workflow.trigger.bind = String(value);
+        }
+        break;
+
+      case "trigger_output":
+        if (workflow.trigger?.output) {
+          if (key === "kind") workflow.trigger.output.kind = String(value);
+          else if (key === "mode")
+            workflow.trigger.output.mode = String(value) as
+              | "all-steps"
+              | "final"
+              | "opt-in";
+          else if (key === "include_vars") workflow.trigger.output.include_vars = Boolean(value);
         }
         break;
     }
@@ -362,6 +408,7 @@ function assignStepField(step: Partial<Step>, key: string, value: unknown): void
     case "title": step.title = String(value); break;
     case "plan_output": step.plan_output = String(value); break;
     case "instructions": step.instructions = String(value); break;
+    case "emit": step.emit = Boolean(value); break;
   }
 }
 

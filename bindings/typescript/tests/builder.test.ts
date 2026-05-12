@@ -626,3 +626,53 @@ prompt = "Do more"
     assert.equal(wf.steps[1].memory, undefined);
   });
 });
+
+describe("parseWorkflow: trigger", () => {
+  it("should parse [trigger] and [trigger.output]", () => {
+    const toml = `
+[workflow]
+name = "echo-bot"
+
+[trigger]
+source = "stdin"
+format = "jsonl"
+bind = "event"
+
+[trigger.output]
+kind = "stdout-jsonl"
+mode = "all-steps"
+include_vars = true
+
+[vars.event]
+type = "json"
+from = "event"
+
+[[step]]
+name = "echo"
+prompt = "Reply"
+emit = true
+`;
+    const wf = parseWorkflow(toml);
+    assert.ok(wf.trigger, "trigger should be present");
+    assert.equal(wf.trigger!.source, "stdin");
+    assert.equal(wf.trigger!.format, "jsonl");
+    assert.equal(wf.trigger!.bind, "event");
+    assert.equal(wf.trigger!.output!.kind, "stdout-jsonl");
+    assert.equal(wf.trigger!.output!.mode, "all-steps");
+    assert.equal(wf.trigger!.output!.include_vars, true);
+    assert.equal(wf.steps[0].emit, true);
+  });
+
+  it("should leave trigger undefined when not declared", () => {
+    const toml = `
+[workflow]
+name = "no-trigger"
+
+[[step]]
+name = "s1"
+prompt = "Hello"
+`;
+    const wf = parseWorkflow(toml);
+    assert.equal(wf.trigger, undefined);
+  });
+});

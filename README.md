@@ -140,6 +140,19 @@ outcomes, the exact `zag` command line that would be spawned — without
 recording a session, creating storage, or invoking `zag`. See
 [`docs/dry-run.md`](docs/dry-run.md).
 
+A workflow can also declare a `[trigger]` block to turn `zig run` into an
+event-driven listener that reads JSONL events from stdin, runs the DAG
+once per event, and emits per-step records as JSONL on stdout. This is the
+shape used to plug zig into chat sources like
+[zad](https://github.com/niclaslindstedt/zad):
+
+```sh
+zad telegram listen --chat ops --json | zig run bot.zwf | zad telegram send --chat ops --stdin
+```
+
+See [`docs/triggers.md`](docs/triggers.md) for the contract, emit modes,
+record shape, and lifecycle semantics.
+
 ### `zig continue`
 
 Re-open the most recent step's agent conversation from the latest `zig run`

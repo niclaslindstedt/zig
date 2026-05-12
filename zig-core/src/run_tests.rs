@@ -365,6 +365,7 @@ fn init_vars_with_defaults() {
             ),
         ]),
         steps: vec![],
+        trigger: None,
         storage: Default::default(),
     };
 
@@ -516,6 +517,7 @@ fn prompt_var_binding_populates_variable() {
             },
         )]),
         steps: vec![],
+        trigger: None,
         storage: Default::default(),
     };
 
@@ -570,6 +572,7 @@ fn prompt_var_with_default_uses_default_when_no_prompt() {
             },
         )]),
         steps: vec![],
+        trigger: None,
         storage: Default::default(),
     };
 

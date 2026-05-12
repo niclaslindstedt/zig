@@ -407,6 +407,9 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
     // Check variable constraints
     validate_var_constraints(&workflow.vars, &mut errors);
 
+    // Check trigger declaration (event-driven workflow mode)
+    validate_trigger(workflow, &mut errors);
+
     // Check for dependency cycles
     let has_cycle = if let Some(cycle) = detect_cycle(&workflow.steps) {
         errors.push(ZigError::Validation(format!(
@@ -454,6 +457,7 @@ pub fn validate(workflow: &Workflow) -> Result<(), Vec<ZigError>> {
 /// Validate variable constraint declarations for structural correctness.
 fn validate_var_constraints(vars: &HashMap<String, Variable>, errors: &mut Vec<ZigError>) {
     let mut prompt_bound_count = 0;
+    let mut event_bound_count = 0;
 
     for (name, var) in vars {
         // default and default_file are mutually exclusive
@@ -466,12 +470,12 @@ fn validate_var_constraints(vars: &HashMap<String, Variable>, errors: &mut Vec<Z
 
         // Validate `from` field
         if let Some(ref from) = var.from {
-            if from != "prompt" {
-                errors.push(ZigError::Validation(format!(
-                    "variable '{name}' has unsupported from value '{from}' (only 'prompt' is supported)"
-                )));
-            } else {
-                prompt_bound_count += 1;
+            match from.as_str() {
+                "prompt" => prompt_bound_count += 1,
+                "event" => event_bound_count += 1,
+                _ => errors.push(ZigError::Validation(format!(
+                    "variable '{name}' has unsupported from value '{from}' (only 'prompt' and 'event' are supported)"
+                ))),
             }
         }
 
@@ -572,6 +576,109 @@ fn validate_var_constraints(vars: &HashMap<String, Variable>, errors: &mut Vec<Z
         errors.push(ZigError::Validation(
             "multiple variables have from = \"prompt\" (only one is allowed)".into(),
         ));
+    }
+
+    if event_bound_count > 1 {
+        errors.push(ZigError::Validation(
+            "multiple variables have from = \"event\" (only one is allowed)".into(),
+        ));
+    }
+}
+
+/// Validate the event-driven trigger declaration (if any) and its consistency
+/// with the rest of the workflow.
+fn validate_trigger(workflow: &Workflow, errors: &mut Vec<ZigError>) {
+    let event_bound: Vec<(&String, &Variable)> = workflow
+        .vars
+        .iter()
+        .filter(|(_, v)| v.from.as_deref() == Some("event"))
+        .collect();
+
+    let Some(trigger) = &workflow.trigger else {
+        if !event_bound.is_empty() {
+            errors.push(ZigError::Validation(
+                "variable has from = \"event\" but the workflow has no [trigger] declaration"
+                    .into(),
+            ));
+        }
+        return;
+    };
+
+    if trigger.source != "stdin" {
+        errors.push(ZigError::Validation(format!(
+            "trigger.source '{}' is not supported (v1 only supports \"stdin\")",
+            trigger.source
+        )));
+    }
+
+    let format = trigger.format.as_deref().unwrap_or("jsonl");
+    if format != "jsonl" {
+        errors.push(ZigError::Validation(format!(
+            "trigger.format '{}' is not supported (v1 only supports \"jsonl\")",
+            format
+        )));
+    }
+
+    if trigger.bind.is_empty() {
+        errors.push(ZigError::Validation(
+            "trigger.bind is required and must name a declared variable".into(),
+        ));
+    } else {
+        match workflow.vars.get(&trigger.bind) {
+            None => errors.push(ZigError::Validation(format!(
+                "trigger.bind '{}' does not match any declared variable",
+                trigger.bind
+            ))),
+            Some(var) => {
+                if var.from.as_deref() != Some("event") {
+                    errors.push(ZigError::Validation(format!(
+                        "trigger.bind '{}' must reference a variable with from = \"event\"",
+                        trigger.bind
+                    )));
+                }
+                if var.var_type != VarType::Json {
+                    errors.push(ZigError::Validation(format!(
+                        "trigger.bind '{}' must reference a variable with type = \"json\"",
+                        trigger.bind
+                    )));
+                }
+            }
+        }
+    }
+
+    let prompt_bound = workflow
+        .vars
+        .values()
+        .any(|v| v.from.as_deref() == Some("prompt"));
+    if prompt_bound {
+        errors.push(ZigError::Validation(
+            "workflow declares [trigger] but also has a variable with from = \"prompt\" \
+             (prompt mode and event mode are mutually exclusive)"
+                .into(),
+        ));
+    }
+
+    if let Some(output) = &trigger.output {
+        if output.kind != "stdout-jsonl" {
+            errors.push(ZigError::Validation(format!(
+                "trigger.output.kind '{}' is not supported (v1 only supports \"stdout-jsonl\")",
+                output.kind
+            )));
+        }
+        let mode = output.mode.as_deref().unwrap_or("all-steps");
+        match mode {
+            "all-steps" | "final" | "opt-in" => {}
+            other => errors.push(ZigError::Validation(format!(
+                "trigger.output.mode '{}' is not supported (expected \"all-steps\", \"final\", or \"opt-in\")",
+                other
+            ))),
+        }
+        if mode == "opt-in" && !workflow.steps.iter().any(|s| s.emit == Some(true)) {
+            errors.push(ZigError::Validation(
+                "trigger.output.mode = \"opt-in\" requires at least one step with emit = true"
+                    .into(),
+            ));
+        }
     }
 }
 

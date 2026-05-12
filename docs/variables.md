@@ -165,6 +165,23 @@ Only one variable may use `from = "prompt"`. When set, the value from
 `zig run <workflow> "content"` is assigned to this variable instead of being
 prepended as "User context:" to every step.
 
+Use `from = "event"` to bind each incoming event payload (in event-driven
+workflows) to a variable:
+
+```toml
+[vars.event]
+type = "json"
+from = "event"
+```
+
+The bound variable must have `type = "json"` and is required when the
+workflow declares a `[trigger]` block. Each event payload is inserted into
+this variable as a raw JSON string per inbound line on stdin. See
+`zig docs triggers` for the full event-driven workflow contract.
+
+`from = "prompt"` and `from = "event"` are mutually exclusive within a
+workflow: prompt mode runs once, event mode runs once per inbound event.
+
 ## Constraints
 
 Variables support constraints that are validated before execution begins:
@@ -190,8 +207,13 @@ Default values are also validated at parse time (`zig validate`).
 5. Variable substitution in prompts and system prompts uses the current value at execution time
 6. Conditions evaluate against the current variable state
 
+In event-driven workflows, the variable map resets to the declared defaults
+at the start of every event before the bound `from = "event"` variable is
+populated with the new payload.
+
 ## See Also
 
 - `zig docs zwf` — full `.zwf`/`.zwfz` format reference
 - `zig docs conditions` — condition expressions using variables
+- `zig docs triggers` — event-driven workflows and the `from = "event"` binding
 - `zig man run` — workflow execution model

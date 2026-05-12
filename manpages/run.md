@@ -73,6 +73,19 @@ Each step can configure its failure behavior with `on_failure`:
 | `continue` | Skip the failed step and continue                |
 | `retry`    | Retry the step up to `max_retries` times         |
 
+## Event-Driven Mode
+
+If the workflow declares a `[trigger]` block, `zig run` enters a listen loop
+instead of one-shot execution: it reads JSONL events from stdin, runs the
+DAG once per event with the payload bound to the trigger's variable, and
+emits per-step records to stdout. Malformed JSON lines are logged to stderr
+and skipped; per-event errors do not terminate the listener. Stdin EOF or
+`SIGINT` ends the loop cleanly.
+
+`--prompt` and `[trigger]` are mutually exclusive. `--dry-run` is currently
+rejected for triggered workflows. See `zig docs triggers` for the contract,
+emit modes, record shape, and lifecycle semantics.
+
 ## Storage
 
 When a workflow declares `[storage.*]` entries, zig creates the corresponding
@@ -134,3 +147,4 @@ zig run code-review --dry-run --format json | jq '.tiers[].steps[].name'
 - `zig man memory` — managing the memory scratch pad for workflows
 - `zig docs storage` — writable structured working data for workflows
 - `zig docs dry-run` — preview workflow execution without running `zag`
+- `zig docs triggers` — event-driven workflows that listen on stdin

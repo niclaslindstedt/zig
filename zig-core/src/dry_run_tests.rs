@@ -51,6 +51,7 @@ fn workflow_with(steps: Vec<Step>) -> Workflow {
         roles: HashMap::new(),
         vars: HashMap::new(),
         steps,
+        trigger: None,
         storage: Default::default(),
     }
 }
