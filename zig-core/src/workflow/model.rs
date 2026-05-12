@@ -26,6 +26,12 @@ pub struct Workflow {
     #[serde(default, rename = "step")]
     pub steps: Vec<Step>,
 
+    /// Optional event-driven trigger. When present, `zig run` enters a
+    /// listen-loop instead of one-shot execution: each inbound event runs the
+    /// step DAG once with the event payload bound to a variable.
+    #[serde(default)]
+    pub trigger: Option<TriggerSpec>,
+
     /// Declared storage — structured, writable working data for the run.
     ///
     /// Each entry is a named folder or file the workflow's steps can read and
@@ -536,6 +542,54 @@ pub struct Step {
     /// Additional instructions for plan generation (only valid when `command = "plan"`).
     #[serde(default)]
     pub instructions: Option<String>,
+
+    /// Opt-in flag for emission when the workflow runs under a trigger with
+    /// `[trigger.output].mode = "opt-in"`. Ignored in other modes.
+    #[serde(default)]
+    pub emit: Option<bool>,
+}
+
+/// Event-driven trigger declaration.
+///
+/// When set on a workflow, `zig run` enters event-loop mode: it reads events
+/// from the declared source, runs the DAG once per event with the event
+/// payload bound to the variable named by `bind`, and (optionally) emits per
+/// step records to the configured sink.
+///
+/// v1 only supports `source = "stdin"` with `format = "jsonl"`. The field is
+/// a `String` so future variants (e.g. `"http"`, `"file"`) land additively.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TriggerSpec {
+    /// Event source. v1: only `"stdin"`.
+    pub source: String,
+
+    /// Wire format for the source. With `source = "stdin"`: only `"jsonl"`.
+    /// Defaults to `"jsonl"` when omitted.
+    #[serde(default)]
+    pub format: Option<String>,
+
+    /// Name of the variable that receives each event's raw JSON payload.
+    /// Must match a `[vars.<name>]` entry whose `from = "event"`.
+    pub bind: String,
+
+    /// Where step outputs are emitted. When absent, no emission occurs.
+    #[serde(default)]
+    pub output: Option<TriggerOutput>,
+}
+
+/// Output sink configuration for an event-driven workflow.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct TriggerOutput {
+    /// Sink kind. v1: only `"stdout-jsonl"`.
+    pub kind: String,
+
+    /// Emission mode: `"all-steps"` (default), `"final"`, or `"opt-in"`.
+    #[serde(default)]
+    pub mode: Option<String>,
+
+    /// When true, each emit record carries a `vars_snapshot` field.
+    #[serde(default)]
+    pub include_vars: bool,
 }
 
 /// What to do when a step fails.

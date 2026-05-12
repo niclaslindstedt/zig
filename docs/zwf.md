@@ -115,6 +115,13 @@ Use `from = "prompt"` to bind the CLI user prompt to a variable. Only one
 variable may use this. When set, the value from `zig run <workflow> "content"`
 is assigned to the variable instead of being prepended as "User context:".
 
+Use `from = "event"` to bind each incoming event payload to a variable in an
+event-driven workflow. The variable must have `type = "json"` and the
+workflow must also declare a `[trigger]` block. See
+[`### [trigger]`](#trigger--event-driven-triggers) below.
+
+`from = "prompt"` and `from = "event"` are mutually exclusive.
+
 #### Constraints
 
 Constraints are validated before step execution. If a constraint fails, zig
@@ -265,6 +272,7 @@ depends_on = ["review"]
 | `title`          | No       |         | Review title (`command = "review"`)      |
 | `plan_output`    | No       |         | Output path for plan (`command = "plan"`)|
 | `instructions`   | No       |         | Additional plan instructions (`command = "plan"`) |
+| `emit`           | No       |         | Opt-in flag for `[trigger.output].mode = "opt-in"` |
 
 ### `[storage.<name>]` — Storage
 
@@ -301,6 +309,56 @@ description = "Single source of truth"
 
 Steps narrow their view with `storage = ["name", ...]`. Omitting the field
 exposes every declared entry; `storage = []` suppresses the block entirely.
+
+### `[trigger]` — Event-driven triggers
+
+When present, `zig run` enters a listen loop instead of one-shot execution:
+it reads events from the declared source, runs the DAG once per event with
+the payload bound to a variable, and (optionally) emits per-step records to
+the configured sink. See `zig docs triggers` for the full contract and
+lifecycle semantics.
+
+| Field    | Required | Default  | Description                                          |
+|----------|----------|----------|------------------------------------------------------|
+| `source` | Yes      |          | Event source. v1: only `"stdin"`.                    |
+| `format` | No       | `"jsonl"`| Wire format. With `source = "stdin"`: only `"jsonl"`.|
+| `bind`   | Yes      |          | Name of the variable receiving each event payload.   |
+
+`[trigger.output]` (optional sink configuration):
+
+| Field          | Required | Default      | Description                                                          |
+|----------------|----------|--------------|----------------------------------------------------------------------|
+| `kind`         | Yes      |              | v1: only `"stdout-jsonl"`.                                           |
+| `mode`         | No       | `"all-steps"`| Emit selection: `"all-steps"`, `"final"`, or `"opt-in"`.             |
+| `include_vars` | No       | `false`      | When true, each record carries a `vars_snapshot` field.              |
+
+Per-step `emit = true` opts a step into emission when
+`[trigger.output].mode = "opt-in"`.
+
+```toml
+[trigger]
+source = "stdin"
+format = "jsonl"
+bind   = "event"
+
+[trigger.output]
+kind = "stdout-jsonl"
+mode = "all-steps"
+
+[vars.event]
+type = "json"
+from = "event"
+
+[[step]]
+name   = "reply"
+prompt = "Respond to: ${event}"
+```
+
+Validation rules:
+
+- The `bind` variable must exist, with `type = "json"` and `from = "event"`.
+- A triggered workflow cannot also have a variable with `from = "prompt"`.
+- `mode = "opt-in"` requires at least one step with `emit = true`.
 
 ## Resources
 
@@ -461,4 +519,5 @@ TOML file — this works identically for both plain files and zip archives.
 - `zig docs conditions` — condition expression syntax
 - `zig docs patterns` — common orchestration patterns
 - `zig docs memory` — memory scratch pad and the `<memory>` block
+- `zig docs triggers` — event-driven workflows
 - `zig man run` — executing workflows

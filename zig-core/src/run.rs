@@ -1,9 +1,11 @@
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
+use tokio::io::AsyncBufReadExt;
 use tokio::task::JoinSet;
 use zag_agent::builder::AgentBuilder;
 use zag_agent::session_log::LogEventKind;
@@ -24,6 +26,197 @@ use crate::workflow::{parser, validate};
 
 /// Maximum number of loop iterations to prevent infinite loops from `next` fields.
 const MAX_LOOP_ITERATIONS: usize = 100;
+
+/// One emission record sent to a triggered workflow's output sink.
+///
+/// Each record corresponds to a single step outcome within an event-driven
+/// workflow run, or a terminal `__workflow__` record when the DAG aborts.
+#[derive(Debug, Clone, Serialize)]
+pub struct EmitRecord {
+    pub event_id: String,
+    pub event_seq: u64,
+    pub step: String,
+    /// `"ok" | "failed" | "skipped"`.
+    pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    pub ts: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vars_snapshot: Option<HashMap<String, String>>,
+}
+
+/// Emission mode for an event-driven workflow's output sink.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EmitMode {
+    /// Emit a record for every step (default).
+    AllSteps,
+    /// Emit only the last completed step's record per event.
+    Final,
+    /// Emit only records for steps whose `emit = true`.
+    OptIn,
+}
+
+impl EmitMode {
+    fn parse(s: Option<&str>) -> Self {
+        match s.unwrap_or("all-steps") {
+            "final" => EmitMode::Final,
+            "opt-in" => EmitMode::OptIn,
+            _ => EmitMode::AllSteps,
+        }
+    }
+}
+
+/// Per-event buffer and metadata used by the step-execution code to record
+/// emit events. The outer event loop owns one of these per event, then flushes
+/// to the sink writer after the DAG returns.
+struct EmitContext<'a> {
+    event_id: &'a str,
+    event_seq: u64,
+    include_vars: bool,
+    buffer: &'a mut Vec<EmitRecord>,
+}
+
+impl<'a> EmitContext<'a> {
+    fn snapshot(&self, vars: &HashMap<String, String>) -> Option<HashMap<String, String>> {
+        if self.include_vars {
+            Some(vars.clone())
+        } else {
+            None
+        }
+    }
+
+    fn push_ok(&mut self, step: &str, output: &str, vars: &HashMap<String, String>) {
+        self.buffer.push(EmitRecord {
+            event_id: self.event_id.to_string(),
+            event_seq: self.event_seq,
+            step: step.to_string(),
+            status: "ok".into(),
+            output: Some(output.to_string()),
+            error: None,
+            reason: None,
+            ts: emit_timestamp(),
+            vars_snapshot: self.snapshot(vars),
+        });
+    }
+
+    fn push_failed(&mut self, step: &str, err: &str, vars: &HashMap<String, String>) {
+        self.buffer.push(EmitRecord {
+            event_id: self.event_id.to_string(),
+            event_seq: self.event_seq,
+            step: step.to_string(),
+            status: "failed".into(),
+            output: None,
+            error: Some(err.to_string()),
+            reason: None,
+            ts: emit_timestamp(),
+            vars_snapshot: self.snapshot(vars),
+        });
+    }
+
+    fn push_skipped(&mut self, step: &str, reason: &str, vars: &HashMap<String, String>) {
+        self.buffer.push(EmitRecord {
+            event_id: self.event_id.to_string(),
+            event_seq: self.event_seq,
+            step: step.to_string(),
+            status: "skipped".into(),
+            output: None,
+            error: None,
+            reason: Some(reason.to_string()),
+            ts: emit_timestamp(),
+            vars_snapshot: self.snapshot(vars),
+        });
+    }
+}
+
+/// Flush a per-event emit buffer to the sink writer, filtering by mode.
+fn flush_emits<W: Write>(
+    writer: &mut W,
+    buffer: &[EmitRecord],
+    mode: EmitMode,
+    steps: &[Step],
+) -> Result<(), ZigError> {
+    match mode {
+        EmitMode::AllSteps => {
+            for rec in buffer {
+                write_record(writer, rec)?;
+            }
+        }
+        EmitMode::Final => {
+            // Pick the record for the last completed step (`status == "ok"`),
+            // falling back to the last record overall if none completed.
+            let last = buffer
+                .iter()
+                .rev()
+                .find(|r| r.status == "ok")
+                .or_else(|| buffer.last());
+            if let Some(rec) = last {
+                write_record(writer, rec)?;
+            }
+        }
+        EmitMode::OptIn => {
+            let opt_in: std::collections::HashSet<&str> = steps
+                .iter()
+                .filter(|s| s.emit == Some(true))
+                .map(|s| s.name.as_str())
+                .collect();
+            for rec in buffer {
+                if opt_in.contains(rec.step.as_str()) || rec.step == "__workflow__" {
+                    write_record(writer, rec)?;
+                }
+            }
+        }
+    }
+    writer.flush().map_err(|e| ZigError::Io(e.to_string()))?;
+    Ok(())
+}
+
+fn write_record<W: Write>(writer: &mut W, rec: &EmitRecord) -> Result<(), ZigError> {
+    let line = serde_json::to_string(rec)
+        .map_err(|e| ZigError::Execution(format!("failed to serialize emit record: {e}")))?;
+    writeln!(writer, "{line}").map_err(|e| ZigError::Io(e.to_string()))?;
+    Ok(())
+}
+
+/// RFC 3339 / ISO 8601 UTC timestamp for emit records.
+///
+/// Avoids pulling in `chrono` by formatting the system time manually. Output
+/// shape: `"2026-05-12T14:33:12.456Z"`.
+fn emit_timestamp() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let secs = now.as_secs() as i64;
+    let millis = now.subsec_millis();
+    let (year, month, day, hour, minute, second) = unix_to_ymdhms(secs);
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{millis:03}Z")
+}
+
+/// Convert a Unix timestamp (seconds since epoch, UTC) to civil date components.
+/// Returns `(year, month, day, hour, minute, second)`.
+fn unix_to_ymdhms(ts: i64) -> (i32, u32, u32, u32, u32, u32) {
+    // Howard Hinnant's civil_from_days algorithm.
+    let secs_per_day: i64 = 86_400;
+    let z = ts.div_euclid(secs_per_day) + 719_468;
+    let sod = ts.rem_euclid(secs_per_day);
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = (yoe as i64 + era * 400) as i32;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if m <= 2 { y + 1 } else { y };
+    let hour = (sod / 3600) as u32;
+    let minute = ((sod % 3600) / 60) as u32;
+    let second = (sod % 60) as u32;
+    (year, m, d, hour, minute, second)
+}
 
 /// Execute a workflow file (`.zwf` or `.zwfz`).
 ///
@@ -62,6 +255,30 @@ pub async fn run_workflow(
     if let Err(errors) = validate::validate(&workflow) {
         let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
         return Err(ZigError::Validation(msgs.join("; ")));
+    }
+
+    if workflow.trigger.is_some() {
+        if user_prompt.is_some() {
+            return Err(ZigError::Validation(
+                "--prompt is not supported when the workflow declares [trigger] \
+                 (prompt mode and event mode are mutually exclusive)"
+                    .into(),
+            ));
+        }
+        if dry_run {
+            return Err(ZigError::Validation(
+                "--dry-run is not yet supported for workflows that declare [trigger]".into(),
+            ));
+        }
+        return execute_event_loop(
+            &workflow,
+            &path,
+            source.dir(),
+            disable_resources,
+            disable_memory,
+            disable_storage,
+        )
+        .await;
     }
 
     execute(
@@ -1469,6 +1686,7 @@ async fn execute_sequential_step(
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
+    emits: Option<&mut EmitContext<'_>>,
 ) -> Result<(), ZigError> {
     if let Some(condition) = &step.condition {
         if !evaluate_condition(condition, vars)? {
@@ -1478,6 +1696,9 @@ async fn execute_sequential_step(
             );
             if let Some(w) = session {
                 let _ = w.step_skipped(&step.name, &format!("condition not met: {condition}"));
+            }
+            if let Some(ctx) = emits {
+                ctx.push_skipped(&step.name, &format!("condition not met: {condition}"), vars);
             }
             return Ok(());
         }
@@ -1534,7 +1755,7 @@ async fn execute_sequential_step(
                 vars.extend(saved);
             }
 
-            step_outputs.insert(step.name.clone(), output);
+            step_outputs.insert(step.name.clone(), output.clone());
             eprintln!("  completed '{}'", step.name);
             if let Some(w) = session {
                 let _ = w.step_completed(
@@ -1543,6 +1764,9 @@ async fn execute_sequential_step(
                     started.elapsed().as_millis() as u64,
                     saved_keys,
                 );
+            }
+            if let Some(ctx) = emits {
+                ctx.push_ok(&step.name, &output, vars);
             }
 
             if step.next.is_some() {
@@ -1553,6 +1777,9 @@ async fn execute_sequential_step(
             FailurePolicy::Fail => return Err(e),
             FailurePolicy::Continue => {
                 eprintln!("  step '{}' failed (continuing): {e}", step.name);
+                if let Some(ctx) = emits {
+                    ctx.push_failed(&step.name, &e.to_string(), vars);
+                }
             }
             FailurePolicy::Retry => {
                 return Err(e);
@@ -1588,6 +1815,7 @@ async fn execute_parallel_tier(
     workflow_dir: &Path,
     workflow_provider: Option<&str>,
     workflow_model: Option<&str>,
+    mut emits: Option<&mut EmitContext<'_>>,
 ) -> Result<(), ZigError> {
     // Evaluate conditions and render prompts up front, so threads receive
     // the same variable snapshot they would have under sequential execution.
@@ -1604,6 +1832,9 @@ async fn execute_parallel_tier(
                 );
                 if let Some(w) = session {
                     let _ = w.step_skipped(&step.name, &format!("condition not met: {condition}"));
+                }
+                if let Some(ctx) = emits.as_deref_mut() {
+                    ctx.push_skipped(&step.name, &format!("condition not met: {condition}"), vars);
                 }
                 continue;
             }
@@ -1712,10 +1943,13 @@ async fn execute_parallel_tier(
                     }
                     vars.extend(saved);
                 }
-                step_outputs.insert(step.name.clone(), output);
+                step_outputs.insert(step.name.clone(), output.clone());
                 eprintln!("  completed '{}'", step.name);
                 if let Some(w) = session {
                     let _ = w.step_completed(&step.name, 0, elapsed, saved_keys);
+                }
+                if let Some(ctx) = emits.as_deref_mut() {
+                    ctx.push_ok(&step.name, &output, vars);
                 }
                 if step.next.is_some() && pending_next.is_none() {
                     *pending_next = step.next.clone();
@@ -1724,6 +1958,9 @@ async fn execute_parallel_tier(
             Err(e) => match step.on_failure.as_ref().unwrap_or(&FailurePolicy::Fail) {
                 FailurePolicy::Continue => {
                     eprintln!("  step '{}' failed (continuing): {e}", step.name);
+                    if let Some(ctx) = emits.as_deref_mut() {
+                        ctx.push_failed(&step.name, &e.to_string(), vars);
+                    }
                 }
                 FailurePolicy::Fail | FailurePolicy::Retry => {
                     errors.push(format!("'{}': {e}", step.name));
@@ -1946,6 +2183,7 @@ async fn execute(
                         workflow_dir,
                         wf_provider,
                         wf_model,
+                        None,
                     )
                     .await?;
                 }
@@ -1966,6 +2204,7 @@ async fn execute(
                     workflow_dir,
                     wf_provider,
                     wf_model,
+                    None,
                 )
                 .await?;
             }
@@ -2069,6 +2308,406 @@ async fn execute(
     Ok(())
 }
 
+/// Run a workflow in event-driven mode: read JSONL events from stdin, run the
+/// step DAG once per event, and emit step outcomes as JSONL on stdout.
+///
+/// This is the entry point used when a workflow declares a `[trigger]` table.
+/// Unlike [`execute`], the listener stays alive across many events; per-event
+/// state (variables, step outputs) is reset to the declared baseline each time
+/// a new event arrives. Malformed JSON lines are logged to stderr and skipped;
+/// per-event execution errors are emitted as a terminal `__workflow__`
+/// failure record and the listener continues. Stdin EOF or SIGINT ends the
+/// loop cleanly.
+///
+/// v1 supports only `source = "stdin"` / `format = "jsonl"` for input and
+/// `kind = "stdout-jsonl"` for output. Any other variant is rejected at
+/// validation time, so this function assumes the trigger spec is well-formed.
+async fn execute_event_loop(
+    workflow: &Workflow,
+    workflow_path: &Path,
+    workflow_dir: &Path,
+    disable_resources: bool,
+    disable_memory: bool,
+    disable_storage: bool,
+) -> Result<(), ZigError> {
+    let trigger = workflow
+        .trigger
+        .as_ref()
+        .expect("execute_event_loop called without [trigger]");
+    let mode = EmitMode::parse(trigger.output.as_ref().and_then(|o| o.mode.as_deref()));
+    let include_vars = trigger
+        .output
+        .as_ref()
+        .map(|o| o.include_vars)
+        .unwrap_or(false);
+    let has_output_sink = trigger.output.is_some();
+    let bind_var = trigger.bind.clone();
+
+    let resource_collector = ResourceCollector::from_env(
+        &workflow.workflow.name,
+        &workflow.workflow.resources,
+        workflow_dir,
+        disable_resources,
+    );
+
+    let config = ZigConfig::load();
+    let workflow_memory_mode = MemoryMode::from_str_opt(workflow.workflow.memory.as_deref());
+    let memory_collector = MemoryCollector::from_env(
+        &workflow.workflow.name,
+        workflow_memory_mode,
+        &config,
+        disable_memory,
+    );
+
+    let storage_manager = if disable_storage || workflow.storage.is_empty() {
+        StorageManager::empty()
+    } else {
+        let backend = FilesystemBackend::from_cwd()?;
+        StorageManager::build(&workflow.storage, backend)?
+    };
+
+    // Baseline vars: defaults + file-backed defaults. Cloned per event.
+    let mut baseline_vars = init_vars(workflow);
+    load_file_defaults(&mut baseline_vars, &workflow.vars, workflow_dir)?;
+
+    let tiers = topological_sort(&workflow.steps)?;
+
+    let wf_provider = workflow.workflow.provider.as_deref();
+    let wf_model = workflow.workflow.model.as_deref();
+
+    eprintln!(
+        "zig: listening on stdin (event mode) for workflow '{}' ({} steps in {} tiers)",
+        workflow.workflow.name,
+        workflow.steps.len(),
+        tiers.len()
+    );
+
+    let coordinator = match SessionWriter::create(
+        &workflow.workflow.name,
+        &workflow_path.to_string_lossy(),
+        None,
+        tiers.len(),
+    ) {
+        Ok(writer) => {
+            eprintln!("zig session: {}", writer.session_id());
+            Some(SessionCoordinator::start(writer))
+        }
+        Err(e) => {
+            eprintln!("warning: failed to open zig session log: {e}");
+            None
+        }
+    };
+    let session_writer: Option<Arc<SessionWriter>> = coordinator.as_ref().map(|c| c.writer());
+    let session_ref = session_writer.as_ref();
+
+    let stdin = tokio::io::stdin();
+    let mut reader = tokio::io::BufReader::new(stdin);
+
+    let mut sigint = std::pin::pin!(tokio::signal::ctrl_c());
+    let mut seq: u64 = 0;
+
+    loop {
+        let mut line = String::new();
+        let read = tokio::select! {
+            biased;
+            _ = &mut sigint => {
+                eprintln!("zig: SIGINT received; exiting listener");
+                break;
+            }
+            n = reader.read_line(&mut line) => n,
+        };
+        match read {
+            Ok(0) => break,
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("zig: stdin read error: {e}; exiting listener");
+                break;
+            }
+        }
+
+        let trimmed = line.trim_end_matches(['\n', '\r']);
+        if trimmed.is_empty() {
+            continue;
+        }
+        if serde_json::from_str::<serde_json::Value>(trimmed).is_err() {
+            eprintln!("zig: skipping malformed JSON line");
+            continue;
+        }
+
+        seq += 1;
+        let event_id = format!("evt-{seq:06}");
+
+        let mut vars = baseline_vars.clone();
+        vars.insert(bind_var.clone(), trimmed.to_string());
+
+        if let Err(errors) = validate::validate_var_values(&vars, &workflow.vars) {
+            let msgs: Vec<String> = errors.iter().map(|e| e.to_string()).collect();
+            eprintln!(
+                "zig: event {event_id} failed var validation: {}",
+                msgs.join("; ")
+            );
+            continue;
+        }
+
+        let mut buffer: Vec<EmitRecord> = Vec::new();
+        let workflow_name = workflow.workflow.name.clone();
+        let outcome = run_dag_once(
+            workflow,
+            &tiers,
+            &mut vars,
+            &workflow_name,
+            session_ref,
+            &resource_collector,
+            &memory_collector,
+            &storage_manager,
+            workflow_dir,
+            wf_provider,
+            wf_model,
+            &event_id,
+            seq,
+            include_vars,
+            &mut buffer,
+        )
+        .await;
+
+        if let Err(e) = outcome {
+            eprintln!("zig: event {event_id} failed: {e}; continuing");
+            buffer.push(EmitRecord {
+                event_id: event_id.clone(),
+                event_seq: seq,
+                step: "__workflow__".into(),
+                status: "failed".into(),
+                output: None,
+                error: Some(e.to_string()),
+                reason: None,
+                ts: emit_timestamp(),
+                vars_snapshot: if include_vars {
+                    Some(vars.clone())
+                } else {
+                    None
+                },
+            });
+        }
+
+        if has_output_sink {
+            let stdout = std::io::stdout();
+            let mut stdout_lock = stdout.lock();
+            flush_emits(&mut stdout_lock, &buffer, mode, &workflow.steps)?;
+        }
+    }
+
+    eprintln!("zig: listener exiting (events processed: {seq})");
+    if let Some(c) = coordinator {
+        let _ = c.finish(SessionStatus::Success);
+    }
+    Ok(())
+}
+
+/// Run one DAG pass for a single event in trigger mode.
+///
+/// Mirrors the body of the iteration loop inside [`execute`]: walks tiers
+/// in topological order, executes sequential / parallel / race steps, and
+/// honors `next` jumps up to [`MAX_LOOP_ITERATIONS`]. Each step outcome is
+/// recorded into `emit_buffer` for the caller to flush per the trigger's
+/// configured emit mode.
+#[allow(clippy::too_many_arguments)]
+async fn run_dag_once(
+    workflow: &Workflow,
+    tiers: &[Vec<&Step>],
+    vars: &mut HashMap<String, String>,
+    workflow_name: &str,
+    session_ref: Option<&Arc<SessionWriter>>,
+    resource_collector: &ResourceCollector<'_>,
+    memory_collector: &MemoryCollector,
+    storage_manager: &StorageManager,
+    workflow_dir: &Path,
+    wf_provider: Option<&str>,
+    wf_model: Option<&str>,
+    event_id: &str,
+    event_seq: u64,
+    include_vars: bool,
+    emit_buffer: &mut Vec<EmitRecord>,
+) -> Result<(), ZigError> {
+    let mut step_outputs: HashMap<String, String> = HashMap::new();
+    let mut iteration = 0;
+    let mut pending_next: Option<String> = None;
+
+    loop {
+        let tiers_to_run: Vec<Vec<&Step>> = if let Some(ref next_step) = pending_next {
+            let remaining: Vec<Vec<&Step>> = tiers
+                .iter()
+                .map(|tier| {
+                    tier.iter()
+                        .filter(|s| s.name == *next_step)
+                        .copied()
+                        .collect::<Vec<_>>()
+                })
+                .filter(|tier| !tier.is_empty())
+                .collect();
+            pending_next = None;
+            remaining
+        } else if iteration == 0 {
+            tiers.to_vec()
+        } else {
+            break;
+        };
+
+        for (tier_index, tier) in tiers_to_run.iter().enumerate() {
+            let (non_race, race_groups) = partition_tier(tier);
+
+            if let Some(w) = session_ref {
+                let names: Vec<String> = tier.iter().map(|s| s.name.clone()).collect();
+                let _ = w.tier_started(tier_index, names);
+            }
+
+            let mut emit_ctx = EmitContext {
+                event_id,
+                event_seq,
+                include_vars,
+                buffer: emit_buffer,
+            };
+
+            if non_race.len() <= 1 {
+                for step in &non_race {
+                    execute_sequential_step(
+                        step,
+                        vars,
+                        None,
+                        &mut step_outputs,
+                        workflow_name,
+                        &mut pending_next,
+                        tier_index,
+                        session_ref,
+                        &workflow.roles,
+                        resource_collector,
+                        memory_collector,
+                        storage_manager,
+                        workflow_dir,
+                        wf_provider,
+                        wf_model,
+                        Some(&mut emit_ctx),
+                    )
+                    .await?;
+                }
+            } else {
+                execute_parallel_tier(
+                    &non_race,
+                    vars,
+                    None,
+                    &mut step_outputs,
+                    workflow_name,
+                    &mut pending_next,
+                    tier_index,
+                    session_ref,
+                    &workflow.roles,
+                    resource_collector,
+                    memory_collector,
+                    storage_manager,
+                    workflow_dir,
+                    wf_provider,
+                    wf_model,
+                    Some(&mut emit_ctx),
+                )
+                .await?;
+            }
+
+            for (group_name, race_steps) in &race_groups {
+                eprintln!("  starting race group '{group_name}'...");
+
+                let mut prompts = HashMap::new();
+                let mut race_sps: HashMap<String, String> = HashMap::new();
+                let mut race_storage_dirs: HashMap<String, Vec<std::path::PathBuf>> =
+                    HashMap::new();
+                let mut active_steps: Vec<&Step> = Vec::new();
+                for step in race_steps {
+                    if let Some(condition) = &step.condition {
+                        if !evaluate_condition(condition, vars)? {
+                            eprintln!(
+                                "  skipping '{}' (condition not met: {condition})",
+                                step.name
+                            );
+                            emit_ctx.push_skipped(
+                                &step.name,
+                                &format!("condition not met: {condition}"),
+                                vars,
+                            );
+                            continue;
+                        }
+                    }
+                    let prompt = render_step_prompt(step, vars, None, &step_outputs);
+                    prompts.insert(step.name.clone(), prompt);
+                    if let Some(sp) = resolve_role_system_prompt(
+                        step,
+                        &workflow.roles,
+                        resource_collector,
+                        memory_collector,
+                        storage_manager,
+                        vars,
+                        workflow_dir,
+                        workflow_name,
+                    )? {
+                        race_sps.insert(step.name.clone(), sp);
+                    }
+                    race_storage_dirs.insert(
+                        step.name.clone(),
+                        storage_manager.add_dirs_for_step(step.storage.as_deref()),
+                    );
+                    active_steps.push(step);
+                }
+
+                if active_steps.is_empty() {
+                    continue;
+                }
+
+                match execute_race_group(
+                    &active_steps,
+                    &prompts,
+                    &race_sps,
+                    workflow_name,
+                    tier_index,
+                    session_ref,
+                    wf_provider,
+                    wf_model,
+                    &race_storage_dirs,
+                )
+                .await
+                {
+                    Ok((winner_name, output)) => {
+                        if let Some(winner) = active_steps.iter().find(|s| s.name == winner_name) {
+                            if !winner.saves.is_empty() {
+                                let saved = extract_saves(&output, &winner.saves)?;
+                                for (k, v) in &saved {
+                                    eprintln!("    saved {k} = {v}");
+                                }
+                                vars.extend(saved);
+                            }
+                            emit_ctx.push_ok(&winner.name, &output, vars);
+                            if winner.next.is_some() {
+                                pending_next = winner.next.clone();
+                            }
+                        }
+                        step_outputs.insert(winner_name.clone(), output);
+                        eprintln!(
+                            "  completed race group '{group_name}' (winner: '{winner_name}')"
+                        );
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
+        iteration += 1;
+        if pending_next.is_none() || iteration >= MAX_LOOP_ITERATIONS {
+            if iteration >= MAX_LOOP_ITERATIONS {
+                eprintln!("warning: reached maximum loop iterations ({MAX_LOOP_ITERATIONS})");
+            }
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 /// Short label for the zag subcommand a step will invoke. Used in
 /// `step_started` events so listeners can distinguish run/review/plan/etc.
 fn zag_command_name(cmd: &Option<StepCommand>) -> &'static str {
@@ -2100,3 +2739,7 @@ fn prompt_preview(prompt: &str) -> String {
 #[cfg(test)]
 #[path = "run_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "run_trigger_tests.rs"]
+mod trigger_tests;

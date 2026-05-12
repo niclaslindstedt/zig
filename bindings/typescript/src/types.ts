@@ -10,12 +10,47 @@ export interface Workflow {
   vars: Record<string, Variable>;
   steps: Step[];
   /**
+   * Optional event-driven trigger. When set, `zig run` enters a listen loop
+   * instead of one-shot execution: it reads events from the declared source,
+   * runs the DAG once per event with the event payload bound to a variable,
+   * and emits per-step outcomes to the configured sink.
+   */
+  trigger?: TriggerSpec;
+  /**
    * Declared storage — structured writable working data for the run. Keys
    * are storage names; values declare a folder or file the workflow's steps
    * can read and write. Paths resolve against `<cwd>/.zig/`; absolute paths
    * pass through unchanged.
    */
   storage?: Record<string, StorageSpec>;
+}
+
+/** Event-driven trigger declaration. v1 supports only stdin / JSONL. */
+export interface TriggerSpec {
+  /** Event source. v1: only `"stdin"`. */
+  source: "stdin" | string;
+  /**
+   * Wire format for the source. With `source = "stdin"`: only `"jsonl"`.
+   * Defaults to `"jsonl"` when omitted.
+   */
+  format?: "jsonl" | string;
+  /**
+   * Name of the variable that receives each event's raw JSON payload. Must
+   * match a `vars` entry whose `from = "event"`.
+   */
+  bind: string;
+  /** Where step outputs are emitted. When absent, no emission occurs. */
+  output?: TriggerOutput;
+}
+
+/** Output sink configuration for an event-driven workflow. */
+export interface TriggerOutput {
+  /** Sink kind. v1: only `"stdout-jsonl"`. */
+  kind: "stdout-jsonl" | string;
+  /** Emit mode: `"all-steps"` (default), `"final"`, or `"opt-in"`. */
+  mode?: "all-steps" | "final" | "opt-in";
+  /** When true, each emit record carries a `vars_snapshot` field. */
+  include_vars?: boolean;
 }
 
 /** Whether a storage entry is a folder or a single file. */
@@ -259,6 +294,12 @@ export interface Step {
   plan_output?: string;
   /** Additional instructions for plan generation (only valid when command = "plan"). */
   instructions?: string;
+
+  /**
+   * Opt-in flag for emission when the workflow runs under a trigger with
+   * `[trigger.output].mode = "opt-in"`. Ignored in other modes.
+   */
+  emit?: boolean;
 }
 
 /** What to do when a step fails. */
