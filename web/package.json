@@ -11,7 +11,7 @@
   "dependencies": {
     "@nlindstedt/zig-api-client": "file:../clients/typescript",
     "@nlindstedt/zig-workflow": "^0.5.7",
-    "react": "^19.0.0",
+    "react": "^19.2.6",
     "react-dom": "^19.0.0",
     "zag-agent": "latest"
   },
