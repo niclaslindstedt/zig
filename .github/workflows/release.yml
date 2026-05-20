@@ -83,7 +83,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
-      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           targets: ${{ matrix.target }}
       - name: install aarch64 cross linker
@@ -151,7 +151,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.update-repo.outputs.commit_sha }}
-      - uses: dtolnay/rust-toolchain@1.94.0
+      - uses: dtolnay/rust-toolchain@1.100.0
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
